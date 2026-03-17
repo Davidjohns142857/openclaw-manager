@@ -23,6 +23,7 @@ Use this skill when the user is managing long-running OpenClaw work rather than 
 2. Prefer reading `checkpoint.json` and `summary.md` before inspecting lower-level logs.
 3. Keep connector semantics out of the core control plane; all external input should pass through the normalized inbound-message contract.
 4. Use append-only writes for event, trace, and capability-fact streams.
+5. Treat the local sidecar HTTP API as the canonical skill boundary; do not bypass it by importing control-plane internals into host-facing command code.
 
 ## References
 

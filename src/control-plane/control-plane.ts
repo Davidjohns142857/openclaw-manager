@@ -78,14 +78,11 @@ export class ControlPlane {
       ? await this.store.readRun(session.session_id, session.active_run_id)
       : await this.getLatestRun(session.session_id);
     const checkpoint = run ? await this.store.readCheckpoint(session.session_id, run.run_id) : null;
-    const recoveredSession = checkpoint
-      ? this.checkpointService.applyCheckpoint(session, checkpoint)
-      : session;
     const summary = run
       ? await this.store.readRecoverySummary(session.session_id, run.run_id)
       : await this.store.readSummary(session.session_id);
 
-    return { session: recoveredSession, run, checkpoint, summary };
+    return { session, run, checkpoint, summary };
   }
 
   async adoptSession(input: AdoptSessionInput): Promise<{ session: Session; run: Run }> {
