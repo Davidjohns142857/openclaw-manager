@@ -35,6 +35,11 @@ test("thin host integration runs the canonical command flow over real HTTP", asy
     assert.equal(sessions[0].session_id, sessionId);
     assert.equal(sessions[0].activity.run.phase, "running");
 
+    const timeline = await client.getSessionTimeline(sessionId);
+    assert.equal(timeline.contract_id, "session_run_timeline_v1");
+    assert.equal(timeline.run_count, 1);
+    assert.equal(timeline.runs[0]?.trigger.trigger_type, "manual");
+
     const bound = (await executeManagerCommand(client, "/bind", {
       session_id: sessionId,
       source_type: "telegram",

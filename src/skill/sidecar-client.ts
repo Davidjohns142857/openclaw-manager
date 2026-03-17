@@ -16,6 +16,7 @@ import type {
   RebindSourceResult,
   ReservedContractMutationResult,
   ResolveHumanDecisionInput,
+  SessionTimelineView,
   ShareSnapshotResult
 } from "../shared/contracts.ts";
 import type {
@@ -154,6 +155,10 @@ export class ManagerSidecarClient implements ManagerCommandClient {
 
   async getSession(sessionId: string): Promise<SessionDetailEnvelope> {
     return this.request("GET", `/sessions/${encodeURIComponent(sessionId)}`);
+  }
+
+  async getSessionTimeline(sessionId: string): Promise<SessionTimelineView> {
+    return this.request("GET", `/sessions/${encodeURIComponent(sessionId)}/timeline`);
   }
 
   async focus(): Promise<AttentionUnit[]> {

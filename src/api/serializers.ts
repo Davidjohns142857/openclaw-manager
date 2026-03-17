@@ -4,7 +4,8 @@ import type {
   BindSourceResult,
   DisableBindingResult,
   RebindSourceResult,
-  ReservedContractMutationResult
+  ReservedContractMutationResult,
+  SessionTimelineView
 } from "../shared/contracts.ts";
 
 export function serializeSession(session: Session, run: Run | null): Record<string, unknown> {
@@ -69,5 +70,17 @@ export function serializeRebindSourceResult(result: RebindSourceResult): Record<
     previous_session_id: result.previous_session_id,
     changed: result.changed,
     ...serializeSessionDetail(result)
+  };
+}
+
+export function serializeSessionTimeline(result: SessionTimelineView): Record<string, unknown> {
+  return {
+    contract_id: result.contract_id,
+    generated_at: result.generated_at,
+    session: {
+      ...result.session
+    },
+    run_count: result.run_count,
+    runs: result.runs
   };
 }

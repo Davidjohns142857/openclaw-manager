@@ -29,7 +29,8 @@ import {
   serializeRebindSourceResult,
   serializeReservedMutationResult,
   serializeSession,
-  serializeSessionDetail
+  serializeSessionDetail,
+  serializeSessionTimeline
 } from "./serializers.ts";
 
 class HttpError extends Error {
@@ -424,6 +425,16 @@ export class ManagerServer {
           response,
           200,
           serializeSessionDetail(await this.controlPlane.getSessionDetail(sessionId))
+        );
+        return;
+      }
+
+      const timelineSessionId = matchSessionRoute(pathname, "timeline");
+      if (request.method === "GET" && timelineSessionId) {
+        jsonResponse(
+          response,
+          200,
+          serializeSessionTimeline(await this.controlPlane.getSessionTimeline(timelineSessionId))
         );
         return;
       }

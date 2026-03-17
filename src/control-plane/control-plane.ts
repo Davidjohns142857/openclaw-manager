@@ -15,6 +15,7 @@ import type {
   RebindSourceInput,
   RebindSourceResult,
   RunSettlementResult,
+  SessionTimelineView,
   ReservedContractMutationResult,
   ResolveHumanDecisionInput,
   DetectBlockerInput,
@@ -41,6 +42,7 @@ import {
 } from "../connectors/base.ts";
 import { CapabilityFactService } from "../telemetry/capability-facts.ts";
 import { SkillTraceService } from "../telemetry/skill-trace.ts";
+import { TimelineService } from "../timeline/timeline-service.ts";
 import { AttentionService } from "./attention-service.ts";
 import {
   BindingService,
@@ -71,6 +73,7 @@ export class ControlPlane {
   skillTraceService: SkillTraceService;
   capabilityFactService: CapabilityFactService;
   reservedContractService: ReservedContractService;
+  timelineService: TimelineService;
 
   constructor(config: ManagerConfig, store: FilesystemStore) {
     this.config = config;
@@ -88,6 +91,7 @@ export class ControlPlane {
       this.sessionService,
       this.eventService
     );
+    this.timelineService = new TimelineService(store);
   }
 
   async initialize(): Promise<void> {
@@ -120,6 +124,16 @@ export class ControlPlane {
       : await this.store.readSummary(session.session_id);
 
     return { session, run, checkpoint, summary };
+  }
+
+  async getSessionTimeline(sessionId: string): Promise<SessionTimelineView> {
+    const session = await this.sessionService.requireSession(sessionId);
+    const runs = await this.store.listRuns(session.session_id);
+    const currentRun = session.active_run_id
+      ? await this.store.readRun(session.session_id, session.active_run_id)
+      : runs[0] ?? null;
+
+    return this.timelineService.buildSessionTimeline(session, currentRun, runs);
   }
 
   async adoptSession(input: AdoptSessionInput): Promise<{ session: Session; run: Run }> {

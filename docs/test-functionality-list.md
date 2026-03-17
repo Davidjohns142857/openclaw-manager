@@ -322,6 +322,7 @@
 文件：
 
 - [`tests/phase2.run-lifecycle.test.ts`](/Users/yangshangqing/metaclaw/tests/phase2.run-lifecycle.test.ts)
+- [`docs/run-guarantees.md`](/Users/yangshangqing/metaclaw/docs/run-guarantees.md)
 
 当前覆盖：
 
@@ -336,6 +337,26 @@
 
 - run-level artifact export / evidence snapshot
 - run trigger 统计与 capability facts 的联动
+
+### 3.15 Run Timeline And Evidence View
+
+文件：
+
+- [`tests/phase2.timeline.test.ts`](/Users/yangshangqing/metaclaw/tests/phase2.timeline.test.ts)
+- [`docs/run-timeline-contract.md`](/Users/yangshangqing/metaclaw/docs/run-timeline-contract.md)
+
+当前覆盖：
+
+- `GET /sessions/:session_id/timeline` 返回稳定的 `session_run_timeline_v1`
+- timeline 能按 run 回答 trigger、status flow、outcome
+- timeline 会暴露每个 run 的 committed checkpoint 摘要与 terminal head marker
+- timeline 会暴露每个 run 的最小 evidence refs 与计数
+
+适合继续补的独立测试方向：
+
+- session-level timeline markdown export
+- richer run milestone events beyond status-flow
+- evidence snapshot bundling
 
 ## 4. 当前自动化校验总表
 
@@ -366,6 +387,7 @@
 - first real GitHub connector adapter
 - browser-plugin ingress adapter
 - run lifecycle and evidence refs
+- run timeline and evidence view
 - `session.activity` 与 `focus` 的基础交互语义
 - reserved decision/blocker API registry
 - feature-gated reserved mutation routes

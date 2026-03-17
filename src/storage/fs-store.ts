@@ -111,6 +111,24 @@ export class FilesystemStore {
     }
   }
 
+  async readJsonl<T>(filePath: string): Promise<T[]> {
+    try {
+      const contents = await readFile(filePath, "utf8");
+
+      return contents
+        .split("\n")
+        .map((line) => line.trim())
+        .filter(Boolean)
+        .map((line) => JSON.parse(line) as T);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+        return [];
+      }
+
+      throw error;
+    }
+  }
+
   async readValidatedJson<T>(kind: SchemaKind, filePath: string): Promise<T | null> {
     const value = await this.readJson<T>(filePath);
 
@@ -395,6 +413,16 @@ export class FilesystemStore {
     });
   }
 
+  async readRunEvents(sessionId: string, runId: string): Promise<Event[]> {
+    const events = await this.readJsonl<Event>(path.join(this.runDir(sessionId, runId), "events.jsonl"));
+
+    for (const event of events) {
+      await this.schemaRegistry.validateOrThrow("event", event);
+    }
+
+    return events.sort((left, right) => left.timestamp.localeCompare(right.timestamp));
+  }
+
   async appendSkillTrace(sessionId: string, runId: string, trace: SkillTrace): Promise<void> {
     await this.schemaRegistry.validateOrThrow("skill-trace", trace);
 
@@ -404,11 +432,27 @@ export class FilesystemStore {
     });
   }
 
+  async readSkillTraces(sessionId: string, runId: string): Promise<SkillTrace[]> {
+    const traces = await this.readJsonl<SkillTrace>(
+      path.join(this.runDir(sessionId, runId), "skill_traces.jsonl")
+    );
+
+    for (const trace of traces) {
+      await this.schemaRegistry.validateOrThrow("skill-trace", trace);
+    }
+
+    return traces.sort((left, right) => left.created_at.localeCompare(right.created_at));
+  }
+
   async appendSpoolLine(sessionId: string, runId: string, payload: unknown): Promise<void> {
     await this.lock.runExclusive(async () => {
       await this.ensureRunLayout(sessionId, runId);
       await this.appendJsonl(path.join(this.runDir(sessionId, runId), "spool.jsonl"), payload);
     });
+  }
+
+  async readSpoolLines(sessionId: string, runId: string): Promise<unknown[]> {
+    return this.readJsonl<unknown>(path.join(this.runDir(sessionId, runId), "spool.jsonl"));
   }
 
   async writeSessionIndexes(sessionsIndex: unknown, activeSessionsIndex: unknown): Promise<void> {

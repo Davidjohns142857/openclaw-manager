@@ -1,15 +1,21 @@
+import type { SessionActivity } from "./activity.ts";
 import type {
   Blocker,
   Checkpoint,
   ConnectorBinding,
   ConnectorBindingStatus,
+  EventType,
   NormalizedInboundMessage,
   PendingHumanDecision,
   Priority,
   Run,
+  RunOutcome,
+  RunPlanner,
   RunResultType,
   RunStatus,
+  RunTrigger,
   Session,
+  SessionStatus,
   SourceChannel
 } from "./types.ts";
 
@@ -133,6 +139,76 @@ export interface RunSettlementResult {
   checkpoint: Checkpoint | null;
   summary: string | null;
   recovery_head_advanced: boolean;
+}
+
+export interface SessionTimelineSummary {
+  session_id: string;
+  title: string;
+  objective: string;
+  status: SessionStatus;
+  active_run_id: string | null;
+  latest_checkpoint_ref: string | null;
+  latest_summary_ref: string | null;
+  activity: SessionActivity;
+}
+
+export interface RunStatusFlowEntry {
+  event_id: string;
+  event_type: EventType;
+  timestamp: string;
+  status: RunStatus | null;
+  summary: string | null;
+  reason_code: string | null;
+}
+
+export interface RunRecoveryView {
+  recovery_checkpoint_ref: string | null;
+  end_checkpoint_ref: string | null;
+  summary_ref: string | null;
+  committed_checkpoint_available: boolean;
+  terminal_head_advanced: boolean;
+  checkpoint_created_at: string | null;
+  checkpoint_session_status: SessionStatus | null;
+  checkpoint_phase: string | null;
+  blocker_count: number;
+  pending_human_decision_count: number;
+  pending_external_input_count: number;
+  next_machine_actions: string[];
+  next_human_actions: string[];
+  artifact_refs: string[];
+}
+
+export interface RunEvidenceView {
+  events_ref: string | null;
+  event_count: number;
+  skill_traces_ref: string | null;
+  skill_trace_count: number;
+  spool_ref: string | null;
+  spool_line_count: number;
+  artifact_refs: string[];
+  invoked_skills: string[];
+  invoked_tools: string[];
+}
+
+export interface RunTimelineView {
+  run_id: string;
+  status: RunStatus;
+  started_at: string;
+  ended_at: string | null;
+  trigger: RunTrigger;
+  planner: RunPlanner;
+  outcome: RunOutcome;
+  status_flow: RunStatusFlowEntry[];
+  recovery: RunRecoveryView;
+  evidence: RunEvidenceView;
+}
+
+export interface SessionTimelineView {
+  contract_id: "session_run_timeline_v1";
+  generated_at: string;
+  session: SessionTimelineSummary;
+  run_count: number;
+  runs: RunTimelineView[];
 }
 
 export interface RequestHumanDecisionInput {
