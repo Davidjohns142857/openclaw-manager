@@ -37,7 +37,8 @@ test("all shipped schemas parse as valid JSON", async () => {
     "schemas/skill-trace.schema.json",
     "schemas/attention-unit.schema.json",
     "schemas/capability-fact.schema.json",
-    "schemas/inbound-message.schema.json"
+    "schemas/inbound-message.schema.json",
+    "schemas/connector-binding.schema.json"
   ];
 
   for (const schemaFile of schemaFiles) {
@@ -76,11 +77,18 @@ test("server route layer exports canonical session activity and command boundary
     const detail = detailResponse.body as { session: Record<string, unknown> };
     assert.ok(detail.session.activity);
 
+    const bindResponse = await dispatchRoute(server, "POST", "/bind", {
+      session_id: adopted.session.session_id,
+      source_type: "telegram",
+      source_thread_key: "tg_route_bound_001"
+    });
+    assert.equal(bindResponse.statusCode, 200);
+    assert.ok((bindResponse.body as { binding: unknown }).binding);
+
     const inboundResponse = await dispatchRoute(server, "POST", "/inbound-message", {
       request_id: "req_route_001",
       source_type: "telegram",
-      source_thread_key: "tg_route_001",
-      target_session_id: adopted.session.session_id,
+      source_thread_key: "tg_route_bound_001",
       message_type: "user_message",
       content: "Route-level inbound test."
     });

@@ -10,6 +10,7 @@ This repository now contains a Phase 1 MVP scaffold:
 - markdown/html templates under [`templates/`](/Users/yangshangqing/metaclaw/templates)
 - a requirement mapping from the source concept docs under [`docs/mvp-requirements.md`](/Users/yangshangqing/metaclaw/docs/mvp-requirements.md)
 - explicit transport rules under [`docs/http-protocol-boundary.md`](/Users/yangshangqing/metaclaw/docs/http-protocol-boundary.md)
+- explicit connector/binding rules under [`docs/connector-protocol.md`](/Users/yangshangqing/metaclaw/docs/connector-protocol.md)
 - explicit recovery rules under [`docs/recovery-model.md`](/Users/yangshangqing/metaclaw/docs/recovery-model.md)
 - an OpenClaw host integration contract under [`docs/openclaw-host-integration.md`](/Users/yangshangqing/metaclaw/docs/openclaw-host-integration.md)
 - a host message capture / admission contract under [`docs/host-message-admission.md`](/Users/yangshangqing/metaclaw/docs/host-message-admission.md)

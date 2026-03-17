@@ -3,6 +3,8 @@ import path from "node:path";
 
 import type {
   AdoptSessionInput,
+  BindSourceInput,
+  BindSourceResult,
   ClearBlockerInput,
   CloseSessionInput,
   InboundHandlingResult,
@@ -19,10 +21,19 @@ import { canAutoContinueSession, isTerminalSessionStatus } from "../shared/state
 import { renderTemplate } from "../shared/template.ts";
 import { buildSessionIndexes } from "../storage/indexes.ts";
 import { FilesystemStore } from "../storage/fs-store.ts";
-import { normalizeInboundMessage, type NormalizeInboundMessageInput } from "../connectors/base.ts";
+import {
+  normalizeInboundMessage,
+  type ExternalInboundMessageInput,
+  type NormalizeInboundMessageInput
+} from "../connectors/base.ts";
 import { CapabilityFactService } from "../telemetry/capability-facts.ts";
 import { SkillTraceService } from "../telemetry/skill-trace.ts";
 import { AttentionService } from "./attention-service.ts";
+import {
+  BindingService,
+  ConnectorBindingConflictError,
+  ConnectorBindingNotFoundError
+} from "./binding-service.ts";
 import { CheckpointService } from "./checkpoint-service.ts";
 import { EventService } from "./event-service.ts";
 import { RunService } from "./run-service.ts";
@@ -42,6 +53,7 @@ export class ControlPlane {
   runService: RunService;
   checkpointService: CheckpointService;
   attentionService: AttentionService;
+  bindingService: BindingService;
   shareService: ShareService;
   skillTraceService: SkillTraceService;
   capabilityFactService: CapabilityFactService;
@@ -55,6 +67,7 @@ export class ControlPlane {
     this.runService = new RunService(store, this.eventService);
     this.checkpointService = new CheckpointService(config, store, this.eventService);
     this.attentionService = new AttentionService();
+    this.bindingService = new BindingService(store, this.sessionService, this.eventService);
     this.shareService = new ShareService(config, store);
     this.skillTraceService = new SkillTraceService(store);
     this.capabilityFactService = new CapabilityFactService();
@@ -263,6 +276,57 @@ export class ControlPlane {
       checkpoint: refreshed.checkpoint,
       summary: refreshed.summary
     };
+  }
+
+  async listBindings() {
+    return this.bindingService.listBindings();
+  }
+
+  async bindSource(input: BindSourceInput): Promise<BindSourceResult> {
+    const session = await this.sessionService.requireSession(input.session_id);
+    const run = session.active_run_id
+      ? await this.store.readRun(session.session_id, session.active_run_id)
+      : await this.getLatestRun(session.session_id);
+    const bound = await this.bindingService.bindSource(session, run, input);
+
+    await this.refreshDerivedViews();
+
+    const detail = await this.getSessionDetail(bound.session.session_id);
+    return {
+      binding: bound.binding,
+      created: bound.created,
+      session: detail.session,
+      run: detail.run,
+      checkpoint: detail.checkpoint,
+      summary: detail.summary
+    };
+  }
+
+  async resolveInboundTargetSessionId(
+    sourceType: string,
+    sourceThreadKey: string,
+    explicitTargetSessionId?: string
+  ): Promise<string> {
+    return this.bindingService.resolveTargetSessionId(
+      sourceType,
+      sourceThreadKey,
+      explicitTargetSessionId
+    );
+  }
+
+  async handleExternalInboundMessage(
+    input: ExternalInboundMessageInput
+  ): Promise<InboundHandlingResult> {
+    const targetSessionId = await this.resolveInboundTargetSessionId(
+      input.source_type,
+      input.source_thread_key,
+      input.target_session_id
+    );
+
+    return this.handleInboundMessage({
+      ...input,
+      target_session_id: targetSessionId
+    });
   }
 
   private async buildReservedContractResult(
@@ -691,6 +755,9 @@ export class ControlPlane {
       queued: !runStarted
     };
   }
+
+  static ConnectorBindingConflictError = ConnectorBindingConflictError;
+  static ConnectorBindingNotFoundError = ConnectorBindingNotFoundError;
 
   async refreshDerivedViews(): Promise<void> {
     const sessions = await this.sessionService.listSessions();

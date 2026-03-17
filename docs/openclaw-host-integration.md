@@ -51,9 +51,11 @@ OpenClaw 命令进入 Manager 后，应默认走本地 sidecar HTTP API。
 - `GET /commands`
 - `GET /sessions`
 - `GET /sessions/:session_id`
+- `GET /bindings`
 - `GET /focus`
 - `GET /digest`
 - `POST /adopt`
+- `POST /bind`
 - `POST /sessions/:session_id/resume`
 - `POST /sessions/:session_id/checkpoint`
 - `POST /sessions/:session_id/share`
@@ -151,6 +153,7 @@ Phase 1 当前接受的启动方式是：
 - `/focus` -> `GET /focus`
 - `/digest` -> `GET /digest`
 - `/adopt` -> `POST /adopt`
+- `/bind` -> `POST /bind`
 - `/resume` -> `POST /sessions/:session_id/resume`
 - `/checkpoint` -> `POST /sessions/:session_id/checkpoint`
 - `/share` -> `POST /sessions/:session_id/share`

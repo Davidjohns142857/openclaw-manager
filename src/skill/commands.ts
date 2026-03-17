@@ -1,4 +1,4 @@
-import type { AdoptSessionInput, CloseSessionInput } from "../shared/contracts.ts";
+import type { AdoptSessionInput, BindSourceInput, CloseSessionInput } from "../shared/contracts.ts";
 import type { SourceChannel } from "../shared/types.ts";
 
 export interface ManagerCommandDefinition {
@@ -12,6 +12,7 @@ export interface ManagerCommandClient {
   focus(): Promise<unknown>;
   digest(): Promise<unknown>;
   adopt(input: AdoptSessionInput): Promise<unknown>;
+  bind(input: BindSourceInput): Promise<unknown>;
   resume(sessionId: string): Promise<unknown>;
   checkpoint(sessionId: string): Promise<unknown>;
   share(sessionId: string): Promise<unknown>;
@@ -58,6 +59,11 @@ export const managerCommands: ManagerCommandDefinition[] = [
     command: "/adopt",
     usage: "/adopt",
     description: "Promote a task conversation into a durable session."
+  },
+  {
+    command: "/bind",
+    usage: "/bind <session_id> <source_type> <source_thread_key>",
+    description: "Bind an external source thread to an existing session."
   }
 ];
 
@@ -136,6 +142,13 @@ export async function executeManagerCommand(
           typeof payload.scenario_signature === "string" ? payload.scenario_signature : undefined,
         source_channel: asSourceChannel(payload.source_channel),
         next_machine_actions: asStringArray(payload.next_machine_actions),
+        metadata: asRecord(payload.metadata)
+      });
+    case "/bind":
+      return client.bind({
+        session_id: requireSessionId(payload),
+        source_type: String(payload.source_type ?? ""),
+        source_thread_key: String(payload.source_thread_key ?? ""),
         metadata: asRecord(payload.metadata)
       });
     case "/resume":

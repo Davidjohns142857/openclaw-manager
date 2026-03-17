@@ -1,6 +1,6 @@
 import { deriveSessionActivity } from "../shared/activity.ts";
-import type { Checkpoint, Run, Session } from "../shared/types.ts";
-import type { ReservedContractMutationResult } from "../shared/contracts.ts";
+import type { Checkpoint, ConnectorBinding, Run, Session } from "../shared/types.ts";
+import type { BindSourceResult, ReservedContractMutationResult } from "../shared/contracts.ts";
 
 export function serializeSession(session: Session, run: Run | null): Record<string, unknown> {
   return {
@@ -32,6 +32,20 @@ export function serializeReservedMutationResult(
     status: result.status,
     error_code: result.error_code,
     mutation_applied: result.mutation_applied,
+    ...serializeSessionDetail(result)
+  };
+}
+
+export function serializeBinding(binding: ConnectorBinding): Record<string, unknown> {
+  return {
+    ...binding
+  };
+}
+
+export function serializeBindSourceResult(result: BindSourceResult): Record<string, unknown> {
+  return {
+    binding: serializeBinding(result.binding),
+    created: result.created,
     ...serializeSessionDetail(result)
   };
 }

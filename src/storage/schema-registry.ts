@@ -17,6 +17,7 @@ export type SchemaKind =
   | "attention-unit"
   | "capability-fact"
   | "inbound-message"
+  | "connector-binding"
   | "checkpoint";
 
 const schemaFileByKind: Record<SchemaKind, string> = {
@@ -27,6 +28,7 @@ const schemaFileByKind: Record<SchemaKind, string> = {
   "attention-unit": "attention-unit.schema.json",
   "capability-fact": "capability-fact.schema.json",
   "inbound-message": "inbound-message.schema.json",
+  "connector-binding": "connector-binding.schema.json",
   checkpoint: "checkpoint.schema.json"
 };
 

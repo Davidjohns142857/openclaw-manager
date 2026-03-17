@@ -1,5 +1,6 @@
 import type {
   Checkpoint,
+  ConnectorBinding,
   NormalizedInboundMessage,
   Priority,
   Run,
@@ -30,6 +31,22 @@ export interface CloseSessionInput {
   outcome_summary: string;
   resolution?: "completed" | "abandoned";
   metadata?: Record<string, unknown>;
+}
+
+export interface BindSourceInput {
+  session_id: string;
+  source_type: string;
+  source_thread_key: string;
+  metadata?: Record<string, unknown>;
+}
+
+export interface BindSourceResult {
+  binding: ConnectorBinding;
+  created: boolean;
+  session: Session;
+  run: Run | null;
+  checkpoint: Checkpoint | null;
+  summary: string | null;
 }
 
 export interface ShareSnapshotResult {

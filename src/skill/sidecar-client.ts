@@ -1,6 +1,9 @@
+import type { ExternalInboundMessageInput } from "../connectors/base.ts";
 import type { SessionActivity } from "../shared/activity.ts";
 import type {
   AdoptSessionInput,
+  BindSourceInput,
+  BindSourceResult,
   ClearBlockerInput,
   CloseSessionInput,
   DetectBlockerInput,
@@ -9,7 +12,13 @@ import type {
   ResolveHumanDecisionInput,
   ShareSnapshotResult
 } from "../shared/contracts.ts";
-import type { AttentionUnit, Checkpoint, NormalizedInboundMessage, Run, Session } from "../shared/types.ts";
+import type {
+  AttentionUnit,
+  Checkpoint,
+  ConnectorBinding,
+  Run,
+  Session
+} from "../shared/types.ts";
 import type { ManagerCommandClient, ManagerCommandDefinition } from "./commands.ts";
 
 export interface SessionWithActivity extends Session {
@@ -33,6 +42,11 @@ export interface InboundMessageResponse {
 
 export interface ReservedMutationEnvelope
   extends Omit<ReservedContractMutationResult, "session"> {
+  session: SessionWithActivity;
+}
+
+export interface BindSourceEnvelope extends Omit<BindSourceResult, "binding" | "session"> {
+  binding: ConnectorBinding;
   session: SessionWithActivity;
 }
 
@@ -92,6 +106,10 @@ export class ManagerSidecarClient implements ManagerCommandClient {
     return this.request("GET", "/sessions");
   }
 
+  async listBindings(): Promise<ConnectorBinding[]> {
+    return this.request("GET", "/bindings");
+  }
+
   async getSession(sessionId: string): Promise<SessionDetailEnvelope> {
     return this.request("GET", `/sessions/${encodeURIComponent(sessionId)}`);
   }
@@ -106,6 +124,10 @@ export class ManagerSidecarClient implements ManagerCommandClient {
 
   async adopt(input: AdoptSessionInput): Promise<SessionDetailEnvelope> {
     return this.request("POST", "/adopt", input);
+  }
+
+  async bind(input: BindSourceInput): Promise<BindSourceEnvelope> {
+    return this.request("POST", "/bind", input);
   }
 
   async resume(sessionId: string): Promise<SessionDetailEnvelope> {
@@ -124,7 +146,7 @@ export class ManagerSidecarClient implements ManagerCommandClient {
     return this.request("POST", `/sessions/${encodeURIComponent(sessionId)}/close`, input);
   }
 
-  async inboundMessage(message: NormalizedInboundMessage): Promise<InboundMessageResponse> {
+  async inboundMessage(message: ExternalInboundMessageInput): Promise<InboundMessageResponse> {
     return this.request("POST", "/inbound-message", message);
   }
 

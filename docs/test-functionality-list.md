@@ -255,6 +255,27 @@
 - 400 schema validation 分支
 - duplicate decision_id / blocker_id 的 rejected 语义
 
+### 3.11 Connector Binding And External Source Integration
+
+文件：
+
+- [`tests/phase2.connector-binding.test.ts`](/Users/yangshangqing/metaclaw/tests/phase2.connector-binding.test.ts)
+
+当前覆盖：
+
+- `/bind` 会写 durable binding registry，并把 source channel 投影回 session
+- 同 session / same source pair 的重复绑定是幂等的
+- `POST /inbound-message` 在缺少 `target_session_id` 时可通过 active binding 解析 session
+- binding conflict 会拒绝 cross-session 抢占
+- 未绑定 source 在缺少 `target_session_id` 时返回 `404`
+- `/bind` 已进入 command surface，但实现仍然只走 canonical sidecar HTTP
+
+适合继续补的独立测试方向：
+
+- disabled binding / rebind 语义
+- connector polling/webhook adapter contract
+- 多 connector 同 session 的 source-channel 管理
+
 ## 4. 当前自动化校验总表
 
 截至当前，仓库内已有的自动化校验入口包括：
@@ -278,6 +299,8 @@
 - focus 压缩
 - host HTTP 接入
 - host message admission
+- connector binding registry
+- binding-aware external inbound resolution
 - `session.activity` 与 `focus` 的基础交互语义
 - reserved decision/blocker API registry
 - feature-gated reserved mutation routes

@@ -1,6 +1,7 @@
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 
 import type {
+  BindSourceInput,
   ClearBlockerInput,
   CloseSessionInput,
   DetectBlockerInput,
@@ -8,12 +9,17 @@ import type {
   ResolveHumanDecisionInput
 } from "../shared/contracts.ts";
 import { ControlPlane } from "../control-plane/control-plane.ts";
+import {
+  ConnectorBindingConflictError,
+  ConnectorBindingNotFoundError
+} from "../control-plane/binding-service.ts";
 import { buildApiContractIndex } from "./contracts.ts";
 import { handleInboundApi } from "./inbound.ts";
 import { buildHealthPayload } from "./health.ts";
 import { managerCommands } from "../skill/commands.ts";
 import type { ManagerConfig } from "../shared/types.ts";
 import {
+  serializeBindSourceResult,
   serializeReservedMutationResult,
   serializeSession,
   serializeSessionDetail
@@ -220,6 +226,15 @@ function parseClearBlockerInput(body: Record<string, unknown>): ClearBlockerInpu
   };
 }
 
+function parseBindSourceInput(body: Record<string, unknown>): BindSourceInput {
+  return {
+    session_id: requireNonEmptyString(body.session_id, "session_id"),
+    source_type: requireNonEmptyString(body.source_type, "source_type"),
+    source_thread_key: requireNonEmptyString(body.source_thread_key, "source_thread_key"),
+    metadata: asRecord(body.metadata)
+  };
+}
+
 export class ManagerServer {
   controlPlane: ControlPlane;
   config: ManagerConfig;
@@ -270,6 +285,11 @@ export class ManagerServer {
         return;
       }
 
+      if (request.method === "GET" && pathname === "/bindings") {
+        jsonResponse(response, 200, await this.controlPlane.listBindings());
+        return;
+      }
+
       if (request.method === "GET" && pathname === "/focus") {
         jsonResponse(response, 200, await this.controlPlane.focus());
         return;
@@ -277,6 +297,16 @@ export class ManagerServer {
 
       if (request.method === "GET" && pathname === "/digest") {
         jsonResponse(response, 200, { digest: await this.controlPlane.digest() });
+        return;
+      }
+
+      if (request.method === "POST" && pathname === "/bind") {
+        const body = await readJsonBody(request);
+        jsonResponse(
+          response,
+          200,
+          serializeBindSourceResult(await this.controlPlane.bindSource(parseBindSourceInput(body)))
+        );
         return;
       }
 
@@ -330,7 +360,8 @@ export class ManagerServer {
             typeof body.external_trigger_id === "string" ? body.external_trigger_id : null,
           source_type: String(body.source_type ?? ""),
           source_thread_key: String(body.source_thread_key ?? ""),
-          target_session_id: String(body.target_session_id ?? ""),
+          target_session_id:
+            typeof body.target_session_id === "string" ? body.target_session_id : undefined,
           message_type:
             body.message_type === "system_update" ||
             body.message_type === "artifact_notice" ||
@@ -472,6 +503,20 @@ export class ManagerServer {
         error: "Not found"
       });
     } catch (error) {
+      if (error instanceof ConnectorBindingConflictError) {
+        jsonResponse(response, 409, {
+          error: error.message
+        });
+        return;
+      }
+
+      if (error instanceof ConnectorBindingNotFoundError) {
+        jsonResponse(response, 404, {
+          error: error.message
+        });
+        return;
+      }
+
       jsonResponse(response, error instanceof HttpError ? error.statusCode : 500, {
         error: error instanceof Error ? error.message : "Unknown server error"
       });

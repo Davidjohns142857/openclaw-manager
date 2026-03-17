@@ -35,6 +35,11 @@
 - Creates a durable session from an existing thread or explicit task intent.
 - Equivalent sidecar API: `POST /adopt`
 
+### `/bind <session_id> <source_type> <source_thread_key>`
+
+- Creates or reuses a durable external-source binding for a session.
+- Equivalent sidecar API: `POST /bind`
+
 ### `/checkpoint <session_id>`
 
 - Refreshes `checkpoint.json` and `summary.md` for the target session.

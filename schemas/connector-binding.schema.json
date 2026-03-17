@@ -1,0 +1,50 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "openclaw-manager/connector-binding.schema.json",
+  "title": "ConnectorBinding",
+  "type": "object",
+  "required": [
+    "binding_id",
+    "source_type",
+    "source_thread_key",
+    "session_id",
+    "status",
+    "created_at",
+    "updated_at",
+    "metadata"
+  ],
+  "properties": {
+    "binding_id": {
+      "type": "string",
+      "pattern": "^bind_[A-Za-z0-9_-]+$"
+    },
+    "source_type": {
+      "type": "string",
+      "minLength": 1
+    },
+    "source_thread_key": {
+      "type": "string",
+      "minLength": 1
+    },
+    "session_id": {
+      "type": "string",
+      "pattern": "^sess_[A-Za-z0-9_-]+$"
+    },
+    "status": {
+      "type": "string",
+      "enum": ["active", "disabled"]
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "updated_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "metadata": {
+      "type": "object"
+    }
+  },
+  "additionalProperties": true
+}

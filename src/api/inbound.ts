@@ -1,12 +1,12 @@
-import type { NormalizeInboundMessageInput } from "../connectors/base.ts";
+import type { ExternalInboundMessageInput } from "../connectors/base.ts";
 import { ControlPlane } from "../control-plane/control-plane.ts";
 import { serializeSession } from "./serializers.ts";
 
 export async function handleInboundApi(
   controlPlane: ControlPlane,
-  body: NormalizeInboundMessageInput
+  body: ExternalInboundMessageInput
 ): Promise<Record<string, unknown>> {
-  const result = await controlPlane.handleInboundMessage(body);
+  const result = await controlPlane.handleExternalInboundMessage(body);
 
   return {
     duplicate: result.duplicate,

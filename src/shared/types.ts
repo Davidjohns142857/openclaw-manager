@@ -100,6 +100,19 @@ export interface SourceChannel {
   metadata?: Record<string, unknown>;
 }
 
+export type ConnectorBindingStatus = "active" | "disabled";
+
+export interface ConnectorBinding {
+  binding_id: string;
+  source_type: string;
+  source_thread_key: string;
+  session_id: string;
+  status: ConnectorBindingStatus;
+  created_at: string;
+  updated_at: string;
+  metadata: Record<string, unknown>;
+}
+
 export interface Blocker {
   blocker_id: string;
   type: string;

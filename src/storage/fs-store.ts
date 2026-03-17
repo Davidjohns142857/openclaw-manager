@@ -16,6 +16,7 @@ import type {
   AttentionUnit,
   CapabilityFact,
   Checkpoint,
+  ConnectorBinding,
   Event,
   ManagerConfig,
   NormalizedInboundMessage,
@@ -46,6 +47,7 @@ export class FilesystemStore {
       sessions: path.join(root, "sessions"),
       indexes: path.join(root, "indexes"),
       connectors: path.join(root, "connectors"),
+      bindings: path.join(root, "connectors", "bindings.json"),
       inbox: path.join(root, "connectors", "inbox"),
       snapshots: path.join(root, "snapshots"),
       exports: path.join(root, "exports")
@@ -442,6 +444,28 @@ export class FilesystemStore {
 
   async readAttentionQueue(): Promise<AttentionUnit[] | null> {
     return this.readJson<AttentionUnit[]>(path.join(this.paths().indexes, "attention_queue.json"));
+  }
+
+  async readBindings(): Promise<ConnectorBinding[]> {
+    const bindings =
+      (await this.readJson<ConnectorBinding[]>(this.paths().bindings)) ?? [];
+
+    for (const binding of bindings) {
+      await this.schemaRegistry.validateOrThrow("connector-binding", binding);
+    }
+
+    return bindings;
+  }
+
+  async writeBindings(bindings: ConnectorBinding[]): Promise<void> {
+    for (const binding of bindings) {
+      await this.schemaRegistry.validateOrThrow("connector-binding", binding);
+    }
+
+    await this.lock.runExclusive(async () => {
+      await mkdir(this.paths().connectors, { recursive: true });
+      await this.writeJson(this.paths().bindings, bindings);
+    });
   }
 
   async tryClaimInboundMessage(message: NormalizedInboundMessage): Promise<{

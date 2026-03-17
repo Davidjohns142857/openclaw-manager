@@ -35,6 +35,18 @@ test("thin host integration runs the canonical command flow over real HTTP", asy
     assert.equal(sessions[0].session_id, sessionId);
     assert.equal(sessions[0].activity.run.phase, "running");
 
+    const bound = (await executeManagerCommand(client, "/bind", {
+      session_id: sessionId,
+      source_type: "telegram",
+      source_thread_key: "tg-host-flow-001"
+    })) as {
+      created: boolean;
+      binding: { session_id: string; source_thread_key: string };
+    };
+    assert.equal(bound.created, true);
+    assert.equal(bound.binding.session_id, sessionId);
+    assert.equal(bound.binding.source_thread_key, "tg-host-flow-001");
+
     const checkpointed = (await executeManagerCommand(client, "/checkpoint", {
       session_id: sessionId
     })) as {
@@ -183,6 +195,10 @@ test("skill command layer depends on the client contract rather than control-pla
       calls.push("adopt");
       return { ok: true };
     },
+    async bind(input: { session_id: string; source_type: string; source_thread_key: string }) {
+      calls.push(`bind:${input.session_id}:${input.source_type}:${input.source_thread_key}`);
+      return { ok: true };
+    },
     async resume(sessionId: string) {
       calls.push(`resume:${sessionId}`);
       return { sessionId };
@@ -207,6 +223,11 @@ test("skill command layer depends on the client contract rather than control-pla
     title: "Boundary check",
     objective: "Verify command executor mapping."
   });
+  await executeManagerCommand(fakeClient, "/bind", {
+    session_id: "sess_boundary",
+    source_type: "telegram",
+    source_thread_key: "tg_boundary"
+  });
   await executeManagerCommand(fakeClient, "/checkpoint", {
     session_id: "sess_boundary"
   });
@@ -215,5 +236,11 @@ test("skill command layer depends on the client contract rather than control-pla
     outcome_summary: "Boundary closed."
   });
 
-  assert.deepEqual(calls, ["tasks", "adopt", "checkpoint:sess_boundary", "close:sess_boundary"]);
+  assert.deepEqual(calls, [
+    "tasks",
+    "adopt",
+    "bind:sess_boundary:telegram:tg_boundary",
+    "checkpoint:sess_boundary",
+    "close:sess_boundary"
+  ]);
 });
