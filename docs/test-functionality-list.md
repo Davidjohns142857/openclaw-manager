@@ -176,6 +176,24 @@
 - `desynced` 与 active run 的边界
 - `activity.run.phase` 对 terminal run 的语义
 
+### 3.7 Human Decision / Blocker 合同
+
+文件：
+
+- [`tests/phase1.decision-blocker-contract.test.ts`](/Users/yangshangqing/metaclaw/tests/phase1.decision-blocker-contract.test.ts)
+
+当前覆盖：
+
+- `waiting_human` session 收到 inbound 时会 queue，而不是 auto-start run
+- `blocked` session 收到 inbound 时会 queue，而不是 auto-start run
+- checkpoint / resume 会恢复 blocker 与 pending decision 的结构化状态
+
+适合继续补的独立测试方向：
+
+- future resolve / clear API 的事件与状态投影
+- failed-run 导致 blocked 的投影是否需要实体 blocker
+- close / archive 后 decision / blocker 的保留策略
+
 ## 4. 当前自动化校验总表
 
 截至当前，仓库内已有的自动化校验入口包括：

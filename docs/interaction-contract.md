@@ -9,6 +9,10 @@
 
 这份文档属于高风险契约文档。任何会改变 host 呈现、attention 判断、human decision 语义的变更，都应先更新这里，再更新实现与验收。
 
+关于 `PendingHumanDecision` 与 `Blocker` 的对象级生命周期，请同时参考：
+
+- [decision-blocker-contract.md](/Users/yangshangqing/metaclaw/docs/decision-blocker-contract.md)
+
 ## 1. 交互层分工
 
 当前交互层有两个不同职责的 surface：

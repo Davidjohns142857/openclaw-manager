@@ -121,8 +121,7 @@ export class FilesystemStore {
   }
 
   async writeJson(filePath: string, value: unknown): Promise<void> {
-    await mkdir(path.dirname(filePath), { recursive: true });
-    await writeFile(filePath, `${JSON.stringify(value, null, 2)}\n`, "utf8");
+    await this.writeFileAtomically(filePath, `${JSON.stringify(value, null, 2)}\n`);
   }
 
   async readText(filePath: string): Promise<string | null> {
@@ -138,8 +137,23 @@ export class FilesystemStore {
   }
 
   async writeText(filePath: string, value: string): Promise<void> {
+    await this.writeFileAtomically(filePath, value);
+  }
+
+  async writeFileAtomically(filePath: string, value: string): Promise<void> {
     await mkdir(path.dirname(filePath), { recursive: true });
-    await writeFile(filePath, value, "utf8");
+    const tempPath = path.join(
+      path.dirname(filePath),
+      `.${path.basename(filePath)}.${createId("tmp")}.partial`
+    );
+
+    try {
+      await writeFile(tempPath, value, "utf8");
+      await rename(tempPath, filePath);
+    } catch (error) {
+      await this.safeUnlink(tempPath);
+      throw error;
+    }
   }
 
   async appendJsonl(filePath: string, value: unknown): Promise<void> {

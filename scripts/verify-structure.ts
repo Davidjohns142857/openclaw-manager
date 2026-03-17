@@ -11,6 +11,7 @@ const requiredPaths = [
   "docs/mvp-requirements.md",
   "docs/openclaw-host-integration.md",
   "docs/interaction-contract.md",
+  "docs/decision-blocker-contract.md",
   "schemas/session.schema.json",
   "schemas/run.schema.json",
   "schemas/event.schema.json",
