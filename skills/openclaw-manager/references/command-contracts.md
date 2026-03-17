@@ -1,5 +1,11 @@
 # Command Contracts
 
+## Host Boundary
+
+- OpenClaw host-facing command code must call the local sidecar over HTTP.
+- Host code must not import `control-plane`, `fs-store`, or other durable-state internals directly.
+- Mutation commands should prefer the canonical session-detail envelope returned by the sidecar over reconstructing local state.
+
 ## Primary Commands
 
 ### `/tasks`
@@ -48,3 +54,4 @@
 - Prefer concise, state-dense output.
 - Surface blockers, pending human decisions, active runs, and next actions.
 - Avoid replaying raw logs unless the user explicitly asks for evidence.
+- Treat `session.activity` as the only supported high-level lifecycle contract for host rendering.

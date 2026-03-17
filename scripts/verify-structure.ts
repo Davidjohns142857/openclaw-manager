@@ -9,6 +9,8 @@ const requiredPaths = [
   "README.md",
   "skill.yaml",
   "docs/mvp-requirements.md",
+  "docs/openclaw-host-integration.md",
+  "docs/interaction-contract.md",
   "schemas/session.schema.json",
   "schemas/run.schema.json",
   "schemas/event.schema.json",
@@ -19,6 +21,7 @@ const requiredPaths = [
   "src/control-plane/control-plane.ts",
   "src/storage/fs-store.ts",
   "src/storage/schema-registry.ts",
+  "src/skill/sidecar-client.ts",
   "skills/openclaw-manager/SKILL.md",
   "skills/openclaw-manager/agents/openai.yaml"
 ];

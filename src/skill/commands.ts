@@ -1,9 +1,21 @@
-import type { ControlPlane } from "../control-plane/control-plane.ts";
+import type { AdoptSessionInput, CloseSessionInput } from "../shared/contracts.ts";
+import type { SourceChannel } from "../shared/types.ts";
 
 export interface ManagerCommandDefinition {
   command: string;
   usage: string;
   description: string;
+}
+
+export interface ManagerCommandClient {
+  listSessions(): Promise<unknown>;
+  focus(): Promise<unknown>;
+  digest(): Promise<unknown>;
+  adopt(input: AdoptSessionInput): Promise<unknown>;
+  resume(sessionId: string): Promise<unknown>;
+  checkpoint(sessionId: string): Promise<unknown>;
+  share(sessionId: string): Promise<unknown>;
+  close(sessionId: string, input: CloseSessionInput): Promise<unknown>;
 }
 
 export const managerCommands: ManagerCommandDefinition[] = [
@@ -49,45 +61,91 @@ export const managerCommands: ManagerCommandDefinition[] = [
   }
 ];
 
+function asStringArray(value: unknown): string[] | undefined {
+  if (!Array.isArray(value)) {
+    return undefined;
+  }
+
+  return value.filter((entry): entry is string => typeof entry === "string");
+}
+
+function asRecord(value: unknown): Record<string, unknown> | undefined {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    return undefined;
+  }
+
+  return value as Record<string, unknown>;
+}
+
+function asPriority(value: unknown): AdoptSessionInput["priority"] | undefined {
+  return value === "low" || value === "medium" || value === "high" || value === "critical"
+    ? value
+    : undefined;
+}
+
+function asSourceChannel(value: unknown): SourceChannel | undefined {
+  const candidate = asRecord(value);
+  if (!candidate) {
+    return undefined;
+  }
+
+  if (
+    typeof candidate.source_type !== "string" ||
+    typeof candidate.source_ref !== "string" ||
+    typeof candidate.bound_at !== "string"
+  ) {
+    return undefined;
+  }
+
+  return {
+    source_type: candidate.source_type,
+    source_ref: candidate.source_ref,
+    bound_at: candidate.bound_at,
+    metadata: asRecord(candidate.metadata)
+  };
+}
+
+function requireSessionId(payload: Record<string, unknown>): string {
+  if (typeof payload.session_id !== "string" || payload.session_id.trim().length === 0) {
+    throw new Error("session_id is required for this command.");
+  }
+
+  return payload.session_id;
+}
+
 export async function executeManagerCommand(
-  controlPlane: ControlPlane,
+  client: ManagerCommandClient,
   command: string,
   payload: Record<string, unknown> = {}
 ): Promise<unknown> {
   switch (command) {
     case "/tasks":
-      return controlPlane.listTasks();
+      return client.listSessions();
     case "/focus":
-      return controlPlane.focus();
+      return client.focus();
     case "/digest":
-      return controlPlane.digest();
+      return client.digest();
     case "/adopt":
-      return controlPlane.adoptSession({
+      return client.adopt({
         title: String(payload.title ?? "Untitled task"),
         objective: String(payload.objective ?? "No objective provided"),
         owner_ref: typeof payload.owner_ref === "string" ? payload.owner_ref : undefined,
-        priority:
-          payload.priority === "low" ||
-          payload.priority === "medium" ||
-          payload.priority === "high" ||
-          payload.priority === "critical"
-            ? payload.priority
-            : undefined,
-        tags: Array.isArray(payload.tags)
-          ? payload.tags.filter((value): value is string => typeof value === "string")
-          : undefined,
-        next_machine_actions: Array.isArray(payload.next_machine_actions)
-          ? payload.next_machine_actions.filter((value): value is string => typeof value === "string")
-          : undefined
+        priority: asPriority(payload.priority),
+        tags: asStringArray(payload.tags),
+        scenario_signature:
+          typeof payload.scenario_signature === "string" ? payload.scenario_signature : undefined,
+        source_channel: asSourceChannel(payload.source_channel),
+        next_machine_actions: asStringArray(payload.next_machine_actions),
+        metadata: asRecord(payload.metadata)
       });
     case "/resume":
-      return controlPlane.resumeSession(String(payload.session_id ?? ""));
+      return client.resume(requireSessionId(payload));
     case "/checkpoint":
-      return controlPlane.refreshCheckpoint(String(payload.session_id ?? ""));
+      return client.checkpoint(requireSessionId(payload));
     case "/share":
-      return controlPlane.shareSession(String(payload.session_id ?? ""));
+      return client.share(requireSessionId(payload));
     case "/close":
-      return controlPlane.closeSession(String(payload.session_id ?? ""), {
+      return client.close(requireSessionId(payload), {
         resolution: payload.resolution === "abandoned" ? "abandoned" : "completed",
         outcome_summary: String(payload.outcome_summary ?? "Closed through command surface.")
       });
@@ -95,4 +153,3 @@ export async function executeManagerCommand(
       throw new Error(`Unsupported manager command: ${command}`);
   }
 }
-

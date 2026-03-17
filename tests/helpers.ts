@@ -45,6 +45,29 @@ export async function readJsonl<T>(filePath: string): Promise<T[]> {
     .map((line) => JSON.parse(line) as T);
 }
 
+export async function startTempSidecar() {
+  const manager = await createTempManager();
+  const server = new ManagerServer(manager.controlPlane, manager.config);
+  await server.start();
+
+  const address = server.server.address();
+  if (!address || typeof address === "string") {
+    await server.stop();
+    await manager.cleanup();
+    throw new Error("Failed to resolve temporary sidecar address.");
+  }
+
+  return {
+    ...manager,
+    server,
+    baseUrl: `http://127.0.0.1:${address.port}`,
+    async cleanup() {
+      await server.stop();
+      await manager.cleanup();
+    }
+  };
+}
+
 export async function pathExists(filePath: string): Promise<boolean> {
   try {
     await access(filePath);

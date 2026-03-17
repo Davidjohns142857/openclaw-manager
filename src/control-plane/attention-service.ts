@@ -1,7 +1,7 @@
 import { createId } from "../shared/ids.ts";
 import { addHours, hoursSince, isoNow } from "../shared/time.ts";
 import { isTerminalSessionStatus } from "../shared/state.ts";
-import type { AttentionUnit, Session } from "../shared/types.ts";
+import type { AttentionCategory, AttentionUnit, Session } from "../shared/types.ts";
 import { sortAttentionQueue } from "../storage/indexes.ts";
 
 const urgencyScore = {
@@ -17,6 +17,31 @@ const priorityScore = {
   high: 8,
   critical: 12
 } as const;
+
+const categoryPriority = {
+  waiting_human: 5,
+  blocked: 4,
+  desynced: 3,
+  stale: 2,
+  summary_drift: 1
+} satisfies Record<AttentionCategory, number>;
+
+const primaryCategoryRule = "waiting_human > blocked > desynced > stale > summary_drift";
+
+function sortSameSessionAttention(units: AttentionUnit[]): AttentionUnit[] {
+  return [...units].sort((left, right) => {
+    const categoryDelta = categoryPriority[right.category] - categoryPriority[left.category];
+    if (categoryDelta !== 0) {
+      return categoryDelta;
+    }
+
+    if (right.attention_priority !== left.attention_priority) {
+      return right.attention_priority - left.attention_priority;
+    }
+
+    return right.created_at.localeCompare(left.created_at);
+  });
+}
 
 export class AttentionService {
   buildAttentionForSession(session: Session): AttentionUnit[] {
@@ -129,11 +154,20 @@ export class AttentionService {
       return [];
     }
 
-    const sorted = sortAttentionQueue(items);
+    const sorted = sortSameSessionAttention(items);
     const [primary, ...rest] = sorted;
 
     if (rest.length === 0) {
-      return [primary];
+      return [
+        {
+          ...primary,
+          metadata: {
+            ...primary.metadata,
+            primary_category_rule: primaryCategoryRule,
+            merged_categories: [primary.category]
+          }
+        }
+      ];
     }
 
     return [
@@ -144,6 +178,7 @@ export class AttentionService {
           .join(" | "),
         metadata: {
           ...primary.metadata,
+          primary_category_rule: primaryCategoryRule,
           merged_categories: [primary.category, ...rest.map((item) => item.category)]
         }
       }
