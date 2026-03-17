@@ -41,6 +41,7 @@ test("all shipped schemas parse as valid JSON", async () => {
     "schemas/skill-trace.schema.json",
     "schemas/attention-unit.schema.json",
     "schemas/capability-fact.schema.json",
+    "schemas/local-distillation.schema.json",
     "schemas/inbound-message.schema.json",
     "schemas/connector-binding.schema.json"
   ];
@@ -71,6 +72,29 @@ test("run guarantees doc stays aligned with the recovery and focus baseline", as
     "tests/phase2.run-lifecycle.test.ts"
   ]) {
     assert.match(guarantees, new RegExp(escapeRegExp(snippet)));
+  }
+});
+
+test("local distillation doc stays aligned with the local-only aggregate baseline", async () => {
+  const document = await readFile(path.join(repoRoot, "docs/local-distillation.md"), "utf8");
+
+  for (const snippet of [
+    "Input: durable terminal `session` state plus durable `run` history.",
+    "Output: one stable snapshot at `indexes/local_distillation.json`.",
+    "Read surface: `GET /distillation/local`.",
+    "Recompute surface: `POST /distill` and `/distill`.",
+    "This layer is strictly node-local.",
+    "`closure_rate`",
+    "`recovery_success_rate`",
+    "`human_intervention_rate`",
+    "`blocked_recurrence_rate`",
+    "`run_trigger_rate`",
+    "Only terminal sessions participate in the snapshot.",
+    "Closing a session refreshes the local snapshot automatically.",
+    "Public ingest remains a future, separate pipeline",
+    "tests/phase3.local-distillation.test.ts"
+  ]) {
+    assert.match(document, new RegExp(escapeRegExp(snippet)));
   }
 });
 
@@ -211,6 +235,24 @@ test("server route layer exports canonical session activity and command boundary
     );
     assert.equal(closeResponse.statusCode, 200);
     assert.ok((closeResponse.body as { session: { activity: unknown } }).session.activity);
+
+    const localDistillationResponse = await dispatchRoute(server, "GET", "/distillation/local");
+    assert.equal(localDistillationResponse.statusCode, 200);
+    const snapshot = localDistillationResponse.body as {
+      contract_id: string;
+      source_session_count: number;
+      facts: unknown[];
+    };
+    assert.equal(snapshot.contract_id, "local_distillation_v1");
+    assert.equal(snapshot.source_session_count, 1);
+    assert.ok(snapshot.facts.length >= 1);
+
+    const recomputedResponse = await dispatchRoute(server, "POST", "/distill");
+    assert.equal(recomputedResponse.statusCode, 200);
+    assert.equal(
+      (recomputedResponse.body as { contract_id: string }).contract_id,
+      "local_distillation_v1"
+    );
   } finally {
     await manager.cleanup();
   }

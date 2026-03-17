@@ -11,6 +11,7 @@ commands:
   - "/share <session_id>"
   - "/focus"
   - "/digest"
+  - "/distill"
   - "/checkpoint <session_id>"
   - "/close <session_id>"
   - "/adopt"

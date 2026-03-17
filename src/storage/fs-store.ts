@@ -18,6 +18,7 @@ import type {
   Checkpoint,
   ConnectorBinding,
   Event,
+  LocalDistillationSnapshot,
   ManagerConfig,
   NormalizedInboundMessage,
   RecoveryHead,
@@ -52,7 +53,8 @@ export class FilesystemStore {
       bindings: path.join(root, "connectors", "bindings.json"),
       inbox: path.join(root, "connectors", "inbox"),
       snapshots: path.join(root, "snapshots"),
-      exports: path.join(root, "exports")
+      exports: path.join(root, "exports"),
+      localDistillation: path.join(root, "indexes", "local_distillation.json")
     };
   }
 
@@ -485,6 +487,21 @@ export class FilesystemStore {
       for (const fact of facts) {
         await this.appendJsonl(path.join(this.paths().indexes, "capability_facts.jsonl"), fact);
       }
+    });
+  }
+
+  async readLocalDistillation(): Promise<LocalDistillationSnapshot | null> {
+    return this.readValidatedJson<LocalDistillationSnapshot>(
+      "local-distillation",
+      this.paths().localDistillation
+    );
+  }
+
+  async writeLocalDistillation(snapshot: LocalDistillationSnapshot): Promise<void> {
+    await this.schemaRegistry.validateOrThrow("local-distillation", snapshot);
+
+    await this.lock.runExclusive(async () => {
+      await this.writeJson(this.paths().localDistillation, snapshot);
     });
   }
 

@@ -14,6 +14,7 @@ Use this skill when the user is managing long-running OpenClaw work rather than 
 - restoring recoverable state with `/resume <session_id>`
 - checking human-facing priority with `/focus`
 - generating a compressed multi-task digest with `/digest`
+- recomputing node-local distilled stats with `/distill`
 - exporting a session snapshot with `/share <session_id>`
 - binding an external source thread with `/bind <session_id> <source_type> <source_thread_key>`
 - disabling or moving an external source binding with `/unbind <binding_id>` or `/rebind <binding_id> <session_id>`

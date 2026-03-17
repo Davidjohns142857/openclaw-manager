@@ -6,6 +6,7 @@ import type {
   ConnectorBinding,
   ConnectorBindingStatus,
   EventType,
+  LocalDistillationSnapshot,
   NormalizedInboundMessage,
   PendingHumanDecision,
   Priority,
@@ -234,6 +235,10 @@ export interface SessionTimelineView {
   session: SessionTimelineSummary;
   run_count: number;
   runs: RunTimelineView[];
+}
+
+export interface DistillLocalFactsResult {
+  snapshot: LocalDistillationSnapshot;
 }
 
 export interface RequestHumanDecisionInput {

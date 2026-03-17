@@ -5,7 +5,7 @@ import type {
   DisableBindingInput,
   RebindSourceInput
 } from "../shared/contracts.ts";
-import type { SourceChannel } from "../shared/types.ts";
+import type { LocalDistillationSnapshot, SourceChannel } from "../shared/types.ts";
 
 export interface ManagerCommandDefinition {
   command: string;
@@ -17,6 +17,7 @@ export interface ManagerCommandClient {
   listSessions(): Promise<unknown>;
   focus(): Promise<unknown>;
   digest(): Promise<unknown>;
+  distill(): Promise<LocalDistillationSnapshot | null>;
   adopt(input: AdoptSessionInput): Promise<unknown>;
   bind(input: BindSourceInput): Promise<unknown>;
   disableBinding(bindingId: string, input: DisableBindingInput): Promise<unknown>;
@@ -52,6 +53,11 @@ export const managerCommands: ManagerCommandDefinition[] = [
     command: "/digest",
     usage: "/digest",
     description: "Generate a compressed multi-task digest."
+  },
+  {
+    command: "/distill",
+    usage: "/distill",
+    description: "Recompute node-local distillation stats from durable closed-session state."
   },
   {
     command: "/checkpoint",
@@ -157,6 +163,8 @@ export async function executeManagerCommand(
       return client.focus();
     case "/digest":
       return client.digest();
+    case "/distill":
+      return client.distill();
     case "/adopt":
       return client.adopt({
         title: String(payload.title ?? "Untitled task"),

@@ -313,6 +313,35 @@ export interface CapabilityFact {
   computed_at: string;
 }
 
+export type LocalDistillationScopeType = "node" | "scenario";
+export type LocalDistilledMetricName =
+  | "closure_rate"
+  | "recovery_success_rate"
+  | "human_intervention_rate"
+  | "blocked_recurrence_rate"
+  | "run_trigger_rate";
+
+export interface LocalDistilledFact {
+  fact_id: string;
+  scope_type: LocalDistillationScopeType;
+  scope_ref: string;
+  metric_name: LocalDistilledMetricName;
+  metric_value: number;
+  sample_size: number;
+  confidence: number;
+  metadata: Record<string, unknown>;
+  computed_at: string;
+}
+
+export interface LocalDistillationSnapshot {
+  contract_id: "local_distillation_v1";
+  generated_at: string;
+  source_session_count: number;
+  source_run_count: number;
+  scenario_count: number;
+  facts: LocalDistilledFact[];
+}
+
 export interface AttachmentRef {
   name?: string;
   mime_type?: string;

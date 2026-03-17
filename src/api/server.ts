@@ -26,6 +26,7 @@ import { normalizeGitHubWebhook } from "../connectors/github.ts";
 import {
   serializeBindSourceResult,
   serializeDisableBindingResult,
+  serializeLocalDistillation,
   serializeRebindSourceResult,
   serializeReservedMutationResult,
   serializeSession,
@@ -374,6 +375,24 @@ export class ManagerServer {
 
       if (request.method === "GET" && pathname === "/digest") {
         jsonResponse(response, 200, { digest: await this.controlPlane.digest() });
+        return;
+      }
+
+      if (request.method === "GET" && pathname === "/distillation/local") {
+        jsonResponse(
+          response,
+          200,
+          serializeLocalDistillation(await this.controlPlane.getLocalDistillation())
+        );
+        return;
+      }
+
+      if (request.method === "POST" && pathname === "/distill") {
+        jsonResponse(
+          response,
+          200,
+          serializeLocalDistillation(await this.controlPlane.distillLocalFacts())
+        );
         return;
       }
 

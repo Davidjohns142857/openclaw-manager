@@ -1,6 +1,12 @@
 import { deriveSessionActivity } from "../shared/activity.ts";
 import { deriveSessionStatusReason } from "../shared/session-status.ts";
-import type { Checkpoint, ConnectorBinding, Run, Session } from "../shared/types.ts";
+import type {
+  Checkpoint,
+  ConnectorBinding,
+  LocalDistillationSnapshot,
+  Run,
+  Session
+} from "../shared/types.ts";
 import type {
   BindSourceResult,
   DisableBindingResult,
@@ -87,5 +93,22 @@ export function serializeSessionTimeline(result: SessionTimelineView): Record<st
     },
     run_count: result.run_count,
     runs: result.runs
+  };
+}
+
+export function serializeLocalDistillation(
+  snapshot: LocalDistillationSnapshot | null
+): Record<string, unknown> | null {
+  if (!snapshot) {
+    return null;
+  }
+
+  return {
+    contract_id: snapshot.contract_id,
+    generated_at: snapshot.generated_at,
+    source_session_count: snapshot.source_session_count,
+    source_run_count: snapshot.source_run_count,
+    scenario_count: snapshot.scenario_count,
+    facts: snapshot.facts
   };
 }

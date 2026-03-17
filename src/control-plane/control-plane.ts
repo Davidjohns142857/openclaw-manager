@@ -23,7 +23,14 @@ import type {
   SettleRunInput,
   ShareSnapshotResult
 } from "../shared/contracts.ts";
-import type { Checkpoint, ManagerConfig, Run, RunTrigger, Session } from "../shared/types.ts";
+import type {
+  Checkpoint,
+  LocalDistillationSnapshot,
+  ManagerConfig,
+  Run,
+  RunTrigger,
+  Session
+} from "../shared/types.ts";
 import {
   buildSettledRunOutcome,
   canAdvanceRecoveryHeadForRunStatus,
@@ -48,6 +55,7 @@ import {
   type NormalizeInboundMessageInput
 } from "../connectors/base.ts";
 import { CapabilityFactService } from "../telemetry/capability-facts.ts";
+import { LocalDistillationService } from "../telemetry/local-distillation.ts";
 import { SkillTraceService } from "../telemetry/skill-trace.ts";
 import { TimelineService } from "../timeline/timeline-service.ts";
 import { AttentionService } from "./attention-service.ts";
@@ -79,6 +87,7 @@ export class ControlPlane {
   shareService: ShareService;
   skillTraceService: SkillTraceService;
   capabilityFactService: CapabilityFactService;
+  localDistillationService: LocalDistillationService;
   reservedContractService: ReservedContractService;
   timelineService: TimelineService;
   sessionMutationLocks: Map<string, InProcessLock>;
@@ -95,6 +104,7 @@ export class ControlPlane {
     this.shareService = new ShareService(config, store);
     this.skillTraceService = new SkillTraceService(store);
     this.capabilityFactService = new CapabilityFactService();
+    this.localDistillationService = new LocalDistillationService(store);
     this.reservedContractService = new ReservedContractService(
       this.sessionService,
       this.eventService
@@ -106,6 +116,7 @@ export class ControlPlane {
   async initialize(): Promise<void> {
     await this.store.ensureLayout();
     await this.refreshDerivedViews();
+    await this.localDistillationService.refresh();
   }
 
   async listTasks(): Promise<Session[]> {
@@ -178,6 +189,14 @@ export class ControlPlane {
     const session = await this.projectSessionSummary(storedSession, currentRun);
 
     return this.timelineService.buildSessionTimeline(session, currentRun, runs);
+  }
+
+  async getLocalDistillation(): Promise<LocalDistillationSnapshot | null> {
+    return this.localDistillationService.getSnapshot();
+  }
+
+  async distillLocalFacts(): Promise<LocalDistillationSnapshot> {
+    return this.localDistillationService.refresh();
   }
 
   private async projectSessionSummary(session: Session, latestRun: Run | null): Promise<Session> {
@@ -949,6 +968,7 @@ export class ControlPlane {
       });
     }
 
+    await this.localDistillationService.refresh();
     await this.refreshDerivedViews();
     return session;
   }

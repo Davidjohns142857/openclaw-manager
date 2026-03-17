@@ -30,6 +30,12 @@
 - Returns a compressed multi-task digest based on current attention and quiet sessions.
 - Equivalent sidecar API: `GET /digest`
 
+### `/distill`
+
+- Recomputes node-local distilled stats from durable terminal sessions and run history.
+- Produces local-only aggregate facts; it must not submit or queue any public-ingest payload.
+- Equivalent sidecar API: `POST /distill`
+
 ### `/adopt`
 
 - Creates a durable session from an existing thread or explicit task intent.

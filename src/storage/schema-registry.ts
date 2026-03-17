@@ -18,7 +18,8 @@ export type SchemaKind =
   | "capability-fact"
   | "inbound-message"
   | "connector-binding"
-  | "checkpoint";
+  | "checkpoint"
+  | "local-distillation";
 
 const schemaFileByKind: Record<SchemaKind, string> = {
   session: "session.schema.json",
@@ -29,7 +30,8 @@ const schemaFileByKind: Record<SchemaKind, string> = {
   "capability-fact": "capability-fact.schema.json",
   "inbound-message": "inbound-message.schema.json",
   "connector-binding": "connector-binding.schema.json",
-  checkpoint: "checkpoint.schema.json"
+  checkpoint: "checkpoint.schema.json",
+  "local-distillation": "local-distillation.schema.json"
 };
 
 export class SchemaRegistry {

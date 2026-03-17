@@ -24,6 +24,7 @@ import type {
   AttentionUnit,
   Checkpoint,
   ConnectorBinding,
+  LocalDistillationSnapshot,
   Run,
   Session
 } from "../shared/types.ts";
@@ -169,6 +170,14 @@ export class ManagerSidecarClient implements ManagerCommandClient {
 
   async digest(): Promise<{ digest: string }> {
     return this.request("GET", "/digest");
+  }
+
+  async getLocalDistillation(): Promise<LocalDistillationSnapshot | null> {
+    return this.request("GET", "/distillation/local");
+  }
+
+  async distill(): Promise<LocalDistillationSnapshot | null> {
+    return this.request("POST", "/distill");
   }
 
   async adopt(input: AdoptSessionInput): Promise<SessionDetailEnvelope> {

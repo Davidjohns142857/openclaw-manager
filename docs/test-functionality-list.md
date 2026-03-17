@@ -385,6 +385,27 @@
 - richer run milestone events beyond status-flow
 - evidence snapshot bundling
 
+### 3.17 Local Distillation
+
+文件：
+
+- [`tests/phase3.local-distillation.test.ts`](/Users/yangshangqing/metaclaw/tests/phase3.local-distillation.test.ts)
+- [`docs/local-distillation.md`](/Users/yangshangqing/metaclaw/docs/local-distillation.md)
+
+当前覆盖：
+
+- `closeSession` 会自动刷新本地蒸馏快照
+- `GET /distillation/local` 和 `POST /distill` 返回稳定的 `local_distillation_v1`
+- 本地蒸馏当前会输出 `closure_rate`、`recovery_success_rate`、`human_intervention_rate`、`blocked_recurrence_rate`、`run_trigger_rate`
+- 蒸馏同时输出 node scope 和 scenario scope
+- `/distill` 只做本地重算，不生成 public outbox 或公网提交副作用
+
+适合继续补的独立测试方向：
+
+- skill/workflow 级别聚合
+- 时间窗口和增量重算
+- richer duration / failure-mode metrics
+
 ## 4. 当前自动化校验总表
 
 截至当前，仓库内已有的自动化校验入口包括：
@@ -416,6 +437,7 @@
 - run lifecycle and evidence refs
 - session status derivation
 - run timeline and evidence view
+- local-only distilled node/scenario stats
 - `session.activity` 与 `focus` 的基础交互语义
 - reserved decision/blocker API registry
 - feature-gated reserved mutation routes

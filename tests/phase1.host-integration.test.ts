@@ -222,6 +222,10 @@ test("skill command layer depends on the client contract rather than control-pla
       calls.push("digest");
       return { digest: "digest" };
     },
+    async distill() {
+      calls.push("distill");
+      return { contract_id: "local_distillation_v1", facts: [] } as never;
+    },
     async adopt() {
       calls.push("adopt");
       return { ok: true };
@@ -258,6 +262,7 @@ test("skill command layer depends on the client contract rather than control-pla
 
   await assert.rejects(() => executeManagerCommand(fakeClient, "/resume"), /session_id is required/);
   await executeManagerCommand(fakeClient, "/tasks");
+  await executeManagerCommand(fakeClient, "/distill");
   await executeManagerCommand(fakeClient, "/adopt", {
     title: "Boundary check",
     objective: "Verify command executor mapping."
@@ -284,6 +289,7 @@ test("skill command layer depends on the client contract rather than control-pla
 
   assert.deepEqual(calls, [
     "tasks",
+    "distill",
     "adopt",
     "bind:sess_boundary:telegram:tg_boundary",
     "unbind:bind_boundary_001",
