@@ -3,26 +3,26 @@ import path from "node:path";
 import { test } from "node:test";
 
 import { executeManagerCommand } from "../src/skill/commands.ts";
-import { ManagerSidecarClient } from "../src/skill/sidecar-client.ts";
+import { ManagerServer } from "../src/api/server.ts";
 import type {
   LocalDistillationSnapshot,
-  LocalDistilledFact
+  CapabilityFact
 } from "../src/shared/types.ts";
-import { createTempManager, dispatchRoute, pathExists, readJson, startTempSidecar } from "./helpers.ts";
+import { createTempManager, dispatchRoute, pathExists, readJson } from "./helpers.ts";
 
 function findFact(
   snapshot: LocalDistillationSnapshot,
   input: {
-    scopeType: LocalDistilledFact["scope_type"];
-    scopeRef: string;
-    metricName: LocalDistilledFact["metric_name"];
+    subjectType: CapabilityFact["subject"]["subject_type"];
+    subjectRef: string;
+    metricName: CapabilityFact["metric_name"];
     triggerType?: string;
   }
-): LocalDistilledFact {
+): CapabilityFact {
   const fact = snapshot.facts.find((candidate) => {
     if (
-      candidate.scope_type !== input.scopeType ||
-      candidate.scope_ref !== input.scopeRef ||
+      candidate.subject.subject_type !== input.subjectType ||
+      candidate.subject.subject_ref !== input.subjectRef ||
       candidate.metric_name !== input.metricName
     ) {
       return false;
@@ -37,7 +37,7 @@ function findFact(
 
   assert.ok(
     fact,
-    `Missing fact ${input.scopeType}:${input.scopeRef}:${input.metricName}:${input.triggerType ?? "*"}`
+    `Missing fact ${input.subjectType}:${input.subjectRef}:${input.metricName}:${input.triggerType ?? "*"}`
   );
   return fact;
 }
@@ -182,40 +182,44 @@ test("local distillation refreshes from durable terminal sessions and exposes no
     assert.equal(snapshot.scenario_count, 2);
 
     const globalClosure = findFact(snapshot, {
-      scopeType: "node",
-      scopeRef: "global",
+      subjectType: "node",
+      subjectRef: "global",
       metricName: "closure_rate"
     });
     assert.equal(globalClosure.metric_value, 0.75);
     assert.equal(globalClosure.sample_size, 4);
+    assert.equal(globalClosure.fact_kind, "aggregate_metric");
+    assert.equal(globalClosure.scenario_signature, "all_scenarios");
+    assert.equal(globalClosure.privacy.export_policy, "public_submit_allowed");
+    assert.equal(globalClosure.aggregation_window.window_type, "closed_session_history");
 
     const globalRecovery = findFact(snapshot, {
-      scopeType: "node",
-      scopeRef: "global",
+      subjectType: "node",
+      subjectRef: "global",
       metricName: "recovery_success_rate"
     });
     assert.equal(globalRecovery.metric_value, 1);
     assert.equal(globalRecovery.sample_size, 2);
 
     const globalHumanIntervention = findFact(snapshot, {
-      scopeType: "node",
-      scopeRef: "global",
+      subjectType: "node",
+      subjectRef: "global",
       metricName: "human_intervention_rate"
     });
     assert.equal(globalHumanIntervention.metric_value, 0.1667);
     assert.equal(globalHumanIntervention.sample_size, 6);
 
     const globalBlockedRecurrence = findFact(snapshot, {
-      scopeType: "node",
-      scopeRef: "global",
+      subjectType: "node",
+      subjectRef: "global",
       metricName: "blocked_recurrence_rate"
     });
     assert.equal(globalBlockedRecurrence.metric_value, 1);
     assert.equal(globalBlockedRecurrence.sample_size, 1);
 
     const manualTrigger = findFact(snapshot, {
-      scopeType: "node",
-      scopeRef: "global",
+      subjectType: "node",
+      subjectRef: "global",
       metricName: "run_trigger_rate",
       triggerType: "manual"
     });
@@ -223,8 +227,8 @@ test("local distillation refreshes from durable terminal sessions and exposes no
     assert.equal(manualTrigger.metadata.count, 4);
 
     const resumeTrigger = findFact(snapshot, {
-      scopeType: "node",
-      scopeRef: "global",
+      subjectType: "node",
+      subjectRef: "global",
       metricName: "run_trigger_rate",
       triggerType: "resume"
     });
@@ -232,8 +236,8 @@ test("local distillation refreshes from durable terminal sessions and exposes no
     assert.equal(resumeTrigger.metadata.count, 1);
 
     const retryTrigger = findFact(snapshot, {
-      scopeType: "node",
-      scopeRef: "global",
+      subjectType: "node",
+      subjectRef: "global",
       metricName: "run_trigger_rate",
       triggerType: "retry"
     });
@@ -241,16 +245,16 @@ test("local distillation refreshes from durable terminal sessions and exposes no
     assert.equal(retryTrigger.metadata.count, 1);
 
     const alphaClosure = findFact(snapshot, {
-      scopeType: "scenario",
-      scopeRef: "scenario.alpha",
+      subjectType: "scenario",
+      subjectRef: "scenario.alpha",
       metricName: "closure_rate"
     });
     assert.equal(alphaClosure.metric_value, 0.5);
     assert.equal(alphaClosure.sample_size, 2);
 
     const betaRecovery = findFact(snapshot, {
-      scopeType: "scenario",
-      scopeRef: "scenario.beta",
+      subjectType: "scenario",
+      subjectRef: "scenario.beta",
       metricName: "recovery_success_rate"
     });
     assert.equal(betaRecovery.metric_value, 1);
@@ -267,31 +271,35 @@ test("local distillation refreshes from durable terminal sessions and exposes no
 });
 
 test("distillation routes and command surface stay local-only and do not create public-ingest side effects", async () => {
-  const sidecar = await startTempSidecar();
+  const manager = await createTempManager();
+  const server = new ManagerServer(manager.controlPlane, manager.config);
 
   try {
-    const client = new ManagerSidecarClient({ baseUrl: sidecar.baseUrl });
+    const initial = await dispatchRoute(server, "GET", "/distillation/local");
+    assert.equal(initial.statusCode, 200);
+    assert.equal(
+      (initial.body as { contract_id: string; source_session_count: number }).contract_id,
+      "local_distillation_v1"
+    );
+    assert.equal(
+      (initial.body as { contract_id: string; source_session_count: number }).source_session_count,
+      0
+    );
 
-    const initial = await client.getLocalDistillation();
-    assert.ok(initial);
-    assert.equal(initial.contract_id, "local_distillation_v1");
-    assert.equal(initial.source_session_count, 0);
-    assert.equal(initial.source_run_count, 0);
-
-    const adopted = await client.adopt({
+    const adopted = await manager.controlPlane.adoptSession({
       title: "Local distillation route flow",
       objective: "Verify local distillation stays local-only."
     });
-    await sidecar.controlPlane.settleActiveRun(adopted.session.session_id, {
+    await manager.controlPlane.settleActiveRun(adopted.session.session_id, {
       status: "completed",
       summary: "Route flow completed.",
       reason_code: "route_done"
     });
-    await client.close(adopted.session.session_id, {
+    await dispatchRoute(server, "POST", `/sessions/${adopted.session.session_id}/close`, {
       outcome_summary: "Route flow closed."
     });
 
-    const routeResponse = await dispatchRoute(sidecar.server, "GET", "/distillation/local");
+    const routeResponse = await dispatchRoute(server, "GET", "/distillation/local");
     assert.equal(routeResponse.statusCode, 200);
     assert.equal(
       (routeResponse.body as { contract_id: string; source_session_count: number }).contract_id,
@@ -303,14 +311,40 @@ test("distillation routes and command surface stay local-only and do not create 
       1
     );
 
-    const recomputed = await dispatchRoute(sidecar.server, "POST", "/distill");
+    const recomputed = await dispatchRoute(server, "POST", "/distill");
     assert.equal(recomputed.statusCode, 200);
     assert.equal(
       (recomputed.body as { contract_id: string; source_session_count: number }).source_session_count,
       1
     );
 
-    const commandResult = await executeManagerCommand(client, "/distill");
+    const commandResult = await executeManagerCommand(
+      {
+        listSessions: () => manager.controlPlane.listTasks(),
+        focus: () => manager.controlPlane.focus(),
+        digest: async () => ({ digest: await manager.controlPlane.digest() }),
+        distill: () => manager.controlPlane.distillLocalFacts(),
+        submitPublicFacts: () =>
+          Promise.resolve({
+            contract_id: "submit_public_facts_v1",
+            mode: "dry-run",
+            dry_run: true,
+            selected_fact_count: 0,
+            created_batch_count: 0,
+            submitted_batch_count: 0,
+            batches: []
+          }),
+        adopt: (input) => manager.controlPlane.adoptSession(input),
+        bind: (input) => manager.controlPlane.bindSource(input),
+        disableBinding: (bindingId, input) => manager.controlPlane.disableBinding(bindingId, input),
+        rebindBinding: (bindingId, input) => manager.controlPlane.rebindBinding(bindingId, input),
+        resume: (sessionId) => manager.controlPlane.resumeSession(sessionId),
+        checkpoint: (sessionId) => manager.controlPlane.refreshCheckpoint(sessionId),
+        share: (sessionId) => manager.controlPlane.shareSession(sessionId),
+        close: (sessionId, input) => manager.controlPlane.closeSession(sessionId, input)
+      },
+      "/distill"
+    );
     assert.equal(
       (commandResult as { contract_id: string; source_session_count: number }).contract_id,
       "local_distillation_v1"
@@ -320,9 +354,9 @@ test("distillation routes and command surface stay local-only and do not create 
       1
     );
 
-    assert.equal(await pathExists(path.join(sidecar.tempRoot, "outbox")), false);
-    assert.equal(await pathExists(path.join(sidecar.tempRoot, "distillation_buffer.jsonl")), false);
+    assert.equal(await pathExists(path.join(manager.tempRoot, "exports", "public-facts-outbox")), false);
+    assert.equal(await pathExists(path.join(manager.tempRoot, "distillation_buffer.jsonl")), false);
   } finally {
-    await sidecar.cleanup();
+    await manager.cleanup();
   }
 });

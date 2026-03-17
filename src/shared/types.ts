@@ -97,6 +97,30 @@ export type MessageType =
   | "system_update"
   | "artifact_notice"
   | "decision_response";
+export type CapabilityFactSubjectType =
+  | "node"
+  | "scenario"
+  | "session"
+  | "run"
+  | "skill"
+  | "workflow"
+  | "connector";
+export type CapabilityFactKind = "raw_observation" | "aggregate_metric";
+export type CapabilityFactExportPolicy = "local_only" | "public_submit_allowed";
+export type CapabilityFactPrivacyTier = "node_private" | "aggregated_export_safe";
+export type CapabilityFactWindowType = "point_in_time" | "closed_session_history";
+export type CapabilityFactOutboxState =
+  | "pending"
+  | "claimed"
+  | "acked"
+  | "failed_retryable"
+  | "dead_letter";
+export type PublicFactSubmitMode = "dry-run" | "local-file" | "mock-http";
+export type MockTransportResult =
+  | "accepted"
+  | "duplicate"
+  | "retryable_error"
+  | "rejected";
 
 export interface OwnerRef {
   type: OwnerType;
@@ -299,15 +323,37 @@ export interface AttentionUnit {
   created_at: string;
 }
 
+export interface CapabilityFactSubject {
+  subject_type: CapabilityFactSubjectType;
+  subject_ref: string;
+  subject_version: string | null;
+}
+
+export interface CapabilityFactAggregationWindow {
+  window_type: CapabilityFactWindowType;
+  start_at: string | null;
+  end_at: string;
+}
+
+export interface CapabilityFactPrivacy {
+  privacy_tier: CapabilityFactPrivacyTier;
+  export_policy: CapabilityFactExportPolicy;
+  contains_identifiers: boolean;
+  contains_content: boolean;
+  declaration: string;
+}
+
 export interface CapabilityFact {
   fact_id: string;
-  subject_type: "session" | "run" | "skill" | "workflow" | "connector";
-  subject_ref: string;
+  fact_kind: CapabilityFactKind;
+  subject: CapabilityFactSubject;
   scenario_signature: string;
   metric_name: string;
   metric_value: number | string | boolean;
   sample_size: number;
   confidence: number;
+  aggregation_window: CapabilityFactAggregationWindow;
+  privacy: CapabilityFactPrivacy;
   evidence_refs: string[];
   metadata: Record<string, unknown>;
   computed_at: string;
@@ -320,18 +366,7 @@ export type LocalDistilledMetricName =
   | "human_intervention_rate"
   | "blocked_recurrence_rate"
   | "run_trigger_rate";
-
-export interface LocalDistilledFact {
-  fact_id: string;
-  scope_type: LocalDistillationScopeType;
-  scope_ref: string;
-  metric_name: LocalDistilledMetricName;
-  metric_value: number;
-  sample_size: number;
-  confidence: number;
-  metadata: Record<string, unknown>;
-  computed_at: string;
-}
+export type LocalDistilledFact = CapabilityFact;
 
 export interface LocalDistillationSnapshot {
   contract_id: "local_distillation_v1";
@@ -339,7 +374,40 @@ export interface LocalDistillationSnapshot {
   source_session_count: number;
   source_run_count: number;
   scenario_count: number;
-  facts: LocalDistilledFact[];
+  facts: CapabilityFact[];
+}
+
+export interface CapabilityFactOutboxBatch {
+  contract_id: "capability_fact_batch_v1";
+  batch_id: string;
+  state: CapabilityFactOutboxState;
+  transport_mode: Exclude<PublicFactSubmitMode, "dry-run"> | null;
+  fact_ids: string[];
+  fact_count: number;
+  facts: CapabilityFact[];
+  content_hash: string;
+  attempt_count: number;
+  last_attempt_at: string | null;
+  last_receipt_id: string | null;
+  created_at: string;
+  updated_at: string;
+  metadata: Record<string, unknown>;
+}
+
+export interface CapabilityFactOutboxReceipt {
+  contract_id: "capability_fact_receipt_v1";
+  receipt_id: string;
+  batch_id: string;
+  mode: PublicFactSubmitMode;
+  result: "claimed" | MockTransportResult;
+  from_state: CapabilityFactOutboxState | "dry_run";
+  to_state: CapabilityFactOutboxState | "dry_run";
+  batch_content_hash: string;
+  attempt_number: number;
+  response_code: string;
+  transport_reference: string | null;
+  recorded_at: string;
+  metadata: Record<string, unknown>;
 }
 
 export interface AttachmentRef {

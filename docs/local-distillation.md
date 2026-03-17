@@ -9,7 +9,7 @@ This document freezes the first local-only distillation layer for OpenClaw Manag
 - Read surface: `GET /distillation/local`.
 - Recompute surface: `POST /distill` and `/distill`.
 
-This layer is strictly node-local. It must not create outbox batches, public facts, node fingerprints, or network submission side effects.
+This layer is strictly node-local. It emits formal [`CapabilityFact`](/Users/yangshangqing/metaclaw/docs/capability-fact-contract.md) objects but must not create outbox batches, node fingerprints, or network submission side effects by itself.
 
 ## Current Metrics
 
@@ -21,8 +21,8 @@ This layer is strictly node-local. It must not create outbox batches, public fac
 
 ## Scope Model
 
-- `scope_type=node`, `scope_ref=global`: aggregate across all terminal sessions.
-- `scope_type=scenario`, `scope_ref=<scenario_signature>`: aggregate per scenario signature.
+- `subject_type=node`, `subject_ref=global`: aggregate across all terminal sessions.
+- `subject_type=scenario`, `subject_ref=<scenario_signature>`: aggregate per scenario signature.
 - Sessions without an explicit scenario use `general.task_management`.
 
 ## Stability Rules
@@ -30,9 +30,11 @@ This layer is strictly node-local. It must not create outbox batches, public fac
 - Only terminal sessions participate in the snapshot.
 - The snapshot is recomputed from durable state; it is not maintained as incremental counters.
 - Closing a session refreshes the local snapshot automatically.
+- Each aggregate fact carries `aggregation_window` and `privacy`.
 - `/distill` is local recomputation only. Public ingest remains a future, separate pipeline defined by [`docs/public-ingest-contract.md`](/Users/yangshangqing/metaclaw/docs/public-ingest-contract.md).
 
 ## Baseline Tests
 
 - [`tests/phase3.local-distillation.test.ts`](/Users/yangshangqing/metaclaw/tests/phase3.local-distillation.test.ts)
+- [`tests/phase3.public-fact-submission.test.ts`](/Users/yangshangqing/metaclaw/tests/phase3.public-fact-submission.test.ts)
 - [`tests/phase1.static-boundary.test.ts`](/Users/yangshangqing/metaclaw/tests/phase1.static-boundary.test.ts)

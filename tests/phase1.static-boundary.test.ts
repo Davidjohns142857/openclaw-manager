@@ -42,6 +42,8 @@ test("all shipped schemas parse as valid JSON", async () => {
     "schemas/attention-unit.schema.json",
     "schemas/capability-fact.schema.json",
     "schemas/local-distillation.schema.json",
+    "schemas/fact-outbox-batch.schema.json",
+    "schemas/fact-outbox-receipt.schema.json",
     "schemas/inbound-message.schema.json",
     "schemas/connector-binding.schema.json"
   ];
@@ -84,6 +86,7 @@ test("local distillation doc stays aligned with the local-only aggregate baselin
     "Read surface: `GET /distillation/local`.",
     "Recompute surface: `POST /distill` and `/distill`.",
     "This layer is strictly node-local.",
+    "formal [`CapabilityFact`]",
     "`closure_rate`",
     "`recovery_success_rate`",
     "`human_intervention_rate`",
@@ -91,10 +94,42 @@ test("local distillation doc stays aligned with the local-only aggregate baselin
     "`run_trigger_rate`",
     "Only terminal sessions participate in the snapshot.",
     "Closing a session refreshes the local snapshot automatically.",
+    "Each aggregate fact carries `aggregation_window` and `privacy`.",
     "Public ingest remains a future, separate pipeline",
     "tests/phase3.local-distillation.test.ts"
   ]) {
     assert.match(document, new RegExp(escapeRegExp(snippet)));
+  }
+});
+
+test("capability fact and outbox docs stay aligned with the submission baseline", async () => {
+  const [factDoc, outboxDoc] = await Promise.all([
+    readFile(path.join(repoRoot, "docs/capability-fact-contract.md"), "utf8"),
+    readFile(path.join(repoRoot, "docs/public-facts-outbox.md"), "utf8")
+  ]);
+
+  for (const snippet of [
+    "`fact_kind`",
+    "`subject`",
+    "`aggregation_window`",
+    "`privacy`",
+    "raw node facts are `export_policy=local_only`",
+    "aggregated node/scenario facts are `export_policy=public_submit_allowed`",
+    "`pending`",
+    "`claimed`",
+    "`acked`",
+    "`failed_retryable`",
+    "`dead_letter`",
+    "Duplicate is treated as logical success",
+    "Retrying the same batch must keep `batch_id` and `content_hash` unchanged.",
+    "`dry-run`",
+    "`local-file`",
+    "`mock-http`",
+    "`POST /public-facts/submit`",
+    "`/submit-public-facts`",
+    "tests/phase3.public-fact-submission.test.ts"
+  ]) {
+    assert.match(`${factDoc}\n${outboxDoc}`, new RegExp(escapeRegExp(snippet)));
   }
 });
 

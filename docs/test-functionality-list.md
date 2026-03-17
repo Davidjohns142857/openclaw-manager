@@ -406,6 +406,31 @@
 - 时间窗口和增量重算
 - richer duration / failure-mode metrics
 
+### 3.18 Public Fact Submission Pipeline
+
+文件：
+
+- [`tests/phase3.public-fact-submission.test.ts`](/Users/yangshangqing/metaclaw/tests/phase3.public-fact-submission.test.ts)
+- [`docs/capability-fact-contract.md`](/Users/yangshangqing/metaclaw/docs/capability-fact-contract.md)
+- [`docs/public-facts-outbox.md`](/Users/yangshangqing/metaclaw/docs/public-facts-outbox.md)
+
+当前覆盖：
+
+- 本地 aggregate stats 现在是正式 `CapabilityFact`，而不是散落指标
+- fact 包含 `subject`、`scenario_signature`、`metric_name`、`metric_value`、`sample_size`、`confidence`、`aggregation_window`、`computed_at`、`privacy`
+- outbox 状态机已经落地：`pending -> claimed -> acked / failed_retryable / dead_letter`
+- `dry-run` 不写 outbox state，只验证筛选和 batch 切分
+- `local-file` 会走完整 batch/receipt 状态机
+- `mock-http` 会覆盖 `accepted / duplicate / retryable_error / rejected`
+- duplicate 被视为逻辑成功；retryable 会保留原 batch 待重试；rejected 会进入 dead letter
+- receipt 足以追踪每次提交的命运
+
+适合继续补的独立测试方向：
+
+- batch compaction / merge policy
+- richer transport metadata and auth envelope
+- skill/workflow 级别 fact export selection
+
 ## 4. 当前自动化校验总表
 
 截至当前，仓库内已有的自动化校验入口包括：
@@ -438,6 +463,7 @@
 - session status derivation
 - run timeline and evidence view
 - local-only distilled node/scenario stats
+- local capability-fact / outbox / submit pipeline
 - `session.activity` 与 `focus` 的基础交互语义
 - reserved decision/blocker API registry
 - feature-gated reserved mutation routes

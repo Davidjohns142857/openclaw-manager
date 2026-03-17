@@ -9,10 +9,12 @@ import type {
 } from "../shared/types.ts";
 import type {
   BindSourceResult,
+  CapabilityFactOutboxDetail,
   DisableBindingResult,
   RebindSourceResult,
   ReservedContractMutationResult,
-  SessionTimelineView
+  SessionTimelineView,
+  SubmitPublicFactsResult
 } from "../shared/contracts.ts";
 
 export function serializeSession(session: Session, run: Run | null): Record<string, unknown> {
@@ -110,5 +112,32 @@ export function serializeLocalDistillation(
     source_run_count: snapshot.source_run_count,
     scenario_count: snapshot.scenario_count,
     facts: snapshot.facts
+  };
+}
+
+export function serializeCapabilityFactOutboxDetail(
+  detail: CapabilityFactOutboxDetail | null
+): Record<string, unknown> | null {
+  if (!detail) {
+    return null;
+  }
+
+  return {
+    batch: detail.batch,
+    receipts: detail.receipts
+  };
+}
+
+export function serializeSubmitPublicFactsResult(
+  result: SubmitPublicFactsResult
+): Record<string, unknown> {
+  return {
+    contract_id: result.contract_id,
+    mode: result.mode,
+    dry_run: result.dry_run,
+    selected_fact_count: result.selected_fact_count,
+    created_batch_count: result.created_batch_count,
+    submitted_batch_count: result.submitted_batch_count,
+    batches: result.batches
   };
 }

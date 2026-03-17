@@ -352,6 +352,10 @@ test("skill command layer exposes bind through the client contract without impor
       calls.push("distill");
       return { contract_id: "local_distillation_v1", facts: [] } as never;
     },
+    async submitPublicFacts(input: { mode: string }) {
+      calls.push(`submit-public-facts:${input.mode}`);
+      return { contract_id: "submit_public_facts_v1", batches: [] };
+    },
     async adopt() {
       calls.push("adopt");
       return { ok: true };

@@ -36,6 +36,13 @@
 - Produces local-only aggregate facts; it must not submit or queue any public-ingest payload.
 - Equivalent sidecar API: `POST /distill`
 
+### `/submit-public-facts`
+
+- Runs the node-side submission pipeline over already-distilled local capability facts.
+- Supports `dry-run`, `local-file`, and `mock-http` transport modes.
+- The node owns batching, outbox state transitions, retry handling, duplicate handling, and receipt writing; no public ingest server is required.
+- Equivalent sidecar API: `POST /public-facts/submit`
+
 ### `/adopt`
 
 - Creates a durable session from an existing thread or explicit task intent.

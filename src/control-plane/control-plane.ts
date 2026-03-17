@@ -15,6 +15,8 @@ import type {
   RebindSourceInput,
   RebindSourceResult,
   RunSettlementResult,
+  SubmitPublicFactsInput,
+  SubmitPublicFactsResult,
   SessionTimelineView,
   ReservedContractMutationResult,
   ResolveHumanDecisionInput,
@@ -25,6 +27,8 @@ import type {
 } from "../shared/contracts.ts";
 import type {
   Checkpoint,
+  CapabilityFactOutboxBatch,
+  CapabilityFactOutboxReceipt,
   LocalDistillationSnapshot,
   ManagerConfig,
   Run,
@@ -56,6 +60,8 @@ import {
 } from "../connectors/base.ts";
 import { CapabilityFactService } from "../telemetry/capability-facts.ts";
 import { LocalDistillationService } from "../telemetry/local-distillation.ts";
+import { FactOutboxService, type FactOutboxBatchDetail } from "../telemetry/fact-outbox-service.ts";
+import { PublicFactSubmitter } from "../telemetry/public-fact-submitter.ts";
 import { SkillTraceService } from "../telemetry/skill-trace.ts";
 import { TimelineService } from "../timeline/timeline-service.ts";
 import { AttentionService } from "./attention-service.ts";
@@ -88,6 +94,8 @@ export class ControlPlane {
   skillTraceService: SkillTraceService;
   capabilityFactService: CapabilityFactService;
   localDistillationService: LocalDistillationService;
+  factOutboxService: FactOutboxService;
+  publicFactSubmitter: PublicFactSubmitter;
   reservedContractService: ReservedContractService;
   timelineService: TimelineService;
   sessionMutationLocks: Map<string, InProcessLock>;
@@ -105,6 +113,8 @@ export class ControlPlane {
     this.skillTraceService = new SkillTraceService(store);
     this.capabilityFactService = new CapabilityFactService();
     this.localDistillationService = new LocalDistillationService(store);
+    this.factOutboxService = new FactOutboxService(store);
+    this.publicFactSubmitter = new PublicFactSubmitter(this.factOutboxService);
     this.reservedContractService = new ReservedContractService(
       this.sessionService,
       this.eventService
@@ -197,6 +207,19 @@ export class ControlPlane {
 
   async distillLocalFacts(): Promise<LocalDistillationSnapshot> {
     return this.localDistillationService.refresh();
+  }
+
+  async listFactOutboxBatches(): Promise<CapabilityFactOutboxBatch[]> {
+    return this.factOutboxService.listBatches();
+  }
+
+  async getFactOutboxBatch(batchId: string): Promise<FactOutboxBatchDetail | null> {
+    return this.factOutboxService.readBatch(batchId);
+  }
+
+  async submitPublicFacts(input: SubmitPublicFactsInput): Promise<SubmitPublicFactsResult> {
+    const snapshot = await this.localDistillationService.getSnapshot();
+    return this.publicFactSubmitter.submit(snapshot, input);
   }
 
   private async projectSessionSummary(session: Session, latestRun: Run | null): Promise<Session> {

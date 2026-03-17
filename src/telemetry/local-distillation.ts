@@ -1,9 +1,9 @@
-import { createId } from "../shared/ids.ts";
+import { createStableId } from "../shared/ids.ts";
 import { canAdvanceRecoveryHeadForRunStatus, isEndedRunStatus } from "../shared/run-lifecycle.ts";
-import { isoNow } from "../shared/time.ts";
 import type {
+  CapabilityFact,
+  CapabilityFactAggregationWindow,
   LocalDistillationSnapshot,
-  LocalDistilledFact,
   LocalDistilledMetricName,
   Run,
   RunTriggerType,
@@ -14,6 +14,7 @@ import { FilesystemStore } from "../storage/fs-store.ts";
 interface ScopeAggregate {
   scope_type: "node" | "scenario";
   scope_ref: string;
+  scenario_signature: string;
   sessions: Session[];
   runs: Run[];
 }
@@ -49,19 +50,23 @@ export class LocalDistillationService {
     }
 
     const scopes = buildScopes(sessions, runsBySession);
-    const generatedAt = isoNow();
-    const facts = scopes.flatMap((scope) => buildFactsForScope(scope, generatedAt));
+    const facts = scopes.flatMap((scope) => buildFactsForScope(scope));
+    const windowEndAt =
+      maxIso(
+        sessions.flatMap((session) => [session.updated_at, session.metrics.last_activity_at]).filter(Boolean)
+      ) ?? "1970-01-01T00:00:00.000Z";
 
     return {
       contract_id: "local_distillation_v1",
-      generated_at: generatedAt,
+      generated_at: windowEndAt,
       source_session_count: sessions.length,
       source_run_count: sessions.reduce(
         (total, session) => total + (runsBySession.get(session.session_id)?.length ?? 0),
         0
       ),
-      scenario_count: new Set(scopes.filter((scope) => scope.scope_type === "scenario").map((scope) => scope.scope_ref))
-        .size,
+      scenario_count: new Set(
+        scopes.filter((scope) => scope.scope_type === "scenario").map((scope) => scope.scope_ref)
+      ).size,
       facts
     };
   }
@@ -75,6 +80,7 @@ function buildScopes(
     {
       scope_type: "node",
       scope_ref: "global",
+      scenario_signature: "all_scenarios",
       sessions,
       runs: sessions.flatMap((session) => runsBySession.get(session.session_id) ?? [])
     }
@@ -94,6 +100,7 @@ function buildScopes(
     scenarioMap.set(scenarioSignature, {
       scope_type: "scenario",
       scope_ref: scenarioSignature,
+      scenario_signature: scenarioSignature,
       sessions: [session],
       runs: [...(runsBySession.get(session.session_id) ?? [])]
     });
@@ -105,19 +112,29 @@ function buildScopes(
   ];
 }
 
-function buildFactsForScope(scope: ScopeAggregate, computedAt: string): LocalDistilledFact[] {
-  const facts: LocalDistilledFact[] = [];
+function buildFactsForScope(scope: ScopeAggregate): CapabilityFact[] {
+  const facts: CapabilityFact[] = [];
   const closedSessions = scope.sessions;
   const completedSessions = closedSessions.filter((session) => session.status === "completed");
+  const aggregationWindow = buildAggregationWindow(scope);
+  const computedAt = aggregationWindow.end_at;
 
   if (closedSessions.length > 0) {
     facts.push(
-      buildFact(scope, "closure_rate", completedSessions.length / closedSessions.length, closedSessions.length, computedAt, {
-        numerator: completedSessions.length,
-        denominator: closedSessions.length,
-        completed_session_count: completedSessions.length,
-        abandoned_session_count: closedSessions.length - completedSessions.length
-      })
+      buildFact(
+        scope,
+        aggregationWindow,
+        "closure_rate",
+        completedSessions.length / closedSessions.length,
+        closedSessions.length,
+        computedAt,
+        {
+          numerator: completedSessions.length,
+          denominator: closedSessions.length,
+          completed_session_count: completedSessions.length,
+          abandoned_session_count: closedSessions.length - completedSessions.length
+        }
+      )
     );
   }
 
@@ -130,6 +147,7 @@ function buildFactsForScope(scope: ScopeAggregate, computedAt: string): LocalDis
     facts.push(
       buildFact(
         scope,
+        aggregationWindow,
         "recovery_success_rate",
         successfulRecoveryRuns.length / recoveryRuns.length,
         recoveryRuns.length,
@@ -151,6 +169,7 @@ function buildFactsForScope(scope: ScopeAggregate, computedAt: string): LocalDis
     facts.push(
       buildFact(
         scope,
+        aggregationWindow,
         "human_intervention_rate",
         humanInterventionRuns.length / endedRuns.length,
         endedRuns.length,
@@ -176,12 +195,14 @@ function buildFactsForScope(scope: ScopeAggregate, computedAt: string): LocalDis
       (blockedRunCountBySession.get(run.session_id) ?? 0) + 1
     );
   }
+
   const blockedSessions = [...blockedRunCountBySession.values()].filter((count) => count >= 1);
   const recurrentBlockedSessions = blockedSessions.filter((count) => count >= 2);
   if (blockedSessions.length > 0) {
     facts.push(
       buildFact(
         scope,
+        aggregationWindow,
         "blocked_recurrence_rate",
         recurrentBlockedSessions.length / blockedSessions.length,
         blockedSessions.length,
@@ -200,13 +221,16 @@ function buildFactsForScope(scope: ScopeAggregate, computedAt: string): LocalDis
   if (totalRuns > 0) {
     const triggerCounts = new Map<RunTriggerType, number>();
     for (const run of scope.runs) {
-      triggerCounts.set(run.trigger.trigger_type, (triggerCounts.get(run.trigger.trigger_type) ?? 0) + 1);
+      triggerCounts.set(
+        run.trigger.trigger_type,
+        (triggerCounts.get(run.trigger.trigger_type) ?? 0) + 1
+      );
     }
 
     for (const triggerType of [...triggerCounts.keys()].sort()) {
       const count = triggerCounts.get(triggerType) ?? 0;
       facts.push(
-        buildFact(scope, "run_trigger_rate", count / totalRuns, totalRuns, computedAt, {
+        buildFact(scope, aggregationWindow, "run_trigger_rate", count / totalRuns, totalRuns, computedAt, {
           trigger_type: triggerType,
           count,
           total_run_count: totalRuns
@@ -220,22 +244,73 @@ function buildFactsForScope(scope: ScopeAggregate, computedAt: string): LocalDis
 
 function buildFact(
   scope: ScopeAggregate,
+  aggregationWindow: CapabilityFactAggregationWindow,
   metricName: LocalDistilledMetricName,
   metricValue: number,
   sampleSize: number,
   computedAt: string,
   metadata: Record<string, unknown>
-): LocalDistilledFact {
-  return {
-    fact_id: createId("lfact"),
-    scope_type: scope.scope_type,
-    scope_ref: scope.scope_ref,
+): CapabilityFact {
+  const metricValueRounded = round(metricValue);
+  const factId = createStableId("fact", {
+    subject_type: scope.scope_type,
+    subject_ref: scope.scope_ref,
+    scenario_signature: scope.scenario_signature,
     metric_name: metricName,
-    metric_value: round(metricValue),
+    metric_value: metricValueRounded,
+    sample_size: sampleSize,
+    aggregation_window: aggregationWindow,
+    metadata
+  });
+
+  return {
+    fact_id: factId,
+    fact_kind: "aggregate_metric",
+    subject: {
+      subject_type: scope.scope_type,
+      subject_ref: scope.scope_ref,
+      subject_version: null
+    },
+    scenario_signature: scope.scenario_signature,
+    metric_name: metricName,
+    metric_value: metricValueRounded,
     sample_size: sampleSize,
     confidence: confidenceFromSampleSize(sampleSize),
+    aggregation_window: aggregationWindow,
+    privacy: {
+      privacy_tier: "aggregated_export_safe",
+      export_policy: "public_submit_allowed",
+      contains_identifiers: false,
+      contains_content: false,
+      declaration:
+        "Aggregated from durable terminal sessions and runs; export-safe and does not contain raw task content."
+    },
+    evidence_refs: [],
     metadata,
     computed_at: computedAt
+  };
+}
+
+function buildAggregationWindow(scope: ScopeAggregate): CapabilityFactAggregationWindow {
+  const sessionTimes = scope.sessions.flatMap((session) => [
+    session.created_at,
+    session.updated_at,
+    session.metrics.last_activity_at
+  ]);
+  const runTimes = scope.runs.flatMap((run) => [run.started_at, run.ended_at]).filter(
+    (value): value is string => typeof value === "string"
+  );
+  const allTimes = [...sessionTimes, ...runTimes].filter(
+    (value): value is string => typeof value === "string"
+  );
+  const startAt = minIso(allTimes);
+  const endAt =
+    maxIso(allTimes) ?? "1970-01-01T00:00:00.000Z";
+
+  return {
+    window_type: "closed_session_history",
+    start_at: startAt,
+    end_at: endAt
   };
 }
 
@@ -247,10 +322,20 @@ function round(value: number): number {
   return Number(value.toFixed(4));
 }
 
-function compareFacts(left: LocalDistilledFact, right: LocalDistilledFact): number {
+function minIso(values: string[]): string | null {
+  const filtered = values.filter(Boolean).sort();
+  return filtered[0] ?? null;
+}
+
+function maxIso(values: string[]): string | null {
+  const filtered = values.filter(Boolean).sort();
+  return filtered.at(-1) ?? null;
+}
+
+function compareFacts(left: CapabilityFact, right: CapabilityFact): number {
   return (
-    left.scope_type.localeCompare(right.scope_type) ||
-    left.scope_ref.localeCompare(right.scope_ref) ||
+    left.subject.subject_type.localeCompare(right.subject.subject_type) ||
+    left.subject.subject_ref.localeCompare(right.subject.subject_ref) ||
     left.metric_name.localeCompare(right.metric_name) ||
     String(left.metadata.trigger_type ?? "").localeCompare(String(right.metadata.trigger_type ?? ""))
   );

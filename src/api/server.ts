@@ -9,7 +9,8 @@ import type {
   DisableBindingInput,
   RequestHumanDecisionInput,
   RebindSourceInput,
-  ResolveHumanDecisionInput
+  ResolveHumanDecisionInput,
+  SubmitPublicFactsInput
 } from "../shared/contracts.ts";
 import { ControlPlane } from "../control-plane/control-plane.ts";
 import {
@@ -25,13 +26,15 @@ import { normalizeBrowserConnectorMessage } from "../connectors/browser.ts";
 import { normalizeGitHubWebhook } from "../connectors/github.ts";
 import {
   serializeBindSourceResult,
+  serializeCapabilityFactOutboxDetail,
   serializeDisableBindingResult,
   serializeLocalDistillation,
   serializeRebindSourceResult,
   serializeReservedMutationResult,
   serializeSession,
   serializeSessionDetail,
-  serializeSessionTimeline
+  serializeSessionTimeline,
+  serializeSubmitPublicFactsResult
 } from "./serializers.ts";
 
 class HttpError extends Error {
@@ -144,6 +147,17 @@ function matchBindingActionRoute(
   if (parts.length === 3 && parts[0] === "bindings" && parts[2] === action) {
     return {
       bindingId: parts[1]
+    };
+  }
+
+  return null;
+}
+
+function matchPublicFactOutboxDetailRoute(pathname: string): { batchId: string } | null {
+  const parts = splitPath(pathname);
+  if (parts.length === 3 && parts[0] === "public-facts" && parts[1] === "outbox") {
+    return {
+      batchId: parts[2]
     };
   }
 
@@ -270,6 +284,46 @@ function parseBindSourceInput(body: Record<string, unknown>): BindSourceInput {
   };
 }
 
+function asSubmitMode(value: unknown): SubmitPublicFactsInput["mode"] | undefined {
+  return value === "dry-run" || value === "local-file" || value === "mock-http"
+    ? value
+    : undefined;
+}
+
+function asMockTransportResult(
+  value: unknown
+): SubmitPublicFactsInput["mock_response"] | undefined {
+  return value === "accepted" ||
+    value === "duplicate" ||
+    value === "retryable_error" ||
+    value === "rejected"
+    ? value
+    : undefined;
+}
+
+function parseSubmitPublicFactsInput(body: Record<string, unknown>): SubmitPublicFactsInput {
+  const mode = asSubmitMode(body.mode);
+
+  if (!mode) {
+    throw new HttpError(400, "mode must be one of dry-run, local-file, or mock-http.");
+  }
+
+  return {
+    mode,
+    max_batch_size:
+      typeof body.max_batch_size === "number" && Number.isFinite(body.max_batch_size)
+        ? body.max_batch_size
+        : undefined,
+    max_batches:
+      typeof body.max_batches === "number" && Number.isFinite(body.max_batches)
+        ? body.max_batches
+        : undefined,
+    retry_failed_retryable:
+      typeof body.retry_failed_retryable === "boolean" ? body.retry_failed_retryable : undefined,
+    mock_response: asMockTransportResult(body.mock_response)
+  };
+}
+
 function parseDisableBindingInput(body: Record<string, unknown>): DisableBindingInput {
   return {
     reason: typeof body.reason === "string" ? body.reason : undefined,
@@ -392,6 +446,35 @@ export class ManagerServer {
           response,
           200,
           serializeLocalDistillation(await this.controlPlane.distillLocalFacts())
+        );
+        return;
+      }
+
+      if (request.method === "GET" && pathname === "/public-facts/outbox") {
+        jsonResponse(response, 200, await this.controlPlane.listFactOutboxBatches());
+        return;
+      }
+
+      const publicFactBatchDetailRoute = matchPublicFactOutboxDetailRoute(pathname);
+      if (request.method === "GET" && publicFactBatchDetailRoute) {
+        jsonResponse(
+          response,
+          200,
+          serializeCapabilityFactOutboxDetail(
+            await this.controlPlane.getFactOutboxBatch(publicFactBatchDetailRoute.batchId)
+          )
+        );
+        return;
+      }
+
+      if (request.method === "POST" && pathname === "/public-facts/submit") {
+        const body = await readJsonBody(request);
+        jsonResponse(
+          response,
+          200,
+          serializeSubmitPublicFactsResult(
+            await this.controlPlane.submitPublicFacts(parseSubmitPublicFactsInput(body))
+          )
         );
         return;
       }

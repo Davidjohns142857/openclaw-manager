@@ -226,6 +226,10 @@ test("skill command layer depends on the client contract rather than control-pla
       calls.push("distill");
       return { contract_id: "local_distillation_v1", facts: [] } as never;
     },
+    async submitPublicFacts(input: { mode: string }) {
+      calls.push(`submit-public-facts:${input.mode}`);
+      return { contract_id: "submit_public_facts_v1", batches: [] };
+    },
     async adopt() {
       calls.push("adopt");
       return { ok: true };
@@ -263,6 +267,9 @@ test("skill command layer depends on the client contract rather than control-pla
   await assert.rejects(() => executeManagerCommand(fakeClient, "/resume"), /session_id is required/);
   await executeManagerCommand(fakeClient, "/tasks");
   await executeManagerCommand(fakeClient, "/distill");
+  await executeManagerCommand(fakeClient, "/submit-public-facts", {
+    mode: "dry-run"
+  });
   await executeManagerCommand(fakeClient, "/adopt", {
     title: "Boundary check",
     objective: "Verify command executor mapping."
@@ -290,6 +297,7 @@ test("skill command layer depends on the client contract rather than control-pla
   assert.deepEqual(calls, [
     "tasks",
     "distill",
+    "submit-public-facts:dry-run",
     "adopt",
     "bind:sess_boundary:telegram:tg_boundary",
     "unbind:bind_boundary_001",

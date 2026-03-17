@@ -18,7 +18,10 @@ import type {
   ReservedContractMutationResult,
   ResolveHumanDecisionInput,
   SessionTimelineView,
-  ShareSnapshotResult
+  ShareSnapshotResult,
+  CapabilityFactOutboxDetail,
+  SubmitPublicFactsInput,
+  SubmitPublicFactsResult
 } from "../shared/contracts.ts";
 import type {
   AttentionUnit,
@@ -178,6 +181,18 @@ export class ManagerSidecarClient implements ManagerCommandClient {
 
   async distill(): Promise<LocalDistillationSnapshot | null> {
     return this.request("POST", "/distill");
+  }
+
+  async submitPublicFacts(input: SubmitPublicFactsInput): Promise<SubmitPublicFactsResult> {
+    return this.request("POST", "/public-facts/submit", input);
+  }
+
+  async listPublicFactOutbox(): Promise<Array<Record<string, unknown>>> {
+    return this.request("GET", "/public-facts/outbox");
+  }
+
+  async getPublicFactOutboxBatch(batchId: string): Promise<CapabilityFactOutboxDetail | null> {
+    return this.request("GET", `/public-facts/outbox/${encodeURIComponent(batchId)}`);
   }
 
   async adopt(input: AdoptSessionInput): Promise<SessionDetailEnvelope> {

@@ -12,6 +12,7 @@ commands:
   - "/focus"
   - "/digest"
   - "/distill"
+  - "/submit-public-facts"
   - "/checkpoint <session_id>"
   - "/close <session_id>"
   - "/adopt"

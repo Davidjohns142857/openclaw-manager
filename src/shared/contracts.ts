@@ -2,14 +2,20 @@ import type { SessionActivity } from "./activity.ts";
 import type { SessionStatusReason } from "./session-status.ts";
 import type {
   Blocker,
+  CapabilityFact,
+  CapabilityFactOutboxBatch,
+  CapabilityFactOutboxReceipt,
+  CapabilityFactOutboxState,
   Checkpoint,
   ConnectorBinding,
   ConnectorBindingStatus,
   EventType,
   LocalDistillationSnapshot,
+  MockTransportResult,
   NormalizedInboundMessage,
   PendingHumanDecision,
   Priority,
+  PublicFactSubmitMode,
   Run,
   RunOutcome,
   RunPlanner,
@@ -239,6 +245,40 @@ export interface SessionTimelineView {
 
 export interface DistillLocalFactsResult {
   snapshot: LocalDistillationSnapshot;
+}
+
+export interface SubmitPublicFactsInput {
+  mode: PublicFactSubmitMode;
+  max_batch_size?: number;
+  max_batches?: number;
+  retry_failed_retryable?: boolean;
+  mock_response?: MockTransportResult;
+}
+
+export interface CapabilityFactOutboxDetail {
+  batch: CapabilityFactOutboxBatch;
+  receipts: CapabilityFactOutboxReceipt[];
+}
+
+export interface SubmitPublicFactsBatchResult {
+  batch_id: string;
+  state: CapabilityFactOutboxState;
+  content_hash: string;
+  fact_count: number;
+  fact_ids: string[];
+  attempt_count: number;
+  last_receipt_id: string | null;
+  receipt_result: CapabilityFactOutboxReceipt["result"] | null;
+}
+
+export interface SubmitPublicFactsResult {
+  contract_id: "submit_public_facts_v1";
+  mode: PublicFactSubmitMode;
+  dry_run: boolean;
+  selected_fact_count: number;
+  created_batch_count: number;
+  submitted_batch_count: number;
+  batches: SubmitPublicFactsBatchResult[];
 }
 
 export interface RequestHumanDecisionInput {

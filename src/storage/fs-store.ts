@@ -54,7 +54,10 @@ export class FilesystemStore {
       inbox: path.join(root, "connectors", "inbox"),
       snapshots: path.join(root, "snapshots"),
       exports: path.join(root, "exports"),
-      localDistillation: path.join(root, "indexes", "local_distillation.json")
+      localDistillation: path.join(root, "indexes", "local_distillation.json"),
+      publicFactsOutbox: path.join(root, "exports", "public-facts-outbox"),
+      publicFactsOutboxReceipts: path.join(root, "exports", "public-facts-outbox", "receipts"),
+      publicFactsOutboxLocalFile: path.join(root, "exports", "public-facts-outbox", "local-file")
     };
   }
 

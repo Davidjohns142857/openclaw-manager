@@ -3,7 +3,8 @@ import type {
   BindSourceInput,
   CloseSessionInput,
   DisableBindingInput,
-  RebindSourceInput
+  RebindSourceInput,
+  SubmitPublicFactsInput
 } from "../shared/contracts.ts";
 import type { LocalDistillationSnapshot, SourceChannel } from "../shared/types.ts";
 
@@ -18,6 +19,7 @@ export interface ManagerCommandClient {
   focus(): Promise<unknown>;
   digest(): Promise<unknown>;
   distill(): Promise<LocalDistillationSnapshot | null>;
+  submitPublicFacts(input: SubmitPublicFactsInput): Promise<unknown>;
   adopt(input: AdoptSessionInput): Promise<unknown>;
   bind(input: BindSourceInput): Promise<unknown>;
   disableBinding(bindingId: string, input: DisableBindingInput): Promise<unknown>;
@@ -58,6 +60,11 @@ export const managerCommands: ManagerCommandDefinition[] = [
     command: "/distill",
     usage: "/distill",
     description: "Recompute node-local distillation stats from durable closed-session state."
+  },
+  {
+    command: "/submit-public-facts",
+    usage: "/submit-public-facts",
+    description: "Build or submit exportable local capability facts through dry-run, local-file, or mock-http transport."
   },
   {
     command: "/checkpoint",
@@ -165,6 +172,25 @@ export async function executeManagerCommand(
       return client.digest();
     case "/distill":
       return client.distill();
+    case "/submit-public-facts":
+      return client.submitPublicFacts({
+        mode:
+          payload.mode === "local-file" || payload.mode === "mock-http" ? payload.mode : "dry-run",
+        max_batch_size:
+          typeof payload.max_batch_size === "number" ? payload.max_batch_size : undefined,
+        max_batches: typeof payload.max_batches === "number" ? payload.max_batches : undefined,
+        retry_failed_retryable:
+          typeof payload.retry_failed_retryable === "boolean"
+            ? payload.retry_failed_retryable
+            : undefined,
+        mock_response:
+          payload.mock_response === "accepted" ||
+          payload.mock_response === "duplicate" ||
+          payload.mock_response === "retryable_error" ||
+          payload.mock_response === "rejected"
+            ? payload.mock_response
+            : undefined
+      });
     case "/adopt":
       return client.adopt({
         title: String(payload.title ?? "Untitled task"),
