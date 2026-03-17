@@ -90,6 +90,10 @@
 
 这几个事件类型已经属于 canonical event vocabulary。
 
+对应的最小 HTTP contract 定义见：
+
+- [decision-blocker-api-contract.md](/Users/yangshangqing/metaclaw/docs/decision-blocker-api-contract.md)
+
 ## 3. 与 Session Status 的关系
 
 当前产品语义要求以下投影顺序：

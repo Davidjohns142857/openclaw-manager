@@ -95,6 +95,7 @@ Current canonical read endpoints:
 - `GET /sessions/:session_id`
 - `GET /focus`
 - `GET /digest`
+- `GET /contracts`
 
 Current canonical mutating endpoints that also return the same session-detail envelope:
 
@@ -102,6 +103,9 @@ Current canonical mutating endpoints that also return the same session-detail en
 - `POST /sessions/:session_id/resume`
 - `POST /sessions/:session_id/checkpoint`
 - `POST /sessions/:session_id/close`
+
+Reserved mutation contracts for future decision / blocker lifecycle work are published through
+`GET /contracts`. They are intentionally contract-defined before they are behavior-complete.
 
 If a future WebSocket layer is added, it should only emit invalidation hints such as:
 

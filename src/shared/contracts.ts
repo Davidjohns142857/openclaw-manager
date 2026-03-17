@@ -1,4 +1,11 @@
-import type { Checkpoint, NormalizedInboundMessage, Priority, Run, Session, SourceChannel } from "./types.ts";
+import type {
+  Checkpoint,
+  NormalizedInboundMessage,
+  Priority,
+  Run,
+  Session,
+  SourceChannel
+} from "./types.ts";
 
 export interface AdoptSessionInput {
   title: string;
@@ -40,4 +47,43 @@ export interface InboundHandlingResult {
   run_started: boolean;
   duplicate: boolean;
   queued: boolean;
+}
+
+export interface RequestHumanDecisionInput {
+  decision_id?: string;
+  summary: string;
+  urgency?: Priority;
+  requested_by_ref?: string;
+  requested_at?: string;
+  next_human_actions?: string[];
+  metadata?: Record<string, unknown>;
+}
+
+export interface ResolveHumanDecisionInput {
+  resolution_summary: string;
+  resolved_by_ref?: string;
+  resolved_at?: string;
+  next_machine_actions?: string[];
+  next_human_actions?: string[];
+  metadata?: Record<string, unknown>;
+}
+
+export interface DetectBlockerInput {
+  blocker_id?: string;
+  type: string;
+  summary: string;
+  severity?: Priority;
+  detected_by_ref?: string;
+  detected_at?: string;
+  next_human_actions?: string[];
+  metadata?: Record<string, unknown>;
+}
+
+export interface ClearBlockerInput {
+  resolution_summary: string;
+  cleared_by_ref?: string;
+  cleared_at?: string;
+  next_machine_actions?: string[];
+  next_human_actions?: string[];
+  metadata?: Record<string, unknown>;
 }

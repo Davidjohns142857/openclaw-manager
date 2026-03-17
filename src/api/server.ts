@@ -2,6 +2,7 @@ import { createServer, type IncomingMessage, type ServerResponse } from "node:ht
 
 import type { CloseSessionInput } from "../shared/contracts.ts";
 import { ControlPlane } from "../control-plane/control-plane.ts";
+import { buildApiContractIndex } from "./contracts.ts";
 import { handleInboundApi } from "./inbound.ts";
 import { buildHealthPayload } from "./health.ts";
 import { managerCommands } from "../skill/commands.ts";
@@ -79,6 +80,11 @@ export class ManagerServer {
 
       if (request.method === "GET" && pathname === "/commands") {
         jsonResponse(response, 200, managerCommands);
+        return;
+      }
+
+      if (request.method === "GET" && pathname === "/contracts") {
+        jsonResponse(response, 200, buildApiContractIndex());
         return;
       }
 

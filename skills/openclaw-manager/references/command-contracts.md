@@ -5,6 +5,7 @@
 - OpenClaw host-facing command code must call the local sidecar over HTTP.
 - Host code must not import `control-plane`, `fs-store`, or other durable-state internals directly.
 - Mutation commands should prefer the canonical session-detail envelope returned by the sidecar over reconstructing local state.
+- Reserved decision / blocker HTTP contracts may exist before any direct command surface is added for them.
 
 ## Primary Commands
 

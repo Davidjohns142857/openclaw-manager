@@ -194,6 +194,24 @@
 - failed-run 导致 blocked 的投影是否需要实体 blocker
 - close / archive 后 decision / blocker 的保留策略
 
+### 3.8 Reserved API Contracts
+
+文件：
+
+- [`tests/phase1.api-contracts.test.ts`](/Users/yangshangqing/metaclaw/tests/phase1.api-contracts.test.ts)
+
+当前覆盖：
+
+- `GET /contracts` 暴露 4 个 reserved decision / blocker mutation contracts
+- 每个 contract 都带 machine-readable method/path/request_fields/response_envelope/invariants/docs
+- contract 文档与 boundary 文档对齐
+
+适合继续补的独立测试方向：
+
+- reserved contract 升级到 implemented 时的兼容性检查
+- `/contracts` 中 implemented 与 reserved contract 的混排策略
+- host/client 对 `/contracts` 的消费方式
+
 ## 4. 当前自动化校验总表
 
 截至当前，仓库内已有的自动化校验入口包括：
@@ -217,6 +235,7 @@
 - focus 压缩
 - host HTTP 接入
 - `session.activity` 与 `focus` 的基础交互语义
+- reserved decision/blocker API registry
 
 尚适合补强：
 
