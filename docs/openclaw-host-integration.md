@@ -61,6 +61,7 @@ OpenClaw 命令进入 Manager 后，应默认走本地 sidecar HTTP API。
 - `POST /sessions/:session_id/share`
 - `POST /sessions/:session_id/close`
 - `POST /inbound-message`
+- `POST /connectors/browser/messages`
 
 这意味着：
 
@@ -109,6 +110,12 @@ OpenClaw 命令进入 Manager 后，应默认走本地 sidecar HTTP API。
 - `clearBlocker(...)`
 
 这些是 HTTP client capability，不等于已经进入 OpenClaw command surface。
+
+当前 host-side client 还额外暴露了一个 browser connector typed method：
+
+- `captureBrowserMessage(...)`
+
+它用于让 OpenClaw 宿主在接到外接浏览器插件消息后，把消息按 connector contract 直接交给 manager sidecar；这仍然不是 command surface。
 
 普通宿主消息的 capture / admission 也不进入 command surface；它是另一层 host adapter，负责：
 

@@ -1,4 +1,5 @@
 import type { ExternalInboundMessageInput } from "../connectors/base.ts";
+import type { BrowserConnectorMessageInput } from "../connectors/browser.ts";
 import type { SessionActivity } from "../shared/activity.ts";
 import type {
   AdoptSessionInput,
@@ -38,6 +39,14 @@ export interface InboundMessageResponse {
   run_started: boolean;
   run: Run | null;
   session: SessionWithActivity;
+}
+
+export interface BrowserConnectorEnvelope extends InboundMessageResponse {
+  accepted: true;
+  source_type: "browser";
+  source_thread_key: string;
+  message_id: string;
+  request_id: string;
 }
 
 export interface ReservedMutationEnvelope
@@ -148,6 +157,12 @@ export class ManagerSidecarClient implements ManagerCommandClient {
 
   async inboundMessage(message: ExternalInboundMessageInput): Promise<InboundMessageResponse> {
     return this.request("POST", "/inbound-message", message);
+  }
+
+  async captureBrowserMessage(
+    message: BrowserConnectorMessageInput
+  ): Promise<BrowserConnectorEnvelope> {
+    return this.request("POST", "/connectors/browser/messages", message);
   }
 
   async requestHumanDecision(

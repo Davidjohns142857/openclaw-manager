@@ -137,9 +137,10 @@ control plane 只知道：
 - 多 binding merge / split
 - 跨 connector 的复杂 dedup
 
-当前仓库里已经有第一个真实 adapter：
+当前仓库里已经有两条真实 adapter：
 
 - GitHub webhook adapter，见 [`docs/github-connector.md`](/Users/yangshangqing/metaclaw/docs/github-connector.md)
+- Browser plugin ingress adapter，见 [`docs/browser-connector.md`](/Users/yangshangqing/metaclaw/docs/browser-connector.md)
 
 ## 6. 当前阶段的结论
 

@@ -18,6 +18,7 @@ import { handleInboundApi } from "./inbound.ts";
 import { buildHealthPayload } from "./health.ts";
 import { managerCommands } from "../skill/commands.ts";
 import type { ManagerConfig } from "../shared/types.ts";
+import { normalizeBrowserConnectorMessage } from "../connectors/browser.ts";
 import { normalizeGitHubWebhook } from "../connectors/github.ts";
 import {
   serializeBindSourceResult,
@@ -178,6 +179,14 @@ function requireNonEmptyString(value: unknown, fieldName: string): string {
   }
 
   return value;
+}
+
+function asBadRequest(error: unknown, fallbackMessage: string): HttpError {
+  if (error instanceof HttpError) {
+    return error;
+  }
+
+  return new HttpError(400, error instanceof Error ? error.message : fallbackMessage);
 }
 
 function parseRequestHumanDecisionInput(body: Record<string, unknown>): RequestHumanDecisionInput {
@@ -396,11 +405,17 @@ export class ManagerServer {
 
       if (request.method === "POST" && pathname === "/connectors/github/events") {
         const body = await readJsonBody(request);
-        const normalized = normalizeGitHubWebhook({
-          delivery_id: readHeader(request, "x-github-delivery") ?? null,
-          event: readHeader(request, "x-github-event") ?? "",
-          body
-        });
+        let normalized;
+
+        try {
+          normalized = normalizeGitHubWebhook({
+            delivery_id: readHeader(request, "x-github-delivery") ?? null,
+            event: readHeader(request, "x-github-event") ?? "",
+            body
+          });
+        } catch (error) {
+          throw asBadRequest(error, "Invalid GitHub webhook payload.");
+        }
 
         if (normalized.ignored) {
           jsonResponse(response, 202, normalized);
@@ -409,6 +424,38 @@ export class ManagerServer {
 
         jsonResponse(response, 200, {
           ...normalized,
+          ...(await handleInboundApi(this.controlPlane, normalized.inbound))
+        });
+        return;
+      }
+
+      if (request.method === "POST" && pathname === "/connectors/browser/messages") {
+        const body = await readJsonBody(request);
+        let normalized;
+
+        try {
+          normalized = normalizeBrowserConnectorMessage({
+            source_thread_key:
+              typeof body.source_thread_key === "string" ? body.source_thread_key : "",
+            message_id: typeof body.message_id === "string" ? body.message_id : "",
+            text: typeof body.text === "string" ? body.text : "",
+            page_url: typeof body.page_url === "string" ? body.page_url : null,
+            page_title: typeof body.page_title === "string" ? body.page_title : null,
+            selection_text:
+              typeof body.selection_text === "string" ? body.selection_text : null,
+            captured_at: typeof body.captured_at === "string" ? body.captured_at : undefined,
+            metadata: asRecord(body.metadata)
+          });
+        } catch (error) {
+          throw asBadRequest(error, "Invalid browser connector payload.");
+        }
+
+        jsonResponse(response, 200, {
+          accepted: normalized.accepted,
+          source_type: normalized.source_type,
+          source_thread_key: normalized.source_thread_key,
+          message_id: normalized.message_id,
+          request_id: normalized.request_id,
           ...(await handleInboundApi(this.controlPlane, normalized.inbound))
         });
         return;

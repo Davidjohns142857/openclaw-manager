@@ -295,6 +295,25 @@
 - `issues` / `issue_comment` 以外的 GitHub event 覆盖
 - PR review / discussion thread 归一化
 
+### 3.13 Browser Connector Adapter
+
+文件：
+
+- [`tests/phase2.browser-connector.test.ts`](/Users/yangshangqing/metaclaw/tests/phase2.browser-connector.test.ts)
+
+当前覆盖：
+
+- 浏览器插件消息可以归一化为 canonical inbound 并通过 binding 路由进已有 session
+- 重复 `source_thread_key + message_id` 不会重复写 `message_received`
+- 缺少稳定 `source_thread_key` 的 payload 会被拒绝
+- 未绑定的浏览器 thread 不会隐式创建 session
+
+适合继续补的独立测试方向：
+
+- browser tab rebinding / disable lifecycle
+- richer page-context payload normalization
+- browser-side retry/backoff contract
+
 ## 4. 当前自动化校验总表
 
 截至当前，仓库内已有的自动化校验入口包括：
@@ -321,6 +340,7 @@
 - connector binding registry
 - binding-aware external inbound resolution
 - first real GitHub connector adapter
+- browser-plugin ingress adapter
 - `session.activity` 与 `focus` 的基础交互语义
 - reserved decision/blocker API registry
 - feature-gated reserved mutation routes

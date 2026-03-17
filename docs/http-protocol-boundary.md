@@ -44,6 +44,7 @@ Current normalized ingress endpoint:
 - `POST /inbound-message`
 - `POST /bind`
 - `POST /connectors/github/events`
+- `POST /connectors/browser/messages`
 
 Current normalized request shape:
 
