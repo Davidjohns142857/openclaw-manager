@@ -285,7 +285,7 @@ function parseBindSourceInput(body: Record<string, unknown>): BindSourceInput {
 }
 
 function asSubmitMode(value: unknown): SubmitPublicFactsInput["mode"] | undefined {
-  return value === "dry-run" || value === "local-file" || value === "mock-http"
+  return value === "dry-run" || value === "local-file" || value === "mock-http" || value === "http"
     ? value
     : undefined;
 }
@@ -305,7 +305,7 @@ function parseSubmitPublicFactsInput(body: Record<string, unknown>): SubmitPubli
   const mode = asSubmitMode(body.mode);
 
   if (!mode) {
-    throw new HttpError(400, "mode must be one of dry-run, local-file, or mock-http.");
+    throw new HttpError(400, "mode must be one of dry-run, local-file, mock-http, or http.");
   }
 
   return {

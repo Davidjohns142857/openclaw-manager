@@ -114,7 +114,7 @@ export class ControlPlane {
     this.capabilityFactService = new CapabilityFactService();
     this.localDistillationService = new LocalDistillationService(store);
     this.factOutboxService = new FactOutboxService(store);
-    this.publicFactSubmitter = new PublicFactSubmitter(this.factOutboxService);
+    this.publicFactSubmitter = new PublicFactSubmitter(config, store, this.factOutboxService);
     this.reservedContractService = new ReservedContractService(
       this.sessionService,
       this.eventService

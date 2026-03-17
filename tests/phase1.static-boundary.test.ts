@@ -81,7 +81,7 @@ test("local distillation doc stays aligned with the local-only aggregate baselin
   const document = await readFile(path.join(repoRoot, "docs/local-distillation.md"), "utf8");
 
   for (const snippet of [
-    "Input: durable terminal `session` state plus durable `run` history.",
+    "Input: durable terminal `session` state plus durable `run` history and durable `skill_trace` history.",
     "Output: one stable snapshot at `indexes/local_distillation.json`.",
     "Read surface: `GET /distillation/local`.",
     "Recompute surface: `POST /distill` and `/distill`.",
@@ -92,6 +92,10 @@ test("local distillation doc stays aligned with the local-only aggregate baselin
     "`human_intervention_rate`",
     "`blocked_recurrence_rate`",
     "`run_trigger_rate`",
+    "`invocation_count`",
+    "`success_rate` / `failure_rate`",
+    "`workflow_closure_rate`",
+    "`workflow_efficiency`",
     "Only terminal sessions participate in the snapshot.",
     "Closing a session refreshes the local snapshot automatically.",
     "Each aggregate fact carries `aggregation_window` and `privacy`.",
@@ -114,7 +118,7 @@ test("capability fact and outbox docs stay aligned with the submission baseline"
     "`aggregation_window`",
     "`privacy`",
     "raw node facts are `export_policy=local_only`",
-    "aggregated node/scenario facts are `export_policy=public_submit_allowed`",
+    "aggregated node/scenario/skill/workflow facts are `export_policy=public_submit_allowed`",
     "`pending`",
     "`claimed`",
     "`acked`",
@@ -125,6 +129,7 @@ test("capability fact and outbox docs stay aligned with the submission baseline"
     "`dry-run`",
     "`local-file`",
     "`mock-http`",
+    "`http`",
     "`POST /public-facts/submit`",
     "`/submit-public-facts`",
     "tests/phase3.public-fact-submission.test.ts"

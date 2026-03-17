@@ -566,11 +566,11 @@ Step 6: 用户查看结果
 
 ### 9.1 从 mock 到 live
 
-当真实公域服务器就绪后：
+当前代码已经支持真实 HTTP POST：
 
-1. 在 `PublicFactSubmitter` 中实现 `liveIngest`（真实 HTTP POST）
-2. 在 config 中增加 `public_facts_endpoint` 配置项
-3. 把 submitter mode 从 `mock` 切到 `live`
+1. `PublicFactSubmitter` 已实现 live ingest transport
+2. config 中已经有 `public_facts.endpoint`
+3. submitter mode 使用 `http`
 4. 其他模块（distiller、outbox、命令面）不需要改动
 
 ### 9.2 从手动到自动

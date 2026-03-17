@@ -33,7 +33,7 @@
     },
     "mode": {
       "type": "string",
-      "enum": ["dry-run", "local-file", "mock-http"]
+      "enum": ["dry-run", "local-file", "mock-http", "http"]
     },
     "result": {
       "type": "string",

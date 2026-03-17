@@ -64,7 +64,7 @@ export const managerCommands: ManagerCommandDefinition[] = [
   {
     command: "/submit-public-facts",
     usage: "/submit-public-facts",
-    description: "Build or submit exportable local capability facts through dry-run, local-file, or mock-http transport."
+    description: "Build or submit exportable local capability facts through dry-run, local-file, mock-http, or http transport."
   },
   {
     command: "/checkpoint",
@@ -175,7 +175,11 @@ export async function executeManagerCommand(
     case "/submit-public-facts":
       return client.submitPublicFacts({
         mode:
-          payload.mode === "local-file" || payload.mode === "mock-http" ? payload.mode : "dry-run",
+          payload.mode === "local-file" ||
+          payload.mode === "mock-http" ||
+          payload.mode === "http"
+            ? payload.mode
+            : "dry-run",
         max_batch_size:
           typeof payload.max_batch_size === "number" ? payload.max_batch_size : undefined,
         max_batches: typeof payload.max_batches === "number" ? payload.max_batches : undefined,

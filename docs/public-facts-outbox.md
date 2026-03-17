@@ -52,6 +52,24 @@ Rejected is terminal:
 - `dry-run`: validate fact selection and batch splitting without writing outbox state
 - `local-file`: exercise outbox state transitions and receipt writing against a local file sink
 - `mock-http`: exercise accepted / duplicate / retryable_error / rejected branches without a real server
+- `http`: submit the same stable batch contract to the configured public ingest endpoint
+
+## Live Endpoint Config
+
+The node-side live transport is configured through `ManagerConfig.public_facts`:
+
+- `endpoint`
+- `timeout_ms`
+- `auth_token`
+- `schema_version`
+
+Default local config now points to `http://142.171.114.18/v1/ingest`.
+Override with:
+
+- `OPENCLAW_MANAGER_PUBLIC_FACTS_ENDPOINT`
+- `OPENCLAW_MANAGER_PUBLIC_FACTS_TIMEOUT_MS`
+- `OPENCLAW_MANAGER_PUBLIC_FACTS_AUTH_TOKEN`
+- `OPENCLAW_MANAGER_PUBLIC_FACTS_SCHEMA_VERSION`
 
 ## Surfaces
 

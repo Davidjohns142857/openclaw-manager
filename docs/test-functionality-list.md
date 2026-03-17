@@ -397,14 +397,17 @@
 - `closeSession` 会自动刷新本地蒸馏快照
 - `GET /distillation/local` 和 `POST /distill` 返回稳定的 `local_distillation_v1`
 - 本地蒸馏当前会输出 `closure_rate`、`recovery_success_rate`、`human_intervention_rate`、`blocked_recurrence_rate`、`run_trigger_rate`
+- 本地蒸馏现在还会输出 skill-level facts：`invocation_count`、`success_rate`、`failure_rate`、`avg_duration_ms`、`avg_closure_contribution`、`primary_contribution_rate`、`regressive_rate`、`blocker_trigger_rate`
+- 本地蒸馏现在还会输出 workflow-level facts：`workflow_closure_rate`、`workflow_efficiency`
 - 蒸馏同时输出 node scope 和 scenario scope
+- 蒸馏同时输出 `skill` 和 `workflow` subject，并直接复用到现有 public-facts outbox
 - `/distill` 只做本地重算，不生成 public outbox 或公网提交副作用
 
 适合继续补的独立测试方向：
 
-- skill/workflow 级别聚合
 - 时间窗口和增量重算
 - richer duration / failure-mode metrics
+- workflow synergy / co-skill 增益
 
 ### 3.18 Public Fact Submission Pipeline
 
@@ -422,14 +425,16 @@
 - `dry-run` 不写 outbox state，只验证筛选和 batch 切分
 - `local-file` 会走完整 batch/receipt 状态机
 - `mock-http` 会覆盖 `accepted / duplicate / retryable_error / rejected`
+- `http` 会把同一批 facts 提交到配置好的公网 ingest endpoint，并复用同一套 receipt / retry / dead-letter 规则
 - duplicate 被视为逻辑成功；retryable 会保留原 batch 待重试；rejected 会进入 dead letter
 - receipt 足以追踪每次提交的命运
+- skill/workflow aggregate facts 会进入同一套 outbox batching / receipt / submit 流程，而不是单独走第二条出口
 
 适合继续补的独立测试方向：
 
 - batch compaction / merge policy
 - richer transport metadata and auth envelope
-- skill/workflow 级别 fact export selection
+- selective export policy by subject_type / metric family
 
 ## 4. 当前自动化校验总表
 

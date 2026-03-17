@@ -37,7 +37,7 @@ The current implementation targets Phase 1 from `openclaw_manager_overview.md`:
 - basic attention queue derivation
 - local snapshot export
 - local-only distilled node/scenario stats
-- local outbox and dry-run / local-file / mock-http submission pipeline
+- local outbox and dry-run / local-file / mock-http / http submission pipeline
 - minimal sidecar API and skill command contracts
 
 Out of scope for this scaffold:
@@ -54,6 +54,13 @@ Out of scope for this scaffold:
 3. Run the local smoke flow: `npm run smoke`
 
 By default, runtime state is written to `.openclaw-manager-state/` in this repository. Override with `OPENCLAW_MANAGER_HOME=/path/to/state`.
+
+Public fact live-ingest defaults to `http://142.171.114.18/v1/ingest`. Override with:
+
+- `OPENCLAW_MANAGER_PUBLIC_FACTS_ENDPOINT`
+- `OPENCLAW_MANAGER_PUBLIC_FACTS_TIMEOUT_MS`
+- `OPENCLAW_MANAGER_PUBLIC_FACTS_AUTH_TOKEN`
+- `OPENCLAW_MANAGER_PUBLIC_FACTS_SCHEMA_VERSION`
 
 ## Repository Layout
 

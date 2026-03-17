@@ -29,6 +29,55 @@ async function closeOneExportableSession(
   });
 }
 
+async function closeOneExportableSkillWorkflowSession(
+  manager: Awaited<ReturnType<typeof createTempManager>>
+): Promise<void> {
+  const adopted = await manager.controlPlane.adoptSession({
+    title: "Skill fact submission seed",
+    objective: "Produce exportable skill/workflow aggregate facts.",
+    scenario_signature: "scenario.export.skills"
+  });
+
+  await manager.controlPlane.runService.recordSkillInvocation(
+    adopted.session.session_id,
+    adopted.run.run_id,
+    "research-skill"
+  );
+  await manager.controlPlane.runService.recordSkillInvocation(
+    adopted.session.session_id,
+    adopted.run.run_id,
+    "summarizer"
+  );
+  await manager.controlPlane.skillTraceService.record({
+    session_id: adopted.session.session_id,
+    run_id: adopted.run.run_id,
+    skill_name: "research-skill",
+    skill_version: "1.0.0",
+    duration_ms: 120,
+    success: true,
+    contribution_type: "primary",
+    closure_contribution_score: 0.7
+  });
+  await manager.controlPlane.skillTraceService.record({
+    session_id: adopted.session.session_id,
+    run_id: adopted.run.run_id,
+    skill_name: "summarizer",
+    skill_version: "2.1.0",
+    duration_ms: 60,
+    success: true,
+    contribution_type: "supporting",
+    closure_contribution_score: 0.2
+  });
+  await manager.controlPlane.settleActiveRun(adopted.session.session_id, {
+    status: "completed",
+    summary: "Skill export seed completed.",
+    reason_code: "seed_done"
+  });
+  await manager.controlPlane.closeSession(adopted.session.session_id, {
+    outcome_summary: "Skill export seed closed."
+  });
+}
+
 async function requireBatchDetail(
   manager: Awaited<ReturnType<typeof createTempManager>>,
   batchId: string
@@ -105,6 +154,139 @@ test("local-file submission acks batches once and does not repackage the same fa
     assert.equal(second.submitted_batch_count, 0);
     assert.equal((await manager.controlPlane.listFactOutboxBatches()).length, 3);
   } finally {
+    await manager.cleanup();
+  }
+});
+
+test("skill and workflow aggregate facts are selected into the existing outbox pipeline", async () => {
+  const manager = await createTempManager();
+
+  try {
+    await closeOneExportableSkillWorkflowSession(manager);
+
+    const result = await manager.controlPlane.submitPublicFacts({
+      mode: "local-file",
+      max_batch_size: 50
+    });
+    assert.ok(result.created_batch_count >= 1);
+    assert.ok(result.submitted_batch_count >= 1);
+
+    const batches = await manager.controlPlane.listFactOutboxBatches();
+    const exportedFacts = batches.flatMap((batch) => batch.facts);
+
+    assert.ok(
+      exportedFacts.some(
+        (fact) =>
+          fact.subject.subject_type === "skill" &&
+          fact.subject.subject_ref === "research-skill" &&
+          fact.metric_name === "invocation_count"
+      )
+    );
+    assert.ok(
+      exportedFacts.some(
+        (fact) =>
+          fact.subject.subject_type === "workflow" &&
+          fact.subject.subject_ref === "research-skill|summarizer" &&
+          fact.metric_name === "workflow_closure_rate"
+      )
+    );
+    assert.ok(exportedFacts.every((fact) => fact.privacy.export_policy === "public_submit_allowed"));
+  } finally {
+    await manager.cleanup();
+  }
+});
+
+test("http submission posts a public batch to the configured live endpoint and records ack receipts", async () => {
+  const received: Array<{
+    url: string;
+    headers: Headers;
+    body: unknown;
+  }> = [];
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+    const headers = new Headers(init?.headers);
+    const rawBody = typeof init?.body === "string" ? init.body : "";
+    const body = rawBody ? JSON.parse(rawBody) : null;
+    received.push({
+      url: typeof input === "string" ? input : input.toString(),
+      headers,
+      body
+    });
+
+    return new Response(
+      JSON.stringify({
+        status: "accepted",
+        batch_id: (body as { batch_id: string }).batch_id,
+        accepted_count: Array.isArray((body as { facts?: unknown[] }).facts)
+          ? (body as { facts: unknown[] }).facts.length
+          : 0,
+        rejected_count: 0,
+        receipt_id: "rcpt_live_001"
+      }),
+      {
+        status: 202,
+        headers: { "content-type": "application/json" }
+      }
+    );
+  }) as typeof fetch;
+
+  const manager = await createTempManager({
+    public_facts: {
+      endpoint: "http://127.0.0.1:9911/v1/ingest",
+      timeout_ms: 3000,
+      auth_token: "test-token",
+      schema_version: "1.0.0"
+    }
+  });
+
+  try {
+    await closeOneExportableSkillWorkflowSession(manager);
+
+    const result = await manager.controlPlane.submitPublicFacts({
+      mode: "http",
+      max_batch_size: 50
+    });
+    assert.equal(result.created_batch_count, 1);
+    assert.equal(result.submitted_batch_count, 1);
+    assert.equal(received.length, 1);
+
+    const request = received[0]!;
+    assert.equal(request.url, "http://127.0.0.1:9911/v1/ingest");
+    assert.equal(request.headers.get("x-schema-version"), "1.0.0");
+    assert.match(String(request.headers.get("authorization")), /^Bearer test-token$/);
+
+    const payload = request.body as {
+      batch_id: string;
+      schema_version: string;
+      node_fingerprint: string;
+      submitted_at: string;
+      facts: Array<{
+        public_fact_id: string;
+        schema_version: string;
+        node_fingerprint: string;
+        subject_type: string;
+        metric_name: string;
+      }>;
+    };
+    assert.equal(payload.batch_id, result.batches[0]!.batch_id);
+    assert.equal(payload.schema_version, "1.0.0");
+    assert.match(payload.node_fingerprint, /^anon_[a-f0-9]{32}$/);
+    assert.ok(payload.facts.length >= 1);
+    assert.ok(payload.facts.every((fact) => fact.schema_version === "1.0.0"));
+    assert.ok(payload.facts.every((fact) => fact.node_fingerprint === payload.node_fingerprint));
+    assert.ok(payload.facts.every((fact) => fact.public_fact_id.startsWith("pfact_")));
+    assert.ok(payload.facts.some((fact) => fact.subject_type === "workflow"));
+    assert.ok(payload.facts.some((fact) => fact.metric_name === "invocation_count"));
+    const serializedFacts = JSON.stringify(payload.facts);
+    assert.equal(/sess_[a-f0-9]{16}/.test(serializedFacts), false);
+    assert.equal(/run_[a-f0-9]{16}/.test(serializedFacts), false);
+
+    const detail = await requireBatchDetail(manager, result.batches[0]!.batch_id);
+    assert.equal(detail.batch.state, "acked");
+    assert.equal(detail.receipts.at(-1)?.result, "accepted");
+    assert.equal(detail.receipts.at(-1)?.transport_reference, "rcpt_live_001");
+  } finally {
+    globalThis.fetch = originalFetch;
     await manager.cleanup();
   }
 });

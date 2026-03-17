@@ -157,7 +157,7 @@
     },
     "transport_mode": {
       "type": ["string", "null"],
-      "enum": ["local-file", "mock-http", null]
+      "enum": ["local-file", "mock-http", "http", null]
     },
     "fact_ids": {
       "type": "array",

@@ -115,7 +115,7 @@ export type CapabilityFactOutboxState =
   | "acked"
   | "failed_retryable"
   | "dead_letter";
-export type PublicFactSubmitMode = "dry-run" | "local-file" | "mock-http";
+export type PublicFactSubmitMode = "dry-run" | "local-file" | "mock-http" | "http";
 export type MockTransportResult =
   | "accepted"
   | "duplicate"
@@ -359,13 +359,23 @@ export interface CapabilityFact {
   computed_at: string;
 }
 
-export type LocalDistillationScopeType = "node" | "scenario";
+export type LocalDistillationScopeType = "node" | "scenario" | "skill" | "workflow";
 export type LocalDistilledMetricName =
   | "closure_rate"
   | "recovery_success_rate"
   | "human_intervention_rate"
   | "blocked_recurrence_rate"
-  | "run_trigger_rate";
+  | "run_trigger_rate"
+  | "success_rate"
+  | "failure_rate"
+  | "avg_duration_ms"
+  | "avg_closure_contribution"
+  | "primary_contribution_rate"
+  | "regressive_rate"
+  | "blocker_trigger_rate"
+  | "invocation_count"
+  | "workflow_closure_rate"
+  | "workflow_efficiency";
 export type LocalDistilledFact = CapabilityFact;
 
 export interface LocalDistillationSnapshot {
@@ -458,6 +468,13 @@ export interface ManagerFeatureFlags {
   blocker_lifecycle_v1: boolean;
 }
 
+export interface PublicFactsTransportConfig {
+  endpoint: string;
+  timeout_ms: number;
+  auth_token: string | null;
+  schema_version: string;
+}
+
 export interface SessionIndexEntry {
   session_id: string;
   title: string;
@@ -476,4 +493,40 @@ export interface ManagerConfig {
   schemasDir: string;
   port: number;
   features: ManagerFeatureFlags;
+  public_facts: PublicFactsTransportConfig;
+}
+
+export interface PublicCapabilityFact {
+  public_fact_id: string;
+  schema_version: string;
+  node_fingerprint: string;
+  subject_type: CapabilityFactSubjectType;
+  subject_ref: string;
+  subject_version: string | null;
+  scenario_signature: string;
+  scenario_tags: string[];
+  metric_name: string;
+  metric_value: number | string | boolean;
+  sample_size: number;
+  confidence: number;
+  context?: Record<string, unknown>;
+  computed_at: string;
+  submitted_at: string;
+}
+
+export interface PublicCapabilityFactBatchRequest {
+  schema_version: string;
+  node_fingerprint: string;
+  batch_id: string;
+  submitted_at: string;
+  facts: PublicCapabilityFact[];
+}
+
+export interface PublicCapabilityFactBatchResponse {
+  status: "accepted" | "duplicate" | "partial" | "rejected";
+  batch_id: string;
+  accepted_count?: number;
+  rejected_count?: number;
+  rejected_facts?: Array<{ public_fact_id: string; reason: string }>;
+  receipt_id?: string | null;
 }

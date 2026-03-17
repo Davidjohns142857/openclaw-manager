@@ -54,10 +54,12 @@ export class FilesystemStore {
       inbox: path.join(root, "connectors", "inbox"),
       snapshots: path.join(root, "snapshots"),
       exports: path.join(root, "exports"),
+      config: path.join(root, "config"),
       localDistillation: path.join(root, "indexes", "local_distillation.json"),
       publicFactsOutbox: path.join(root, "exports", "public-facts-outbox"),
       publicFactsOutboxReceipts: path.join(root, "exports", "public-facts-outbox", "receipts"),
-      publicFactsOutboxLocalFile: path.join(root, "exports", "public-facts-outbox", "local-file")
+      publicFactsOutboxLocalFile: path.join(root, "exports", "public-facts-outbox", "local-file"),
+      publicFactsNodeSecret: path.join(root, "config", "public-facts-node-secret.txt")
     };
   }
 
@@ -86,7 +88,8 @@ export class FilesystemStore {
       mkdir(paths.connectors, { recursive: true }),
       mkdir(paths.inbox, { recursive: true }),
       mkdir(paths.snapshots, { recursive: true }),
-      mkdir(paths.exports, { recursive: true })
+      mkdir(paths.exports, { recursive: true }),
+      mkdir(paths.config, { recursive: true })
     ]);
   }
 

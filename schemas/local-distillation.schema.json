@@ -87,7 +87,17 @@
               "recovery_success_rate",
               "human_intervention_rate",
               "blocked_recurrence_rate",
-              "run_trigger_rate"
+              "run_trigger_rate",
+              "success_rate",
+              "failure_rate",
+              "avg_duration_ms",
+              "avg_closure_contribution",
+              "primary_contribution_rate",
+              "regressive_rate",
+              "blocker_trigger_rate",
+              "invocation_count",
+              "workflow_closure_rate",
+              "workflow_efficiency"
             ]
           },
           "metric_value": {

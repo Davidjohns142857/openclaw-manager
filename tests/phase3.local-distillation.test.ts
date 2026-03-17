@@ -16,6 +16,8 @@ function findFact(
     subjectType: CapabilityFact["subject"]["subject_type"];
     subjectRef: string;
     metricName: CapabilityFact["metric_name"];
+    subjectVersion?: string | null;
+    scenarioSignature?: string;
     triggerType?: string;
   }
 ): CapabilityFact {
@@ -24,6 +26,17 @@ function findFact(
       candidate.subject.subject_type !== input.subjectType ||
       candidate.subject.subject_ref !== input.subjectRef ||
       candidate.metric_name !== input.metricName
+    ) {
+      return false;
+    }
+
+    if (input.subjectVersion !== undefined && candidate.subject.subject_version !== input.subjectVersion) {
+      return false;
+    }
+
+    if (
+      input.scenarioSignature !== undefined &&
+      candidate.scenario_signature !== input.scenarioSignature
     ) {
       return false;
     }
@@ -265,6 +278,258 @@ test("local distillation refreshes from durable terminal sessions and exposes no
     );
     assert.equal(storedSnapshot.contract_id, snapshot.contract_id);
     assert.equal(storedSnapshot.source_session_count, 4);
+  } finally {
+    await manager.cleanup();
+  }
+});
+
+test("local distillation emits exportable skill and workflow aggregate facts", async () => {
+  const manager = await createTempManager();
+
+  try {
+    const first = await manager.controlPlane.adoptSession({
+      title: "Skill distillation complete",
+      objective: "Seed a completed workflow with traced skill usage.",
+      scenario_signature: "scenario.skill"
+    });
+    await manager.controlPlane.runService.recordSkillInvocation(
+      first.session.session_id,
+      first.run.run_id,
+      "research-skill"
+    );
+    await manager.controlPlane.runService.recordSkillInvocation(
+      first.session.session_id,
+      first.run.run_id,
+      "summarizer"
+    );
+    await manager.controlPlane.skillTraceService.record({
+      session_id: first.session.session_id,
+      run_id: first.run.run_id,
+      skill_name: "research-skill",
+      skill_version: "1.0.0",
+      duration_ms: 100,
+      success: true,
+      contribution_type: "primary",
+      closure_contribution_score: 0.8
+    });
+    await manager.controlPlane.skillTraceService.record({
+      session_id: first.session.session_id,
+      run_id: first.run.run_id,
+      skill_name: "summarizer",
+      skill_version: "2.1.0",
+      duration_ms: 40,
+      success: true,
+      contribution_type: "supporting",
+      closure_contribution_score: 0.3
+    });
+    await manager.controlPlane.settleActiveRun(first.session.session_id, {
+      status: "completed",
+      summary: "First skill workflow completed.",
+      reason_code: "workflow_complete"
+    });
+    await manager.controlPlane.closeSession(first.session.session_id, {
+      outcome_summary: "First skill workflow closed."
+    });
+
+    const second = await manager.controlPlane.adoptSession({
+      title: "Skill distillation blocked",
+      objective: "Seed a blocked workflow with partial tracing.",
+      scenario_signature: "scenario.skill"
+    });
+    await manager.controlPlane.runService.recordSkillInvocation(
+      second.session.session_id,
+      second.run.run_id,
+      "research-skill"
+    );
+    await manager.controlPlane.runService.recordSkillInvocation(
+      second.session.session_id,
+      second.run.run_id,
+      "summarizer"
+    );
+    await manager.controlPlane.skillTraceService.record({
+      session_id: second.session.session_id,
+      run_id: second.run.run_id,
+      skill_name: "research-skill",
+      skill_version: "1.0.0",
+      duration_ms: 50,
+      success: false,
+      contribution_type: "regressive",
+      requires_human_fix: true,
+      closure_contribution_score: 0
+    });
+    await manager.controlPlane.settleActiveRun(second.session.session_id, {
+      status: "blocked",
+      summary: "Blocked by upstream data gap.",
+      reason_code: "external_dependency",
+      blockers: [
+        {
+          blocker_id: "blk_skill_001",
+          type: "external_dependency",
+          summary: "Upstream dataset unavailable.",
+          detected_at: "2026-03-17T01:00:00.000Z",
+          severity: "high"
+        }
+      ]
+    });
+    await manager.controlPlane.closeSession(second.session.session_id, {
+      outcome_summary: "Blocked workflow abandoned.",
+      resolution: "abandoned"
+    });
+
+    const third = await manager.controlPlane.adoptSession({
+      title: "Skill distillation other scenario",
+      objective: "Seed a second scenario for global skill aggregation.",
+      scenario_signature: "scenario.other"
+    });
+    await manager.controlPlane.runService.recordSkillInvocation(
+      third.session.session_id,
+      third.run.run_id,
+      "research-skill"
+    );
+    await manager.controlPlane.skillTraceService.record({
+      session_id: third.session.session_id,
+      run_id: third.run.run_id,
+      skill_name: "research-skill",
+      skill_version: "1.0.0",
+      duration_ms: 80,
+      success: true,
+      contribution_type: "primary",
+      closure_contribution_score: 0.6
+    });
+    await manager.controlPlane.settleActiveRun(third.session.session_id, {
+      status: "completed",
+      summary: "Other scenario completed.",
+      reason_code: "other_complete"
+    });
+    await manager.controlPlane.closeSession(third.session.session_id, {
+      outcome_summary: "Other scenario closed."
+    });
+
+    const snapshot = await manager.controlPlane.getLocalDistillation();
+    assert.ok(snapshot);
+
+    const researchInvocation = findFact(snapshot, {
+      subjectType: "skill",
+      subjectRef: "research-skill",
+      subjectVersion: "1.0.0",
+      scenarioSignature: "all_scenarios",
+      metricName: "invocation_count"
+    });
+    assert.equal(researchInvocation.metric_value, 3);
+    assert.equal(researchInvocation.sample_size, 3);
+    assert.equal(researchInvocation.privacy.export_policy, "public_submit_allowed");
+
+    const researchSuccess = findFact(snapshot, {
+      subjectType: "skill",
+      subjectRef: "research-skill",
+      subjectVersion: "1.0.0",
+      scenarioSignature: "all_scenarios",
+      metricName: "success_rate"
+    });
+    assert.equal(researchSuccess.metric_value, 0.6667);
+
+    const researchFailure = findFact(snapshot, {
+      subjectType: "skill",
+      subjectRef: "research-skill",
+      subjectVersion: "1.0.0",
+      scenarioSignature: "all_scenarios",
+      metricName: "failure_rate"
+    });
+    assert.equal(researchFailure.metric_value, 0.3333);
+
+    const researchHuman = findFact(snapshot, {
+      subjectType: "skill",
+      subjectRef: "research-skill",
+      subjectVersion: "1.0.0",
+      scenarioSignature: "all_scenarios",
+      metricName: "human_intervention_rate"
+    });
+    assert.equal(researchHuman.metric_value, 0.3333);
+
+    const researchDuration = findFact(snapshot, {
+      subjectType: "skill",
+      subjectRef: "research-skill",
+      subjectVersion: "1.0.0",
+      scenarioSignature: "all_scenarios",
+      metricName: "avg_duration_ms"
+    });
+    assert.equal(researchDuration.metric_value, 76.6667);
+
+    const researchContribution = findFact(snapshot, {
+      subjectType: "skill",
+      subjectRef: "research-skill",
+      subjectVersion: "1.0.0",
+      scenarioSignature: "all_scenarios",
+      metricName: "avg_closure_contribution"
+    });
+    assert.equal(researchContribution.metric_value, 0.4667);
+
+    const researchPrimary = findFact(snapshot, {
+      subjectType: "skill",
+      subjectRef: "research-skill",
+      subjectVersion: "1.0.0",
+      scenarioSignature: "all_scenarios",
+      metricName: "primary_contribution_rate"
+    });
+    assert.equal(researchPrimary.metric_value, 0.6667);
+
+    const researchRegressive = findFact(snapshot, {
+      subjectType: "skill",
+      subjectRef: "research-skill",
+      subjectVersion: "1.0.0",
+      scenarioSignature: "all_scenarios",
+      metricName: "regressive_rate"
+    });
+    assert.equal(researchRegressive.metric_value, 0.3333);
+
+    const researchBlocked = findFact(snapshot, {
+      subjectType: "skill",
+      subjectRef: "research-skill",
+      subjectVersion: "1.0.0",
+      scenarioSignature: "all_scenarios",
+      metricName: "blocker_trigger_rate"
+    });
+    assert.equal(researchBlocked.metric_value, 0.3333);
+
+    const researchClosure = findFact(snapshot, {
+      subjectType: "skill",
+      subjectRef: "research-skill",
+      subjectVersion: "1.0.0",
+      scenarioSignature: "all_scenarios",
+      metricName: "closure_rate"
+    });
+    assert.equal(researchClosure.metric_value, 0.6667);
+    assert.equal(researchClosure.sample_size, 3);
+
+    const scenarioSkillSuccess = findFact(snapshot, {
+      subjectType: "skill",
+      subjectRef: "research-skill",
+      subjectVersion: "1.0.0",
+      scenarioSignature: "scenario.skill",
+      metricName: "success_rate"
+    });
+    assert.equal(scenarioSkillSuccess.metric_value, 0.5);
+    assert.equal(scenarioSkillSuccess.sample_size, 2);
+
+    const workflowClosure = findFact(snapshot, {
+      subjectType: "workflow",
+      subjectRef: "research-skill|summarizer",
+      scenarioSignature: "all_scenarios",
+      metricName: "workflow_closure_rate"
+    });
+    assert.equal(workflowClosure.metric_value, 0.5);
+    assert.equal(workflowClosure.sample_size, 2);
+    assert.deepEqual(workflowClosure.metadata.skill_names, ["research-skill", "summarizer"]);
+    assert.equal(workflowClosure.metadata.skill_count, 2);
+
+    const workflowEfficiency = findFact(snapshot, {
+      subjectType: "workflow",
+      subjectRef: "research-skill|summarizer",
+      scenarioSignature: "all_scenarios",
+      metricName: "workflow_efficiency"
+    });
+    assert.equal(workflowEfficiency.metric_value, 1);
+    assert.equal(workflowEfficiency.metadata.completed_run_count, 1);
   } finally {
     await manager.cleanup();
   }

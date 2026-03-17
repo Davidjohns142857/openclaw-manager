@@ -105,7 +105,7 @@
 | `public_fact_id` | string | 是 | 上报唯一标识，`pfact_` 前缀 |
 | `schema_version` | string | 是 | 上报 schema 版本，当前固定 `1.0.0` |
 | `node_fingerprint` | string | 是 | 节点匿名指纹，见 §3.2 |
-| `subject_type` | enum | 是 | `skill` / `workflow` / `connector` / `scenario` |
+| `subject_type` | enum | 是 | `node` / `skill` / `workflow` / `connector` / `scenario` |
 | `subject_ref` | string | 是 | skill 名称或 workflow 签名 |
 | `subject_version` | string | 否 | skill 版本号 |
 | `scenario_signature` | string | 是 | 场景签名 |
@@ -136,19 +136,21 @@ node_fingerprint = "anon_" + sha256(local_node_secret + "openclaw-public-facts")
 
 当前阶段支持以下标准化指标名称。
 
+当前节点本地 baseline 已经稳定产出 skill-level 与 workflow-level facts；公网 transport 未来应直接复用这些对象，而不是重新定义另一套统计语义。
+
 ### 4.1 Skill-level 指标
 
 | metric_name | 类型 | 说明 |
 |---|---|---|
 | `closure_rate` | number | skill 参与的 session 中，最终闭环的比例 |
-| `success_rate` | number | skill 被调用后，run 以 completed 结束的比例 |
-| `failure_rate` | number | skill 被调用后，run 以 failed 结束的比例 |
-| `human_intervention_rate` | number | skill 参与的 run 中，需要人工介入的比例 |
+| `success_rate` | number | skill trace 中 `success=true` 的比例 |
+| `failure_rate` | number | skill trace 中 `success=false` 的比例 |
+| `human_intervention_rate` | number | skill trace 中 `requires_human_fix=true` 的比例 |
 | `avg_duration_ms` | number | skill 在 run 中的平均执行时长 |
 | `avg_closure_contribution` | number | 该 skill 对最终闭环的平均贡献分 |
 | `primary_contribution_rate` | number | 该 skill 作为 primary contributor 的比例 |
 | `regressive_rate` | number | 该 skill 导致返工或回退的比例 |
-| `blocker_trigger_rate` | number | 该 skill 执行后产生 blocker 的比例 |
+| `blocker_trigger_rate` | number | 该 skill trace 所在 run 最终以 `blocked` 结束的比例 |
 | `invocation_count` | integer | 该 skill 在当前 scenario 下的总调用次数 |
 
 ### 4.2 Scenario-level 指标
@@ -167,8 +169,8 @@ node_fingerprint = "anon_" + sha256(local_node_secret + "openclaw-public-facts")
 | metric_name | 类型 | 说明 |
 |---|---|---|
 | `workflow_closure_rate` | number | 该 skill 组合的闭环率 |
-| `workflow_efficiency` | number | 闭环所需的平均 run 数的倒数 |
-| `workflow_co_skill_synergy` | number | 该组合相比单 skill 的闭环率增益 |
+| `workflow_efficiency` | number | completed sessions / completed sessions 对应总 run 数 |
+| `workflow_co_skill_synergy` | number | 该组合相比单 skill 的闭环率增益，当前保留为后续指标 |
 
 ## 5. Context 字段
 
@@ -200,7 +202,7 @@ node_fingerprint = "anon_" + sha256(local_node_secret + "openclaw-public-facts")
 POST https://facts.openclaw.dev/v1/ingest
 ```
 
-当前阶段该 endpoint 是 mock，不存在真实服务器。
+当前仓库的 node-side submitter 已经支持真实 `http` transport，并默认把 live endpoint 指向 `http://142.171.114.18/v1/ingest`。如果公网服务路径不同，可以通过 `OPENCLAW_MANAGER_PUBLIC_FACTS_ENDPOINT` 覆盖。
 
 ### 6.2 Request
 

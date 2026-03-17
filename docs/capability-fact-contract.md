@@ -30,6 +30,8 @@ Current local aggregate facts use:
 
 - `subject_type=node`, `subject_ref=global`
 - `subject_type=scenario`, `subject_ref=<scenario_signature>`
+- `subject_type=skill`, `subject_ref=<skill_name>`, `subject_version=<skill_version | null>`
+- `subject_type=workflow`, `subject_ref=<sorted skill-set signature>`
 
 Raw closure facts still use `subject_type=session`.
 
@@ -57,7 +59,7 @@ Raw closure facts use `window_type=point_in_time`.
 Current rule:
 
 - raw node facts are `export_policy=local_only`
-- aggregated node/scenario facts are `export_policy=public_submit_allowed`
+- aggregated node/scenario/skill/workflow facts are `export_policy=public_submit_allowed`
 
 ## Stability Rules
 
