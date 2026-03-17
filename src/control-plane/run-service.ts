@@ -20,7 +20,7 @@ export class RunService {
     const run: Run = {
       run_id: runId,
       session_id: session.session_id,
-      status: "running",
+      status: "accepted",
       trigger,
       planner: {
         planner_name: "default_planner",
@@ -61,16 +61,8 @@ export class RunService {
         trigger_type: trigger.trigger_type
       }
     });
-    await this.eventService.record({
-      sessionId: session.session_id,
-      runId: run.run_id,
-      eventType: "run_started",
-      payload: {
-        trigger_type: trigger.trigger_type
-      }
-    });
 
-    return run;
+    return this.transitionRun(session.session_id, run.run_id, "running");
   }
 
   async transitionRun(
@@ -103,6 +95,9 @@ export class RunService {
     await this.store.writeRun(sessionId, nextRun);
 
     const eventType =
+      status === "running"
+        ? "run_started"
+        :
       status === "completed"
         ? "run_completed"
         : status === "failed"
@@ -125,4 +120,3 @@ export class RunService {
     return nextRun;
   }
 }
-

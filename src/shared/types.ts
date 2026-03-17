@@ -321,6 +321,13 @@ export interface Checkpoint {
   created_at: string;
 }
 
+export interface RecoveryHead {
+  session_id: string;
+  run_id: string;
+  transaction_id: string;
+  committed_at: string;
+}
+
 export interface SessionIndexEntry {
   session_id: string;
   title: string;
@@ -339,4 +346,3 @@ export interface ManagerConfig {
   schemasDir: string;
   port: number;
 }
-

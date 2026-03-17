@@ -18,6 +18,11 @@
 - Returns the derived attention queue ordered by urgency and value.
 - Equivalent sidecar API: `GET /focus`
 
+### `/digest`
+
+- Returns a compressed multi-task digest based on current attention and quiet sessions.
+- Equivalent sidecar API: `GET /digest`
+
 ### `/adopt`
 
 - Creates a durable session from an existing thread or explicit task intent.
@@ -43,4 +48,3 @@
 - Prefer concise, state-dense output.
 - Surface blockers, pending human decisions, active runs, and next actions.
 - Avoid replaying raw logs unless the user explicitly asks for evidence.
-

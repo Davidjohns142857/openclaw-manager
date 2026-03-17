@@ -96,6 +96,13 @@ Current canonical read endpoints:
 - `GET /focus`
 - `GET /digest`
 
+Current canonical mutating endpoints that also return the same session-detail envelope:
+
+- `POST /adopt`
+- `POST /sessions/:session_id/resume`
+- `POST /sessions/:session_id/checkpoint`
+- `POST /sessions/:session_id/close`
+
 If a future WebSocket layer is added, it should only emit invalidation hints such as:
 
 - session changed
@@ -104,3 +111,8 @@ If a future WebSocket layer is added, it should only emit invalidation hints suc
 
 That push channel should never become the authoritative state path.
 
+## Idempotency And Delivery
+
+- `request_id` is claimed atomically at the filesystem ingress boundary before events are emitted.
+- Duplicate deliveries for the same `request_id` return the canonical session payload without re-emitting message facts.
+- Connector retries should reuse the same `request_id` rather than inventing a fresh one.

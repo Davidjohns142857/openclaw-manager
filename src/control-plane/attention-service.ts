@@ -125,11 +125,32 @@ export class AttentionService {
       });
     }
 
-    return items;
+    if (items.length === 0) {
+      return [];
+    }
+
+    const sorted = sortAttentionQueue(items);
+    const [primary, ...rest] = sorted;
+
+    if (rest.length === 0) {
+      return [primary];
+    }
+
+    return [
+      {
+        ...primary,
+        reasoning_summary: [primary.reasoning_summary, ...rest.map((item) => item.reasoning_summary)]
+          .filter(Boolean)
+          .join(" | "),
+        metadata: {
+          ...primary.metadata,
+          merged_categories: [primary.category, ...rest.map((item) => item.category)]
+        }
+      }
+    ];
   }
 
   buildAttentionQueue(sessions: Session[]): AttentionUnit[] {
     return sortAttentionQueue(sessions.flatMap((session) => this.buildAttentionForSession(session)));
   }
 }
-

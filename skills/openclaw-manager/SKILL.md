@@ -13,6 +13,7 @@ Use this skill when the user is managing long-running OpenClaw work rather than 
 - reviewing active sessions with `/tasks`
 - restoring recoverable state with `/resume <session_id>`
 - checking human-facing priority with `/focus`
+- generating a compressed multi-task digest with `/digest`
 - exporting a session snapshot with `/share <session_id>`
 - closing or checkpointing a thread with `/close` or `/checkpoint`
 
@@ -27,4 +28,3 @@ Use this skill when the user is managing long-running OpenClaw work rather than 
 
 - Command and API contracts: [references/command-contracts.md](/Users/yangshangqing/metaclaw/skills/openclaw-manager/references/command-contracts.md)
 - Phase 1 operating boundaries: [references/operating-boundaries.md](/Users/yangshangqing/metaclaw/skills/openclaw-manager/references/operating-boundaries.md)
-

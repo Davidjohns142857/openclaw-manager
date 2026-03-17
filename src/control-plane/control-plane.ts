@@ -77,12 +77,15 @@ export class ControlPlane {
     const run = session.active_run_id
       ? await this.store.readRun(session.session_id, session.active_run_id)
       : await this.getLatestRun(session.session_id);
-    const checkpoint = run
-      ? await this.store.readCheckpoint(session.session_id, run.run_id)
-      : null;
-    const summary = await this.store.readSummary(session.session_id);
+    const checkpoint = run ? await this.store.readCheckpoint(session.session_id, run.run_id) : null;
+    const recoveredSession = checkpoint
+      ? this.checkpointService.applyCheckpoint(session, checkpoint)
+      : session;
+    const summary = run
+      ? await this.store.readRecoverySummary(session.session_id, run.run_id)
+      : await this.store.readSummary(session.session_id);
 
-    return { session, run, checkpoint, summary };
+    return { session: recoveredSession, run, checkpoint, summary };
   }
 
   async adoptSession(input: AdoptSessionInput): Promise<{ session: Session; run: Run }> {
@@ -121,6 +124,7 @@ export class ControlPlane {
       : null;
 
     if (!run && !isTerminalSessionStatus(session.status)) {
+      const pendingInputs = [...session.state.pending_external_inputs];
       run = await this.runService.startRun(session, {
         trigger_type: "resume",
         trigger_ref: null,
@@ -133,11 +137,15 @@ export class ControlPlane {
       session.metrics.run_count += 1;
       session.metrics.last_activity_at = run.started_at;
       session.latest_checkpoint_ref = checkpointRef(run.run_id);
+      session.state.pending_external_inputs = [];
+      session.metadata.pending_inbound_count = 0;
       session.metadata.summary_needs_refresh = true;
       session = await this.sessionService.saveSession(session);
 
       const refreshed = await this.checkpointService.refreshRecoveryArtifacts(session, run, [
-        "Session resumed from checkpoint."
+        pendingInputs.length > 0
+          ? `Session resumed and consumed ${pendingInputs.length} queued inbound update(s).`
+          : "Session resumed from checkpoint."
       ]);
 
       session.latest_summary_ref = "summary.md";
@@ -161,18 +169,39 @@ export class ControlPlane {
     let checkpoint = run
       ? await this.store.readCheckpoint(session.session_id, run.run_id)
       : null;
-    let summary = await this.store.readSummary(session.session_id);
+    let summary = run
+      ? await this.store.readRecoverySummary(session.session_id, run.run_id)
+      : await this.store.readSummary(session.session_id);
 
-    if (run && (!checkpoint || !summary)) {
-      const refreshed = await this.checkpointService.refreshRecoveryArtifacts(session, run, [
-        "Recovery artifacts refreshed during resume."
-      ]);
-      checkpoint = refreshed.checkpoint;
-      summary = refreshed.summary;
-      session.latest_summary_ref = "summary.md";
+    if (run && !checkpoint) {
+      throw new Error(
+        `Recovery checkpoint missing or uncommitted for session ${session.session_id} run ${run.run_id}. Refresh explicitly before resuming.`
+      );
+    }
+
+    if (run && checkpoint) {
+      session = this.checkpointService.applyCheckpoint(session, checkpoint);
       session.latest_checkpoint_ref = checkpointRef(run.run_id);
+      session = await this.sessionService.saveSession(session);
+    }
+
+    if (run && checkpoint && !summary) {
+      summary = await this.checkpointService.renderSummary(session, run, checkpoint, [
+        "Summary regenerated from committed checkpoint."
+      ]);
+      await this.store.writeCommittedRecoverySummary(session.session_id, run.run_id, summary);
+      session.latest_summary_ref = "summary.md";
       session.metadata.summary_needs_refresh = false;
       session = await this.sessionService.saveSession(session);
+      await this.eventService.record({
+        sessionId: session.session_id,
+        runId: run.run_id,
+        eventType: "summary_refreshed",
+        payload: {
+          summary_ref: "summary.md",
+          regenerated_from: "checkpoint"
+        }
+      });
       await this.refreshDerivedViews();
     }
 
@@ -265,10 +294,12 @@ export class ControlPlane {
 
   async shareSession(sessionId: string): Promise<ShareSnapshotResult> {
     let session = await this.sessionService.requireSession(sessionId);
-    let summary = await this.store.readSummary(sessionId);
     const run = session.active_run_id
       ? await this.store.readRun(session.session_id, session.active_run_id)
       : await this.getLatestRun(session.session_id);
+    let summary = run
+      ? await this.store.readRecoverySummary(sessionId, run.run_id)
+      : await this.store.readSummary(sessionId);
 
     if (!summary && run) {
       const refreshed = await this.checkpointService.refreshRecoveryArtifacts(session, run, [
@@ -320,6 +351,10 @@ export class ControlPlane {
           closure_contribution: input.resolution === "abandoned" ? 0 : 1
         }
       );
+
+      if (run.status === "failed" || run.status === "cancelled") {
+        session.metrics.failed_run_count += 1;
+      }
     }
 
     session.active_run_id = null;
@@ -379,22 +414,22 @@ export class ControlPlane {
 
   async handleInboundMessage(input: NormalizeInboundMessageInput): Promise<InboundHandlingResult> {
     const message = normalizeInboundMessage(input);
-    const existingMessage = await this.store.readInboundMessage(message.request_id);
+    const claim = await this.store.tryClaimInboundMessage(message);
 
-    if (existingMessage) {
-      if (existingMessage.target_session_id !== message.target_session_id) {
+    if (claim.status === "duplicate" && claim.existing) {
+      if (claim.existing.target_session_id !== message.target_session_id) {
         throw new Error(
-          `request_id ${message.request_id} already belongs to session ${existingMessage.target_session_id}`
+          `request_id ${message.request_id} already belongs to session ${claim.existing.target_session_id}`
         );
       }
 
-      const session = await this.sessionService.requireSession(existingMessage.target_session_id);
+      const session = await this.sessionService.requireSession(claim.existing.target_session_id);
       const run = session.active_run_id
         ? await this.store.readRun(session.session_id, session.active_run_id)
         : await this.getLatestRun(session.session_id);
 
       return {
-        message: existingMessage,
+        message: claim.existing,
         session,
         run,
         run_started: false,
@@ -404,8 +439,6 @@ export class ControlPlane {
     }
 
     let session = await this.sessionService.requireSession(message.target_session_id);
-
-    await this.store.writeInboundMessage(message);
     await this.eventService.record({
       sessionId: session.session_id,
       eventType: "message_received",

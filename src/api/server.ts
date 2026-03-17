@@ -120,7 +120,7 @@ export class ManagerServer {
 
       if (request.method === "POST" && pathname === "/adopt") {
         const body = await readJsonBody(request);
-        jsonResponse(response, 200, await this.controlPlane.adoptSession({
+        const adopted = await this.controlPlane.adoptSession({
           title: String(body.title ?? "Untitled task"),
           objective: String(body.objective ?? "No objective provided"),
           owner_ref: typeof body.owner_ref === "string" ? body.owner_ref : undefined,
@@ -137,7 +137,12 @@ export class ManagerServer {
           next_machine_actions: Array.isArray(body.next_machine_actions)
             ? body.next_machine_actions.filter((value): value is string => typeof value === "string")
             : undefined
-        }));
+        });
+        jsonResponse(
+          response,
+          200,
+          serializeSessionDetail(await this.controlPlane.getSessionDetail(adopted.session.session_id))
+        );
         return;
       }
 
@@ -173,13 +178,33 @@ export class ManagerServer {
 
       const resumeSessionId = matchSessionRoute(pathname, "resume");
       if (request.method === "POST" && resumeSessionId) {
-        jsonResponse(response, 200, await this.controlPlane.resumeSession(resumeSessionId));
+        const resumed = await this.controlPlane.resumeSession(resumeSessionId);
+        jsonResponse(
+          response,
+          200,
+          serializeSessionDetail({
+            session: resumed.session,
+            run: resumed.run,
+            checkpoint: resumed.checkpoint,
+            summary: resumed.summary
+          })
+        );
         return;
       }
 
       const checkpointSessionId = matchSessionRoute(pathname, "checkpoint");
       if (request.method === "POST" && checkpointSessionId) {
-        jsonResponse(response, 200, await this.controlPlane.refreshCheckpoint(checkpointSessionId));
+        const refreshed = await this.controlPlane.refreshCheckpoint(checkpointSessionId);
+        jsonResponse(
+          response,
+          200,
+          serializeSessionDetail({
+            session: refreshed.session,
+            run: refreshed.run,
+            checkpoint: refreshed.checkpoint,
+            summary: refreshed.summary
+          })
+        );
         return;
       }
 
@@ -192,11 +217,16 @@ export class ManagerServer {
       const closeSessionId = matchSessionRoute(pathname, "close");
       if (request.method === "POST" && closeSessionId) {
         const body = (await readJsonBody(request)) as Partial<CloseSessionInput>;
-        jsonResponse(response, 200, await this.controlPlane.closeSession(closeSessionId, {
+        await this.controlPlane.closeSession(closeSessionId, {
           resolution: body.resolution === "abandoned" ? "abandoned" : "completed",
           outcome_summary: body.outcome_summary ?? "Closed through API.",
           metadata: body.metadata ?? {}
-        }));
+        });
+        jsonResponse(
+          response,
+          200,
+          serializeSessionDetail(await this.controlPlane.getSessionDetail(closeSessionId))
+        );
         return;
       }
 

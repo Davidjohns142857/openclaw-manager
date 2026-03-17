@@ -15,6 +15,7 @@ In practice that means:
 
 - `checkpoint.json` is the machine-facing recovery head
 - `summary.md` is the human-facing compressed view
+- `recovery-head.json` is the commit fence proving which checkpoint/summary transaction is authoritative
 - `events.jsonl` remains the factual audit trail
 - `spool.jsonl` remains low-level execution evidence
 
@@ -30,6 +31,8 @@ The checkpoint answers:
 - what machine and human actions should happen next
 - which artifacts belong to the active run
 
+The checkpoint is only trusted when its transaction marker matches `recovery-head.json`.
+
 ### 2. Read summary second
 
 The summary answers:
@@ -38,6 +41,8 @@ The summary answers:
 - what has already happened
 - what matters right now
 - what a human should look at next
+
+The summary is treated as a cache over the committed recovery head. If its transaction marker is stale or missing, it is regenerated from the committed checkpoint rather than from mutable session state.
 
 ### 3. Read events only when deeper evidence is needed
 

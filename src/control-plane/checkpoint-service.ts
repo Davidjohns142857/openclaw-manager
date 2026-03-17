@@ -48,6 +48,22 @@ export class CheckpointService {
     };
   }
 
+  applyCheckpoint(session: Session, checkpoint: Checkpoint): Session {
+    return {
+      ...session,
+      status: checkpoint.session_status,
+      state: {
+        ...session.state,
+        phase: checkpoint.phase,
+        blockers: checkpoint.blockers,
+        pending_human_decisions: checkpoint.pending_human_decisions,
+        pending_external_inputs: checkpoint.pending_external_inputs,
+        next_machine_actions: checkpoint.next_machine_actions,
+        next_human_actions: checkpoint.next_human_actions
+      }
+    };
+  }
+
   async renderSummary(
     session: Session,
     run: Run,
@@ -97,11 +113,12 @@ export class CheckpointService {
   ): Promise<{ checkpoint: Checkpoint; summary: string }> {
     const checkpoint = this.buildCheckpoint(session, run);
     const summary = await this.renderSummary(session, run, checkpoint, notes);
-
-    await Promise.all([
-      this.store.writeCheckpoint(session.session_id, run.run_id, checkpoint),
-      this.store.writeSummary(session.session_id, summary)
-    ]);
+    const committedCheckpoint = await this.store.writeRecoveryArtifacts(
+      session.session_id,
+      run.run_id,
+      checkpoint,
+      summary
+    );
 
     await this.eventService.record({
       sessionId: session.session_id,
@@ -120,7 +137,6 @@ export class CheckpointService {
       }
     });
 
-    return { checkpoint, summary };
+    return { checkpoint: committedCheckpoint, summary };
   }
 }
-

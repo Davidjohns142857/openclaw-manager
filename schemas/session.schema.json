@@ -68,7 +68,7 @@
       "enum": ["low", "medium", "high", "critical"]
     },
     "scenario_signature": {
-      "type": "string"
+      "type": ["string", "null"]
     },
     "tags": {
       "type": "array",
@@ -172,4 +172,3 @@
   },
   "additionalProperties": true
 }
-

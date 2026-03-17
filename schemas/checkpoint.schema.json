@@ -1,0 +1,91 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "openclaw-manager/checkpoint.schema.json",
+  "title": "Checkpoint",
+  "type": "object",
+  "required": [
+    "session_id",
+    "run_id",
+    "session_status",
+    "phase",
+    "blockers",
+    "pending_human_decisions",
+    "pending_external_inputs",
+    "artifact_refs",
+    "next_machine_actions",
+    "next_human_actions",
+    "active_assumptions",
+    "metadata",
+    "created_at"
+  ],
+  "properties": {
+    "session_id": {
+      "type": "string",
+      "pattern": "^sess_[A-Za-z0-9_-]+$"
+    },
+    "run_id": {
+      "type": "string",
+      "pattern": "^run_[A-Za-z0-9_-]+$"
+    },
+    "session_status": {
+      "type": "string",
+      "enum": [
+        "draft",
+        "active",
+        "waiting_human",
+        "blocked",
+        "completed",
+        "abandoned",
+        "archived"
+      ]
+    },
+    "phase": {
+      "type": "string"
+    },
+    "blockers": {
+      "type": "array"
+    },
+    "pending_human_decisions": {
+      "type": "array"
+    },
+    "pending_external_inputs": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "artifact_refs": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "next_machine_actions": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "next_human_actions": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "active_assumptions": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "metadata": {
+      "type": "object"
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    }
+  },
+  "additionalProperties": true
+}
+
