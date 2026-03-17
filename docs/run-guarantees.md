@@ -19,6 +19,13 @@
 - `failed` 第一次失败不等于 `blocked`；重复失败会把 `focus` 抬升为 `blocked`
 - `completed`、`cancelled`、`superseded` 本身不会单独抬高 `focus`
 
+## Session Summary
+
+- `session.status` 是控制面摘要，不是第二套 run 状态机
+- paused run 会把 `session.status` 投影成 `waiting_human` 或 `blocked`
+- unresolved decision / blocker 也会把 `session.status` 投影成 `waiting_human` / `blocked`
+- 对外读面应同时看 `session.status_reason`
+
 ## Committed Recovery Head
 
 - 终态会推进 committed recovery head：`waiting_human`、`blocked`、`completed`

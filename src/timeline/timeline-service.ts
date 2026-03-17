@@ -1,4 +1,5 @@
 import { deriveSessionActivity } from "../shared/activity.ts";
+import { deriveSessionStatusReason } from "../shared/session-status.ts";
 import type {
   RunStatusFlowEntry,
   RunTimelineView,
@@ -43,11 +44,13 @@ export class TimelineService {
     runs: Run[]
   ): Promise<SessionTimelineView> {
     const orderedRuns = [...runs].sort((left, right) => left.started_at.localeCompare(right.started_at));
+    const statusReason = deriveSessionStatusReason(session, currentRun);
     const sessionSummary: SessionTimelineSummary = {
       session_id: session.session_id,
       title: session.title,
       objective: session.objective,
-      status: session.status,
+      status: statusReason.status,
+      status_reason: statusReason,
       active_run_id: session.active_run_id,
       latest_checkpoint_ref: session.latest_checkpoint_ref,
       latest_summary_ref: session.latest_summary_ref,

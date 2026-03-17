@@ -16,7 +16,6 @@ test("waiting_human sessions queue inbound updates instead of auto-starting a ru
     );
 
     session.active_run_id = null;
-    session.status = "waiting_human";
     session.state.pending_human_decisions.push({
       decision_id: "dec_waiting_001",
       summary: "Confirm whether to proceed",
@@ -58,7 +57,6 @@ test("blocked sessions queue inbound updates instead of auto-starting a run", as
     );
 
     session.active_run_id = null;
-    session.status = "blocked";
     session.state.blockers.push({
       blocker_id: "blk_blocked_001",
       type: "external_dependency",
@@ -100,7 +98,6 @@ test("checkpoint restores blocker and pending decision state during resume", asy
     let session = await manager.controlPlane.sessionService.requireSession(
       adopted.session.session_id
     );
-    session.status = "waiting_human";
     session.state.blockers = [
       {
         blocker_id: "blk_recovery_001",

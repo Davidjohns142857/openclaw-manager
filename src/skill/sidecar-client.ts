@@ -1,6 +1,7 @@
 import type { ExternalInboundMessageInput } from "../connectors/base.ts";
 import type { BrowserConnectorMessageInput } from "../connectors/browser.ts";
 import type { SessionActivity } from "../shared/activity.ts";
+import type { SessionStatusReason } from "../shared/session-status.ts";
 import type {
   AdoptSessionInput,
   BindingListFilters,
@@ -30,6 +31,7 @@ import type { ManagerCommandClient, ManagerCommandDefinition } from "./commands.
 
 export interface SessionWithActivity extends Session {
   activity: SessionActivity;
+  status_reason: SessionStatusReason;
 }
 
 export interface SessionDetailEnvelope {

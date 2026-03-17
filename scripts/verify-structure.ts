@@ -13,6 +13,7 @@ const requiredPaths = [
   "docs/run-lifecycle.md",
   "docs/run-guarantees.md",
   "docs/run-timeline-contract.md",
+  "docs/session-status-derivation.md",
   "docs/browser-connector.md",
   "docs/github-connector.md",
   "docs/openclaw-host-integration.md",
@@ -42,6 +43,7 @@ const requiredPaths = [
   "src/storage/fs-store.ts",
   "src/storage/schema-registry.ts",
   "src/skill/sidecar-client.ts",
+  "src/shared/session-status.ts",
   "src/shared/reserved-contracts.ts",
   "skills/openclaw-manager/SKILL.md",
   "skills/openclaw-manager/agents/openai.yaml"

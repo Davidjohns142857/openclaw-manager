@@ -30,6 +30,11 @@ import {
   shouldAutoStartRunOnResume,
   projectSessionStatusAfterRun
 } from "../shared/run-lifecycle.ts";
+import {
+  applyDerivedSessionStatus,
+  readSessionStatusReason,
+  sameSessionStatusReason
+} from "../shared/session-status.ts";
 import { isoNow } from "../shared/time.ts";
 import { canAutoContinueSession, isTerminalSessionStatus } from "../shared/state.ts";
 import { renderTemplate } from "../shared/template.ts";
@@ -114,10 +119,11 @@ export class ControlPlane {
     checkpoint: Checkpoint | null;
     summary: string | null;
   }> {
-    const session = await this.sessionService.requireSession(sessionId);
-    const run = session.active_run_id
-      ? await this.store.readRun(session.session_id, session.active_run_id)
-      : await this.getLatestRun(session.session_id);
+    const storedSession = await this.sessionService.requireSession(sessionId);
+    const run = storedSession.active_run_id
+      ? await this.store.readRun(storedSession.session_id, storedSession.active_run_id)
+      : await this.getLatestRun(storedSession.session_id);
+    const session = await this.projectSessionSummary(storedSession, run);
     const checkpoint = run ? await this.store.readCheckpoint(session.session_id, run.run_id) : null;
     const summary = run
       ? await this.store.readRecoverySummary(session.session_id, run.run_id)
@@ -127,13 +133,30 @@ export class ControlPlane {
   }
 
   async getSessionTimeline(sessionId: string): Promise<SessionTimelineView> {
-    const session = await this.sessionService.requireSession(sessionId);
-    const runs = await this.store.listRuns(session.session_id);
-    const currentRun = session.active_run_id
-      ? await this.store.readRun(session.session_id, session.active_run_id)
+    const storedSession = await this.sessionService.requireSession(sessionId);
+    const runs = await this.store.listRuns(storedSession.session_id);
+    const currentRun = storedSession.active_run_id
+      ? await this.store.readRun(storedSession.session_id, storedSession.active_run_id)
       : runs[0] ?? null;
+    const session = await this.projectSessionSummary(storedSession, currentRun);
 
     return this.timelineService.buildSessionTimeline(session, currentRun, runs);
+  }
+
+  private async projectSessionSummary(session: Session, latestRun: Run | null): Promise<Session> {
+    const projected = applyDerivedSessionStatus(session, latestRun);
+    const currentReason = readSessionStatusReason(session);
+    const projectedReason = readSessionStatusReason(projected);
+
+    if (session.status === projected.status && sameSessionStatusReason(currentReason, projectedReason!)) {
+      return session;
+    }
+
+    return this.sessionService.saveSession(projected);
+  }
+
+  private async saveProjectedSession(session: Session, latestRun: Run | null): Promise<Session> {
+    return this.sessionService.saveSession(applyDerivedSessionStatus(session, latestRun));
   }
 
   async adoptSession(input: AdoptSessionInput): Promise<{ session: Session; run: Run }> {
@@ -164,7 +187,7 @@ export class ControlPlane {
     session.latest_summary_ref = "summary.md";
     session.latest_checkpoint_ref = checkpointRef(run.run_id);
     session.metadata.summary_needs_refresh = false;
-    session = await this.sessionService.saveSession(session);
+    session = await this.saveProjectedSession(session, run);
 
     await this.refreshDerivedViews();
     return { session, run };
@@ -197,7 +220,7 @@ export class ControlPlane {
       );
       session.metadata.pending_inbound_count = session.state.pending_external_inputs.length;
       session.latest_checkpoint_ref = checkpointRef(checkpoint.run_id);
-      session = await this.sessionService.saveSession(session);
+      session = await this.saveProjectedSession(session, latestRun);
     }
 
     if (latestRun && checkpoint && !summary) {
@@ -226,6 +249,8 @@ export class ControlPlane {
       await this.refreshDerivedViews();
     }
 
+    session = await this.saveProjectedSession(session, run ?? latestRun);
+
     if (!run && !isTerminalSessionStatus(session.status) && shouldAutoStartRunOnResume(session, latestRun)) {
       const pendingInputs = [...session.state.pending_external_inputs];
       run = await this.runService.startRun(session, {
@@ -236,7 +261,6 @@ export class ControlPlane {
       });
 
       session.active_run_id = run.run_id;
-      session.status = "active";
       session.metrics.run_count += 1;
       session.metrics.last_activity_at = run.started_at;
       session.latest_checkpoint_ref = checkpointRef(run.run_id);
@@ -259,7 +283,7 @@ export class ControlPlane {
       session.latest_summary_ref = "summary.md";
       session.latest_checkpoint_ref = checkpointRef(run.run_id);
       session.metadata.summary_needs_refresh = false;
-      session = await this.sessionService.saveSession(session);
+      session = await this.saveProjectedSession(session, run);
 
       await this.refreshDerivedViews();
       return {
@@ -270,6 +294,7 @@ export class ControlPlane {
       };
     }
 
+    session = await this.saveProjectedSession(session, run ?? latestRun);
     return { session, run: run ?? latestRun, checkpoint, summary };
   }
 
@@ -278,6 +303,8 @@ export class ControlPlane {
     let run = session.active_run_id
       ? await this.store.readRun(session.session_id, session.active_run_id)
       : await this.getLatestRun(session.session_id);
+
+    session = await this.saveProjectedSession(session, run);
 
     if (!run && !isTerminalSessionStatus(session.status)) {
       if (shouldAutoStartRunOnResume(session, null)) {
@@ -292,7 +319,7 @@ export class ControlPlane {
         session.metrics.run_count += 1;
         session.metrics.last_activity_at = run.started_at;
         session.latest_checkpoint_ref = checkpointRef(run.run_id);
-        session = await this.sessionService.saveSession(session);
+        session = await this.saveProjectedSession(session, run);
       }
     }
 
@@ -330,7 +357,7 @@ export class ControlPlane {
     session.latest_summary_ref = "summary.md";
     session.latest_checkpoint_ref = checkpointRef(run.run_id);
     session.metadata.summary_needs_refresh = false;
-    session = await this.sessionService.saveSession(session);
+    session = await this.saveProjectedSession(session, run);
 
     await this.refreshDerivedViews();
 
@@ -386,7 +413,7 @@ export class ControlPlane {
       session.metrics.failed_run_count += 1;
     }
 
-    session = await this.sessionService.saveSession(session);
+    session = await this.saveProjectedSession(session, run);
 
     let checkpoint: Checkpoint | null = null;
     let summary: string | null = null;
@@ -407,7 +434,7 @@ export class ControlPlane {
       session.latest_summary_ref = "summary.md";
       session.latest_checkpoint_ref = checkpointRef(run.run_id);
       session.metadata.summary_needs_refresh = false;
-      session = await this.sessionService.saveSession(session);
+      session = await this.saveProjectedSession(session, run);
     }
 
     await this.refreshDerivedViews();
@@ -772,7 +799,7 @@ export class ControlPlane {
     session.state.next_human_actions = [];
     session.metrics.last_activity_at = isoNow();
     session.metadata.summary_needs_refresh = true;
-    session = await this.sessionService.saveSession(session);
+    session = await this.saveProjectedSession(session, run);
 
     if (run) {
       const refreshed = await this.checkpointService.refreshRecoveryArtifacts(session, run, [
@@ -787,7 +814,7 @@ export class ControlPlane {
       session.latest_summary_ref = "summary.md";
       session.latest_checkpoint_ref = checkpointRef(run.run_id);
       session.metadata.summary_needs_refresh = false;
-      session = await this.sessionService.saveSession(session);
+      session = await this.saveProjectedSession(session, run);
 
       await this.eventService.record({
         sessionId: session.session_id,
@@ -851,6 +878,9 @@ export class ControlPlane {
     }
 
     let session = await this.sessionService.requireSession(message.target_session_id);
+    const latestRun = session.active_run_id
+      ? await this.store.readRun(session.session_id, session.active_run_id)
+      : await this.getLatestRun(session.session_id);
     await this.eventService.record({
       sessionId: session.session_id,
       eventType: "message_received",
@@ -895,7 +925,7 @@ export class ControlPlane {
     let run: Run | null = null;
     let runStarted = false;
 
-    if (canAutoContinueSession(session) && !session.active_run_id) {
+    if (canAutoContinueSession(session, latestRun) && !session.active_run_id) {
       run = await this.runService.startRun(session, {
         trigger_type: "external_message",
         trigger_ref: null,
@@ -904,7 +934,6 @@ export class ControlPlane {
       });
 
       session.active_run_id = run.run_id;
-      session.status = "active";
       session.metrics.run_count += 1;
       session.metrics.last_activity_at = run.started_at;
       session.state.pending_external_inputs = session.state.pending_external_inputs.filter(
@@ -926,16 +955,10 @@ export class ControlPlane {
       session.latest_summary_ref = "summary.md";
       session.latest_checkpoint_ref = checkpointRef(run.run_id);
       session.metadata.summary_needs_refresh = false;
-      session = await this.sessionService.saveSession(session);
+      session = await this.saveProjectedSession(session, run);
       runStarted = true;
     } else {
-      if (session.state.pending_human_decisions.length > 0) {
-        session.status = "waiting_human";
-      } else if (session.state.blockers.length > 0) {
-        session.status = "blocked";
-      }
-
-      session = await this.sessionService.saveSession(session);
+      session = await this.saveProjectedSession(session, latestRun);
     }
 
     await this.refreshDerivedViews();
@@ -954,7 +977,16 @@ export class ControlPlane {
   static ConnectorBindingNotFoundError = ConnectorBindingNotFoundError;
 
   async refreshDerivedViews(): Promise<void> {
-    const sessions = await this.sessionService.listSessions();
+    const storedSessions = await this.sessionService.listSessions();
+    const sessions = await Promise.all(
+      storedSessions.map(async (session) => {
+        const latestRun = session.active_run_id
+          ? await this.store.readRun(session.session_id, session.active_run_id)
+          : await this.getLatestRun(session.session_id);
+
+        return this.projectSessionSummary(session, latestRun);
+      })
+    );
     const sessionIndexes = buildSessionIndexes(sessions);
     const attentionQueue = this.attentionService.buildAttentionQueue(sessions);
     const attentionBySession = new Map<string, ReturnType<AttentionService["buildAttentionForSession"]>>();

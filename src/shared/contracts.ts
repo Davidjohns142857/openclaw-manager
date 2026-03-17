@@ -1,4 +1,5 @@
 import type { SessionActivity } from "./activity.ts";
+import type { SessionStatusReason } from "./session-status.ts";
 import type {
   Blocker,
   Checkpoint,
@@ -146,6 +147,7 @@ export interface SessionTimelineSummary {
   title: string;
   objective: string;
   status: SessionStatus;
+  status_reason: SessionStatusReason;
   active_run_id: string | null;
   latest_checkpoint_ref: string | null;
   latest_summary_ref: string | null;

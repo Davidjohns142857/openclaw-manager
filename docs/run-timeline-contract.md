@@ -16,6 +16,8 @@
 - `run_count`
 - `runs[]`
 
+其中 `session` 也会带上派生后的 `status_reason`，说明当前 summary status 来自 paused run 还是事实对象。
+
 每个 `runs[]` 项至少包含：
 
 - `trigger`

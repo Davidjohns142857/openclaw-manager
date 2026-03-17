@@ -338,7 +338,26 @@
 - run-level artifact export / evidence snapshot
 - run trigger 统计与 capability facts 的联动
 
-### 3.15 Run Timeline And Evidence View
+### 3.15 Session Status Derivation
+
+文件：
+
+- [`tests/phase2.session-status-derivation.test.ts`](/Users/yangshangqing/metaclaw/tests/phase2.session-status-derivation.test.ts)
+- [`docs/session-status-derivation.md`](/Users/yangshangqing/metaclaw/docs/session-status-derivation.md)
+
+当前覆盖：
+
+- paused run 会把 `session.status` 投影成 `waiting_human` / `blocked`
+- unresolved decision / blocker facts 会投影 `session.status`，但不改变 run state
+- `session.status_reason` 能说明当前 summary status 来自 paused run、decision 还是 blocker
+
+适合继续补的独立测试方向：
+
+- session status precedence 冲突矩阵
+- terminal session vs paused run 的优先级
+- share / export 面对 `status_reason` 的呈现
+
+### 3.16 Run Timeline And Evidence View
 
 文件：
 
@@ -387,6 +406,7 @@
 - first real GitHub connector adapter
 - browser-plugin ingress adapter
 - run lifecycle and evidence refs
+- session status derivation
 - run timeline and evidence view
 - `session.activity` 与 `focus` 的基础交互语义
 - reserved decision/blocker API registry

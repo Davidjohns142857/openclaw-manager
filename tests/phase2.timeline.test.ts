@@ -87,6 +87,7 @@ test("timeline route exports runs, triggers, status flow, outcome, and recovery/
       contract_id: string;
       session: {
         session_id: string;
+        status_reason: { source_kind: string; source_run_id: string | null };
         activity: { run: { state: string; phase: string } };
         latest_checkpoint_ref: string | null;
       };
@@ -117,6 +118,8 @@ test("timeline route exports runs, triggers, status flow, outcome, and recovery/
 
     assert.equal(timeline.contract_id, "session_run_timeline_v1");
     assert.equal(timeline.session.session_id, adopted.session.session_id);
+    assert.equal(timeline.session.status_reason.source_kind, "paused_run");
+    assert.equal(timeline.session.status_reason.source_run_id, settledResume.run.run_id);
     assert.equal(timeline.session.activity.run.state, "idle");
     assert.equal(timeline.session.activity.run.phase, "waiting_human");
     assert.equal(timeline.session.latest_checkpoint_ref, `runs/${settledResume.run.run_id}/checkpoint.json`);

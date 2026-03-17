@@ -1,3 +1,4 @@
+import { deriveSessionStatusReason } from "./session-status.ts";
 import type { Run, RunStatus, Session, SessionStatus } from "./types.ts";
 
 const activeRunStatuses = new Set<RunStatus>(["accepted", "queued", "running"]);
@@ -33,7 +34,7 @@ export function canAdvanceRecoveryHeadForRunStatus(status: RunStatus): boolean {
 }
 
 export function shouldAutoStartRunOnResume(session: Session, latestRun: Run | null): boolean {
-  if (session.status !== "active") {
+  if (deriveSessionStatusReason(session, latestRun).status !== "active") {
     return false;
   }
 

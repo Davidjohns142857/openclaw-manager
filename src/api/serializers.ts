@@ -1,4 +1,5 @@
 import { deriveSessionActivity } from "../shared/activity.ts";
+import { deriveSessionStatusReason } from "../shared/session-status.ts";
 import type { Checkpoint, ConnectorBinding, Run, Session } from "../shared/types.ts";
 import type {
   BindSourceResult,
@@ -9,8 +10,12 @@ import type {
 } from "../shared/contracts.ts";
 
 export function serializeSession(session: Session, run: Run | null): Record<string, unknown> {
+  const statusReason = deriveSessionStatusReason(session, run);
+
   return {
     ...session,
+    status: statusReason.status,
+    status_reason: statusReason,
     activity: deriveSessionActivity(session, run)
   };
 }
