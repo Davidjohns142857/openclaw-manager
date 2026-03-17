@@ -90,12 +90,14 @@ OpenClaw 命令进入 Manager 后，应默认走本地 sidecar HTTP API。
 
 - 一个 `ManagerSidecarClient`
 - 一个 `executeManagerCommand(...)`
+- 一层独立于 command surface 的 host message admission
 - 一套稳定的命令到 HTTP endpoint 映射
 
 对应代码：
 
 - Client: [`src/skill/sidecar-client.ts`](/Users/yangshangqing/metaclaw/src/skill/sidecar-client.ts)
 - Command executor: [`src/skill/commands.ts`](/Users/yangshangqing/metaclaw/src/skill/commands.ts)
+- Host admission: [`docs/host-message-admission.md`](/Users/yangshangqing/metaclaw/docs/host-message-admission.md)
 
 当前 host-side client 还额外暴露了 4 个 reserved decision / blocker typed methods：
 
@@ -105,6 +107,18 @@ OpenClaw 命令进入 Manager 后，应默认走本地 sidecar HTTP API。
 - `clearBlocker(...)`
 
 这些是 HTTP client capability，不等于已经进入 OpenClaw command surface。
+
+普通宿主消息的 capture / admission 也不进入 command surface；它是另一层 host adapter，负责：
+
+- 先做规则式判定
+- 再决定 suggestion 或 direct ingress
+- 最终仍只通过 canonical `/adopt` 与 `/inbound-message` 写入 Manager
+
+对 direct ingress，当前要求宿主提供稳定 capture key 组件：
+
+- `source_type`
+- `source_thread_key`
+- `message_id`
 
 默认 base URL 解析规则：
 

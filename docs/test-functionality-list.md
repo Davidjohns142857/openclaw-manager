@@ -158,7 +158,30 @@
 - `/commands` 与 client 能力对齐
 - host rendering 对 `session.activity` 的最小使用约束
 
-### 3.6 交互语义合同
+### 3.6 Host Message Admission
+
+文件：
+
+- [`tests/phase1.host-admission.test.ts`](/Users/yangshangqing/metaclaw/tests/phase1.host-admission.test.ts)
+
+当前覆盖：
+
+- hostContext 会聚合关键词、结构信号、active session 数、focus backlog
+- 精确 `source_thread` 匹配可进入 direct manager ingress
+- 精确 `source_thread` 但缺少 `message_id` 时会降级为 suggestion
+- 语义相似但无精确 source-thread 绑定时，只允许 `suggest_adopt`
+- 缺少稳定 source-thread id 时，suggestion 不会偷偷写 Manager
+- 缺少稳定 `message_id` 时，suggestion 也不会偷偷写 Manager
+- `direct_adopt` 会通过 canonical `adopt + inbound-message` 真正导入原始宿主消息
+- 同 source-thread 的 follow-up message 会进入已有 session，而不是重复 adopt
+- 同一条宿主消息 retry 时，如果 `source_type + source_thread_key + message_id` 不变，不会创建第二个 session，也不会重复写入 `message_received`
+
+适合继续补的独立测试方向：
+
+- host message retry 的更强幂等性
+- richer source-type policies
+- admission 对 overloaded focus 的降级策略
+### 3.7 交互语义合同
 
 文件：
 
@@ -177,7 +200,7 @@
 - `desynced` 与 active run 的边界
 - `activity.run.phase` 对 terminal run 的语义
 
-### 3.7 Human Decision / Blocker 合同
+### 3.8 Human Decision / Blocker 合同
 
 文件：
 
@@ -195,7 +218,7 @@
 - failed-run 导致 blocked 的投影是否需要实体 blocker
 - close / archive 后 decision / blocker 的保留策略
 
-### 3.8 Reserved API Contracts
+### 3.9 Reserved API Contracts
 
 文件：
 
@@ -213,7 +236,7 @@
 - `/contracts` 中 implemented 与 reserved contract 的混排策略
 - host/client 对 `/contracts` 的消费方式
 
-### 3.9 Feature-Gated Reserved Mutation Routes
+### 3.10 Feature-Gated Reserved Mutation Routes
 
 文件：
 
@@ -254,6 +277,7 @@
 - torn write 防护
 - focus 压缩
 - host HTTP 接入
+- host message admission
 - `session.activity` 与 `focus` 的基础交互语义
 - reserved decision/blocker API registry
 - feature-gated reserved mutation routes

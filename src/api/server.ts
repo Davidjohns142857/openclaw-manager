@@ -141,6 +141,30 @@ function asStringArray(value: unknown): string[] | undefined {
     : undefined;
 }
 
+function asSourceChannel(
+  value: unknown
+): { source_type: string; source_ref: string; bound_at: string; metadata?: Record<string, unknown> } | undefined {
+  const candidate = asRecord(value);
+  if (!candidate) {
+    return undefined;
+  }
+
+  if (
+    typeof candidate.source_type !== "string" ||
+    typeof candidate.source_ref !== "string" ||
+    typeof candidate.bound_at !== "string"
+  ) {
+    return undefined;
+  }
+
+  return {
+    source_type: candidate.source_type,
+    source_ref: candidate.source_ref,
+    bound_at: candidate.bound_at,
+    metadata: asRecord(candidate.metadata)
+  };
+}
+
 function requireNonEmptyString(value: unknown, fieldName: string): string {
   if (typeof value !== "string" || value.trim().length === 0) {
     throw new HttpError(400, `${fieldName} must be a non-empty string.`);
@@ -282,9 +306,13 @@ export class ManagerServer {
           tags: Array.isArray(body.tags)
             ? body.tags.filter((value): value is string => typeof value === "string")
             : undefined,
+          scenario_signature:
+            typeof body.scenario_signature === "string" ? body.scenario_signature : undefined,
+          source_channel: asSourceChannel(body.source_channel),
           next_machine_actions: Array.isArray(body.next_machine_actions)
             ? body.next_machine_actions.filter((value): value is string => typeof value === "string")
-            : undefined
+            : undefined,
+          metadata: asRecord(body.metadata)
         });
         jsonResponse(
           response,

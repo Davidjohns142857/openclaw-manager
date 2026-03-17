@@ -12,6 +12,7 @@ This repository now contains a Phase 1 MVP scaffold:
 - explicit transport rules under [`docs/http-protocol-boundary.md`](/Users/yangshangqing/metaclaw/docs/http-protocol-boundary.md)
 - explicit recovery rules under [`docs/recovery-model.md`](/Users/yangshangqing/metaclaw/docs/recovery-model.md)
 - an OpenClaw host integration contract under [`docs/openclaw-host-integration.md`](/Users/yangshangqing/metaclaw/docs/openclaw-host-integration.md)
+- a host message capture / admission contract under [`docs/host-message-admission.md`](/Users/yangshangqing/metaclaw/docs/host-message-admission.md)
 - an interaction semantics contract under [`docs/interaction-contract.md`](/Users/yangshangqing/metaclaw/docs/interaction-contract.md)
 - a decision/blocker lifecycle contract under [`docs/decision-blocker-contract.md`](/Users/yangshangqing/metaclaw/docs/decision-blocker-contract.md)
 - a reserved decision/blocker API contract under [`docs/decision-blocker-api-contract.md`](/Users/yangshangqing/metaclaw/docs/decision-blocker-api-contract.md)
@@ -51,6 +52,7 @@ By default, runtime state is written to `.openclaw-manager-state/` in this repos
 - [`src/control-plane/`](/Users/yangshangqing/metaclaw/src/control-plane): session, run, event, attention, share services
 - [`src/storage/`](/Users/yangshangqing/metaclaw/src/storage): filesystem-first durable state layer
 - [`src/api/server.ts`](/Users/yangshangqing/metaclaw/src/api/server.ts): minimal HTTP control plane API
+- [`src/host/`](/Users/yangshangqing/metaclaw/src/host): thin host-side message admission and direct-ingress logic
 - [`skills/openclaw-manager/SKILL.md`](/Users/yangshangqing/metaclaw/skills/openclaw-manager/SKILL.md): manager skill instructions and command surface
 - [`src/skill/sidecar-client.ts`](/Users/yangshangqing/metaclaw/src/skill/sidecar-client.ts): thin OpenClaw host client for the local sidecar
 
