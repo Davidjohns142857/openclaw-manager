@@ -1,7 +1,12 @@
 import type { SessionActivity } from "../shared/activity.ts";
 import type {
   AdoptSessionInput,
+  ClearBlockerInput,
   CloseSessionInput,
+  DetectBlockerInput,
+  RequestHumanDecisionInput,
+  ReservedContractMutationResult,
+  ResolveHumanDecisionInput,
   ShareSnapshotResult
 } from "../shared/contracts.ts";
 import type { AttentionUnit, Checkpoint, NormalizedInboundMessage, Run, Session } from "../shared/types.ts";
@@ -23,6 +28,11 @@ export interface InboundMessageResponse {
   queued: boolean;
   run_started: boolean;
   run: Run | null;
+  session: SessionWithActivity;
+}
+
+export interface ReservedMutationEnvelope
+  extends Omit<ReservedContractMutationResult, "session"> {
   session: SessionWithActivity;
 }
 
@@ -118,7 +128,86 @@ export class ManagerSidecarClient implements ManagerCommandClient {
     return this.request("POST", "/inbound-message", message);
   }
 
+  async requestHumanDecision(
+    sessionId: string,
+    input: RequestHumanDecisionInput
+  ): Promise<ReservedMutationEnvelope> {
+    return this.requestWithAcceptedStatuses(
+      "POST",
+      `/sessions/${encodeURIComponent(sessionId)}/decisions`,
+      [200, 409, 501],
+      input
+    );
+  }
+
+  async resolveHumanDecision(
+    sessionId: string,
+    decisionId: string,
+    input: ResolveHumanDecisionInput
+  ): Promise<ReservedMutationEnvelope> {
+    return this.requestWithAcceptedStatuses(
+      "POST",
+      `/sessions/${encodeURIComponent(sessionId)}/decisions/${encodeURIComponent(decisionId)}/resolve`,
+      [200, 409, 501],
+      input
+    );
+  }
+
+  async detectBlocker(
+    sessionId: string,
+    input: DetectBlockerInput
+  ): Promise<ReservedMutationEnvelope> {
+    return this.requestWithAcceptedStatuses(
+      "POST",
+      `/sessions/${encodeURIComponent(sessionId)}/blockers`,
+      [200, 409, 501],
+      input
+    );
+  }
+
+  async clearBlocker(
+    sessionId: string,
+    blockerId: string,
+    input: ClearBlockerInput
+  ): Promise<ReservedMutationEnvelope> {
+    return this.requestWithAcceptedStatuses(
+      "POST",
+      `/sessions/${encodeURIComponent(sessionId)}/blockers/${encodeURIComponent(blockerId)}/clear`,
+      [200, 409, 501],
+      input
+    );
+  }
+
   private async request<T>(method: string, pathname: string, body?: unknown): Promise<T> {
+    const { response, payload } = await this.send(method, pathname, body);
+
+    if (!response.ok) {
+      throw new ManagerSidecarHttpError(response.status, payload);
+    }
+
+    return payload as T;
+  }
+
+  private async requestWithAcceptedStatuses<T>(
+    method: string,
+    pathname: string,
+    acceptedStatuses: number[],
+    body?: unknown
+  ): Promise<T> {
+    const { response, payload } = await this.send(method, pathname, body);
+
+    if (!response.ok && !acceptedStatuses.includes(response.status)) {
+      throw new ManagerSidecarHttpError(response.status, payload);
+    }
+
+    return payload as T;
+  }
+
+  private async send(
+    method: string,
+    pathname: string,
+    body?: unknown
+  ): Promise<{ response: Response; payload: unknown }> {
     const response = await this.fetchImpl(new URL(stripLeadingSlash(pathname), this.baseUrl), {
       method,
       headers: {
@@ -129,12 +218,10 @@ export class ManagerSidecarClient implements ManagerCommandClient {
       body: body === undefined ? undefined : JSON.stringify(body)
     });
 
-    const payload = await parseResponseBody(response);
-    if (!response.ok) {
-      throw new ManagerSidecarHttpError(response.status, payload);
-    }
-
-    return payload as T;
+    return {
+      response,
+      payload: await parseResponseBody(response)
+    };
   }
 }
 

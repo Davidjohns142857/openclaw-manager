@@ -97,6 +97,15 @@ OpenClaw 命令进入 Manager 后，应默认走本地 sidecar HTTP API。
 - Client: [`src/skill/sidecar-client.ts`](/Users/yangshangqing/metaclaw/src/skill/sidecar-client.ts)
 - Command executor: [`src/skill/commands.ts`](/Users/yangshangqing/metaclaw/src/skill/commands.ts)
 
+当前 host-side client 还额外暴露了 4 个 reserved decision / blocker typed methods：
+
+- `requestHumanDecision(...)`
+- `resolveHumanDecision(...)`
+- `detectBlocker(...)`
+- `clearBlocker(...)`
+
+这些是 HTTP client capability，不等于已经进入 OpenClaw command surface。
+
 默认 base URL 解析规则：
 
 1. 优先 `OPENCLAW_MANAGER_BASE_URL`

@@ -150,6 +150,7 @@
 - 真实 HTTP `adopt -> tasks -> checkpoint -> resume -> close`
 - host-side command executor 不直接依赖 control-plane internals
 - sidecar client 是 canonical host boundary
+- host-side client 已具备 4 个 reserved decision / blocker typed methods，且不要求同步进入 command surface
 
 适合继续补的独立测试方向：
 

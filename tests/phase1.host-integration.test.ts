@@ -67,6 +67,100 @@ test("thin host integration runs the canonical command flow over real HTTP", asy
   }
 });
 
+test("host-side client exposes typed reserved-route methods without adding command-surface coupling", async () => {
+  const disabledSidecar = await startTempSidecar();
+
+  try {
+    const disabledClient = new ManagerSidecarClient({ baseUrl: disabledSidecar.baseUrl });
+    const adopted = await disabledClient.adopt({
+      title: "Reserved client methods",
+      objective: "Client should expose typed reserved-route methods."
+    });
+    const sessionId = adopted.session.session_id;
+
+    const decisionDisabled = await disabledClient.requestHumanDecision(sessionId, {
+      decision_id: "dec_client_disabled",
+      summary: "Need a human decision before continuing."
+    });
+    assert.equal(decisionDisabled.status, "not_enabled");
+    assert.equal(decisionDisabled.error_code, "FEATURE_NOT_ENABLED");
+    assert.equal(decisionDisabled.mutation_applied, false);
+    assert.equal(decisionDisabled.session.session_id, sessionId);
+    assert.ok(decisionDisabled.session.activity);
+
+    const blockerDisabled = await disabledClient.detectBlocker(sessionId, {
+      blocker_id: "blk_client_disabled",
+      type: "external_dependency",
+      summary: "Waiting on upstream approval."
+    });
+    assert.equal(blockerDisabled.status, "not_enabled");
+    assert.equal(blockerDisabled.error_code, "FEATURE_NOT_ENABLED");
+    assert.equal(blockerDisabled.mutation_applied, false);
+    assert.equal(blockerDisabled.session.session_id, sessionId);
+  } finally {
+    await disabledSidecar.cleanup();
+  }
+
+  const enabledSidecar = await startTempSidecar({
+    features: {
+      decision_lifecycle_v1: true,
+      blocker_lifecycle_v1: true
+    }
+  });
+
+  try {
+    const enabledClient = new ManagerSidecarClient({ baseUrl: enabledSidecar.baseUrl });
+    const adopted = await enabledClient.adopt({
+      title: "Reserved client methods enabled",
+      objective: "Client should support minimal mutation through typed methods."
+    });
+    const sessionId = adopted.session.session_id;
+
+    const decisionAccepted = await enabledClient.requestHumanDecision(sessionId, {
+      decision_id: "dec_client_enabled",
+      summary: "Approve whether the task should continue.",
+      urgency: "high",
+      requested_by_ref: "user_primary"
+    });
+    assert.equal(decisionAccepted.status, "accepted");
+    assert.equal(decisionAccepted.error_code, null);
+    assert.equal(decisionAccepted.mutation_applied, true);
+    assert.equal(decisionAccepted.session.session_id, sessionId);
+
+    const decisionResolved = await enabledClient.resolveHumanDecision(
+      sessionId,
+      "dec_client_enabled",
+      {
+        resolution_summary: "Approved by the user.",
+        resolved_by_ref: "user_primary"
+      }
+    );
+    assert.equal(decisionResolved.status, "accepted");
+    assert.equal(decisionResolved.mutation_applied, true);
+    assert.equal(decisionResolved.session.session_id, sessionId);
+
+    const blockerAccepted = await enabledClient.detectBlocker(sessionId, {
+      blocker_id: "blk_client_enabled",
+      type: "external_dependency",
+      summary: "Need final upstream sign-off.",
+      severity: "high"
+    });
+    assert.equal(blockerAccepted.status, "accepted");
+    assert.equal(blockerAccepted.mutation_applied, true);
+    assert.equal(blockerAccepted.session.session_id, sessionId);
+
+    const blockerCleared = await enabledClient.clearBlocker(sessionId, "blk_client_enabled", {
+      resolution_summary: "Sign-off arrived."
+    });
+    assert.equal(blockerCleared.status, "accepted");
+    assert.equal(blockerCleared.mutation_applied, true);
+    assert.equal(blockerCleared.session.session_id, sessionId);
+    assert.ok(blockerCleared.session.activity);
+  } finally {
+    await enabledSidecar.cleanup();
+  }
+});
+
 test("skill command layer depends on the client contract rather than control-plane internals", async () => {
   const source = await readFile(path.join(repoRoot, "src/skill/commands.ts"), "utf8");
   assert.doesNotMatch(source, /control-plane/);
