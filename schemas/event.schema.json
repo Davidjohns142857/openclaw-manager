@@ -1,0 +1,104 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "openclaw-manager/event.schema.json",
+  "title": "Event",
+  "type": "object",
+  "required": [
+    "event_id",
+    "session_id",
+    "event_type",
+    "actor",
+    "timestamp"
+  ],
+  "properties": {
+    "event_id": {
+      "type": "string",
+      "pattern": "^evt_[A-Za-z0-9_-]+$"
+    },
+    "session_id": {
+      "type": "string",
+      "pattern": "^sess_[A-Za-z0-9_-]+$"
+    },
+    "run_id": {
+      "type": ["string", "null"],
+      "pattern": "^run_[A-Za-z0-9_-]+$"
+    },
+    "event_type": {
+      "type": "string",
+      "enum": [
+        "message_received",
+        "message_normalized",
+        "run_accepted",
+        "run_started",
+        "run_status_changed",
+        "run_completed",
+        "run_failed",
+        "run_cancelled",
+        "skill_invoked",
+        "skill_completed",
+        "skill_failed",
+        "tool_called",
+        "artifact_created",
+        "artifact_updated",
+        "checkpoint_written",
+        "summary_refreshed",
+        "blocker_detected",
+        "blocker_cleared",
+        "human_decision_requested",
+        "human_decision_resolved",
+        "external_trigger_bound",
+        "session_shared",
+        "session_closed",
+        "session_archived",
+        "capability_fact_emitted"
+      ]
+    },
+    "actor": {
+      "type": "object",
+      "required": ["actor_type", "actor_ref"],
+      "properties": {
+        "actor_type": {
+          "type": "string",
+          "enum": ["human", "agent", "system", "external"]
+        },
+        "actor_ref": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true
+    },
+    "causality": {
+      "type": "object",
+      "properties": {
+        "causal_parent": {
+          "type": ["string", "null"]
+        },
+        "correlation_id": {
+          "type": ["string", "null"]
+        },
+        "request_id": {
+          "type": ["string", "null"]
+        },
+        "external_trigger_id": {
+          "type": ["string", "null"]
+        }
+      },
+      "additionalProperties": true
+    },
+    "payload": {
+      "type": ["object", "null"]
+    },
+    "payload_ref": {
+      "type": ["string", "null"]
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "metadata": {
+      "type": "object"
+    }
+  },
+  "additionalProperties": true
+}
+

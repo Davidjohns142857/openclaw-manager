@@ -1,0 +1,22 @@
+{
+  "name": "openclaw-manager",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Filesystem-first control plane for OpenClaw sessions, runs, and attention management.",
+  "engines": {
+    "node": ">=24.0.0"
+  },
+  "scripts": {
+    "start": "node src/main.ts",
+    "dev": "node src/main.ts",
+    "smoke": "node scripts/smoke.ts",
+    "check:structure": "node scripts/verify-structure.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "typescript": "^5.8.0"
+  }
+}
+

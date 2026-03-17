@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{{title}}</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --bg: #f5f1e8;
+        --panel: #fffdf8;
+        --ink: #1f1d1a;
+        --muted: #6a645d;
+        --line: #d7d0c4;
+        --accent: #a4492a;
+      }
+
+      body {
+        margin: 0;
+        font-family: "Iowan Old Style", "Palatino Linotype", serif;
+        background: radial-gradient(circle at top, #fefcf7 0%, var(--bg) 60%);
+        color: var(--ink);
+      }
+
+      main {
+        max-width: 900px;
+        margin: 0 auto;
+        padding: 40px 20px 80px;
+      }
+
+      header,
+      section {
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 18px;
+        padding: 24px;
+        box-shadow: 0 12px 40px rgba(31, 29, 26, 0.06);
+      }
+
+      header {
+        margin-bottom: 20px;
+      }
+
+      h1,
+      h2 {
+        margin-top: 0;
+      }
+
+      .meta {
+        color: var(--muted);
+        font-size: 14px;
+      }
+
+      pre {
+        white-space: pre-wrap;
+        font-family: "SFMono-Regular", ui-monospace, monospace;
+        background: #f7f3eb;
+        border-radius: 14px;
+        padding: 16px;
+        overflow-x: auto;
+      }
+
+      a {
+        color: var(--accent);
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <header>
+        <p class="meta">OpenClaw Manager Snapshot</p>
+        <h1>{{title}}</h1>
+        <p>{{objective}}</p>
+        <p class="meta">Status: {{status}} | Session: {{session_id}} | Exported: {{exported_at}}</p>
+      </header>
+      <section>
+        <h2>Summary</h2>
+        <pre>{{summary}}</pre>
+      </section>
+    </main>
+  </body>
+</html>

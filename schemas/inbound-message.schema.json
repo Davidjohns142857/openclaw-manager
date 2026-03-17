@@ -1,0 +1,58 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "openclaw-manager/inbound-message.schema.json",
+  "title": "NormalizedInboundMessage",
+  "type": "object",
+  "required": [
+    "request_id",
+    "source_type",
+    "source_thread_key",
+    "target_session_id",
+    "message_type",
+    "content",
+    "attachments",
+    "timestamp",
+    "metadata"
+  ],
+  "properties": {
+    "request_id": {
+      "type": "string",
+      "pattern": "^req_[A-Za-z0-9_-]+$"
+    },
+    "external_trigger_id": {
+      "type": ["string", "null"]
+    },
+    "source_type": {
+      "type": "string"
+    },
+    "source_thread_key": {
+      "type": "string"
+    },
+    "target_session_id": {
+      "type": "string",
+      "pattern": "^sess_[A-Za-z0-9_-]+$"
+    },
+    "message_type": {
+      "type": "string",
+      "enum": ["user_message", "system_update", "artifact_notice", "decision_response"]
+    },
+    "content": {
+      "type": "string"
+    },
+    "attachments": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "metadata": {
+      "type": "object"
+    }
+  },
+  "additionalProperties": true
+}
+

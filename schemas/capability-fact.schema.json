@@ -1,0 +1,63 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "openclaw-manager/capability-fact.schema.json",
+  "title": "CapabilityFact",
+  "type": "object",
+  "required": [
+    "fact_id",
+    "subject_type",
+    "subject_ref",
+    "scenario_signature",
+    "metric_name",
+    "metric_value",
+    "sample_size",
+    "confidence",
+    "computed_at"
+  ],
+  "properties": {
+    "fact_id": {
+      "type": "string",
+      "pattern": "^fact_[A-Za-z0-9_-]+$"
+    },
+    "subject_type": {
+      "type": "string",
+      "enum": ["session", "run", "skill", "workflow", "connector"]
+    },
+    "subject_ref": {
+      "type": "string"
+    },
+    "scenario_signature": {
+      "type": "string"
+    },
+    "metric_name": {
+      "type": "string"
+    },
+    "metric_value": {
+      "type": ["number", "string", "boolean"]
+    },
+    "sample_size": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "confidence": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1
+    },
+    "evidence_refs": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "metadata": {
+      "type": "object"
+    },
+    "computed_at": {
+      "type": "string",
+      "format": "date-time"
+    }
+  },
+  "additionalProperties": true
+}
+

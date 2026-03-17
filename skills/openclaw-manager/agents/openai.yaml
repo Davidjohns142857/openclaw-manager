@@ -1,0 +1,8 @@
+interface:
+  display_name: "OpenClaw Manager"
+  short_description: "Control sessions, runs, checkpoints, and focus"
+  default_prompt: "Use $openclaw-manager to inspect sessions, resume a stalled task, or export a share snapshot."
+
+policy:
+  allow_implicit_invocation: true
+

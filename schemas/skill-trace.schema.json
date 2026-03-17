@@ -1,0 +1,83 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "openclaw-manager/skill-trace.schema.json",
+  "title": "SkillTrace",
+  "type": "object",
+  "required": [
+    "trace_id",
+    "session_id",
+    "run_id",
+    "skill_name",
+    "success",
+    "duration_ms",
+    "contribution_type",
+    "closure_contribution_score",
+    "created_at"
+  ],
+  "properties": {
+    "trace_id": {
+      "type": "string",
+      "pattern": "^trace_[A-Za-z0-9_-]+$"
+    },
+    "session_id": {
+      "type": "string",
+      "pattern": "^sess_[A-Za-z0-9_-]+$"
+    },
+    "run_id": {
+      "type": "string",
+      "pattern": "^run_[A-Za-z0-9_-]+$"
+    },
+    "skill_name": {
+      "type": "string"
+    },
+    "skill_version": {
+      "type": ["string", "null"]
+    },
+    "invocation_reason": {
+      "type": ["string", "null"]
+    },
+    "input_schema_hash": {
+      "type": ["string", "null"]
+    },
+    "output_schema_hash": {
+      "type": ["string", "null"]
+    },
+    "duration_ms": {
+      "type": "number",
+      "minimum": 0
+    },
+    "success": {
+      "type": "boolean"
+    },
+    "contribution_type": {
+      "type": "string",
+      "enum": ["primary", "supporting", "observed", "regressive"]
+    },
+    "downstream_effect": {
+      "type": ["string", "null"]
+    },
+    "requires_human_fix": {
+      "type": "boolean"
+    },
+    "closure_contribution_score": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1
+    },
+    "scenario_tags": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "metadata": {
+      "type": "object"
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    }
+  },
+  "additionalProperties": true
+}
+

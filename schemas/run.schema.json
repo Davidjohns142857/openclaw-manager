@@ -1,0 +1,147 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "openclaw-manager/run.schema.json",
+  "title": "Run",
+  "type": "object",
+  "required": [
+    "run_id",
+    "session_id",
+    "status",
+    "trigger",
+    "execution",
+    "started_at"
+  ],
+  "properties": {
+    "run_id": {
+      "type": "string",
+      "pattern": "^run_[A-Za-z0-9_-]+$"
+    },
+    "session_id": {
+      "type": "string",
+      "pattern": "^sess_[A-Za-z0-9_-]+$"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "accepted",
+        "queued",
+        "running",
+        "waiting_human",
+        "blocked",
+        "completed",
+        "failed",
+        "cancelled",
+        "superseded"
+      ]
+    },
+    "trigger": {
+      "type": "object",
+      "required": ["trigger_type"],
+      "properties": {
+        "trigger_type": {
+          "type": "string",
+          "enum": [
+            "manual",
+            "message",
+            "external_message",
+            "scheduled",
+            "resume",
+            "retry",
+            "system_maintenance"
+          ]
+        },
+        "trigger_ref": {
+          "type": ["string", "null"]
+        },
+        "request_id": {
+          "type": ["string", "null"]
+        },
+        "external_trigger_id": {
+          "type": ["string", "null"]
+        }
+      },
+      "additionalProperties": true
+    },
+    "planner": {
+      "type": "object"
+    },
+    "execution": {
+      "type": "object",
+      "properties": {
+        "invoked_skills": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "invoked_tools": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "start_checkpoint_ref": {
+          "type": ["string", "null"]
+        },
+        "end_checkpoint_ref": {
+          "type": ["string", "null"]
+        },
+        "artifact_refs": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "spool_ref": {
+          "type": ["string", "null"]
+        }
+      },
+      "additionalProperties": true
+    },
+    "outcome": {
+      "type": "object",
+      "properties": {
+        "result_type": {
+          "type": ["string", "null"],
+          "enum": [
+            "no_op",
+            "partial_progress",
+            "awaiting_human",
+            "blocked",
+            "completed",
+            "failed",
+            null
+          ]
+        },
+        "summary": {
+          "type": ["string", "null"]
+        },
+        "human_takeover": {
+          "type": "boolean"
+        },
+        "closure_contribution": {
+          "type": ["number", "null"],
+          "minimum": 0,
+          "maximum": 1
+        }
+      },
+      "additionalProperties": true
+    },
+    "metrics": {
+      "type": "object"
+    },
+    "started_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "ended_at": {
+      "type": ["string", "null"],
+      "format": "date-time"
+    },
+    "metadata": {
+      "type": "object"
+    }
+  },
+  "additionalProperties": true
+}
+

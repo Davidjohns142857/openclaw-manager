@@ -1,0 +1,175 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "openclaw-manager/session.schema.json",
+  "title": "Session",
+  "type": "object",
+  "required": [
+    "session_id",
+    "title",
+    "objective",
+    "owner",
+    "status",
+    "state",
+    "created_at",
+    "updated_at"
+  ],
+  "properties": {
+    "session_id": {
+      "type": "string",
+      "pattern": "^sess_[A-Za-z0-9_-]+$"
+    },
+    "title": {
+      "type": "string",
+      "minLength": 1
+    },
+    "objective": {
+      "type": "string",
+      "minLength": 1
+    },
+    "owner": {
+      "type": "object",
+      "required": ["type", "ref"],
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": ["human", "agent", "system"]
+        },
+        "ref": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "draft",
+        "active",
+        "waiting_human",
+        "blocked",
+        "completed",
+        "abandoned",
+        "archived"
+      ]
+    },
+    "lifecycle_stage": {
+      "type": "string",
+      "enum": [
+        "intake",
+        "planning",
+        "execution",
+        "review",
+        "closure",
+        "archival"
+      ]
+    },
+    "priority": {
+      "type": "string",
+      "enum": ["low", "medium", "high", "critical"]
+    },
+    "scenario_signature": {
+      "type": "string"
+    },
+    "tags": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "source_channels": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["source_type", "source_ref", "bound_at"],
+        "properties": {
+          "source_type": {
+            "type": "string"
+          },
+          "source_ref": {
+            "type": "string"
+          },
+          "bound_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "additionalProperties": true
+      }
+    },
+    "active_run_id": {
+      "type": ["string", "null"],
+      "pattern": "^run_[A-Za-z0-9_-]+$"
+    },
+    "latest_summary_ref": {
+      "type": ["string", "null"]
+    },
+    "latest_checkpoint_ref": {
+      "type": ["string", "null"]
+    },
+    "state": {
+      "type": "object",
+      "required": ["phase", "goal_status"],
+      "properties": {
+        "phase": {
+          "type": "string"
+        },
+        "goal_status": {
+          "type": "string",
+          "enum": [
+            "not_started",
+            "in_progress",
+            "waiting_input",
+            "partially_complete",
+            "complete",
+            "abandoned"
+          ]
+        },
+        "blockers": {
+          "type": "array"
+        },
+        "pending_human_decisions": {
+          "type": "array"
+        },
+        "pending_external_inputs": {
+          "type": "array"
+        },
+        "next_machine_actions": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "next_human_actions": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": true
+    },
+    "metrics": {
+      "type": "object"
+    },
+    "sharing": {
+      "type": "object"
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "updated_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "archived_at": {
+      "type": ["string", "null"],
+      "format": "date-time"
+    },
+    "metadata": {
+      "type": "object"
+    }
+  },
+  "additionalProperties": true
+}
+
