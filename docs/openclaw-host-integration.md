@@ -56,6 +56,8 @@ OpenClaw 命令进入 Manager 后，应默认走本地 sidecar HTTP API。
 - `GET /digest`
 - `POST /adopt`
 - `POST /bind`
+- `POST /bindings/:binding_id/disable`
+- `POST /bindings/:binding_id/rebind`
 - `POST /sessions/:session_id/resume`
 - `POST /sessions/:session_id/checkpoint`
 - `POST /sessions/:session_id/share`
@@ -117,6 +119,14 @@ OpenClaw 命令进入 Manager 后，应默认走本地 sidecar HTTP API。
 
 它用于让 OpenClaw 宿主在接到外接浏览器插件消息后，把消息按 connector contract 直接交给 manager sidecar；这仍然不是 command surface。
 
+当前 host-side client 也直接暴露 binding lifecycle methods：
+
+- `listBindings(...)`
+- `disableBinding(...)`
+- `rebindBinding(...)`
+
+它们是 thin host / ops capability，对应 canonical binding lifecycle，不需要宿主自己拼接 durable state。
+
 普通宿主消息的 capture / admission 也不进入 command surface；它是另一层 host adapter，负责：
 
 - 先做规则式判定
@@ -161,6 +171,8 @@ Phase 1 当前接受的启动方式是：
 - `/digest` -> `GET /digest`
 - `/adopt` -> `POST /adopt`
 - `/bind` -> `POST /bind`
+- `/unbind` -> `POST /bindings/:binding_id/disable`
+- `/rebind` -> `POST /bindings/:binding_id/rebind`
 - `/resume` -> `POST /sessions/:session_id/resume`
 - `/checkpoint` -> `POST /sessions/:session_id/checkpoint`
 - `/share` -> `POST /sessions/:session_id/share`

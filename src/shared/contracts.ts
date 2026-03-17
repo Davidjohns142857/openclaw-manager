@@ -1,6 +1,7 @@
 import type {
   Checkpoint,
   ConnectorBinding,
+  ConnectorBindingStatus,
   NormalizedInboundMessage,
   Priority,
   Run,
@@ -40,9 +41,50 @@ export interface BindSourceInput {
   metadata?: Record<string, unknown>;
 }
 
+export interface BindingListFilters {
+  binding_id?: string;
+  session_id?: string;
+  source_type?: string;
+  source_thread_key?: string;
+  status?: ConnectorBindingStatus;
+}
+
 export interface BindSourceResult {
   binding: ConnectorBinding;
   created: boolean;
+  session: Session;
+  run: Run | null;
+  checkpoint: Checkpoint | null;
+  summary: string | null;
+}
+
+export interface DisableBindingInput {
+  reason?: string;
+  disabled_by_ref?: string;
+  disabled_at?: string;
+  metadata?: Record<string, unknown>;
+}
+
+export interface DisableBindingResult {
+  binding: ConnectorBinding;
+  changed: boolean;
+  session: Session;
+  run: Run | null;
+  checkpoint: Checkpoint | null;
+  summary: string | null;
+}
+
+export interface RebindSourceInput {
+  session_id: string;
+  rebound_by_ref?: string;
+  rebound_at?: string;
+  metadata?: Record<string, unknown>;
+}
+
+export interface RebindSourceResult {
+  binding: ConnectorBinding;
+  previous_session_id: string;
+  changed: boolean;
   session: Session;
   run: Run | null;
   checkpoint: Checkpoint | null;

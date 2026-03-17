@@ -69,6 +69,8 @@ export type EventType =
   | "human_decision_requested"
   | "human_decision_resolved"
   | "external_trigger_bound"
+  | "external_trigger_unbound"
+  | "external_trigger_rebound"
   | "session_shared"
   | "session_closed"
   | "session_archived"

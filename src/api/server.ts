@@ -1,11 +1,14 @@
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 
 import type {
+  BindingListFilters,
   BindSourceInput,
   ClearBlockerInput,
   CloseSessionInput,
   DetectBlockerInput,
+  DisableBindingInput,
   RequestHumanDecisionInput,
+  RebindSourceInput,
   ResolveHumanDecisionInput
 } from "../shared/contracts.ts";
 import { ControlPlane } from "../control-plane/control-plane.ts";
@@ -22,6 +25,8 @@ import { normalizeBrowserConnectorMessage } from "../connectors/browser.ts";
 import { normalizeGitHubWebhook } from "../connectors/github.ts";
 import {
   serializeBindSourceResult,
+  serializeDisableBindingResult,
+  serializeRebindSourceResult,
   serializeReservedMutationResult,
   serializeSession,
   serializeSessionDetail
@@ -129,6 +134,20 @@ function matchBlockerClearRoute(pathname: string): { sessionId: string; blockerI
   return null;
 }
 
+function matchBindingActionRoute(
+  pathname: string,
+  action: string
+): { bindingId: string } | null {
+  const parts = splitPath(pathname);
+  if (parts.length === 3 && parts[0] === "bindings" && parts[2] === action) {
+    return {
+      bindingId: parts[1]
+    };
+  }
+
+  return null;
+}
+
 function asRecord(value: unknown): Record<string, unknown> | undefined {
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
     return undefined;
@@ -141,6 +160,10 @@ function asPriority(value: unknown): "low" | "medium" | "high" | "critical" | un
   return value === "low" || value === "medium" || value === "high" || value === "critical"
     ? value
     : undefined;
+}
+
+function asBindingStatus(value: unknown): "active" | "disabled" | undefined {
+  return value === "active" || value === "disabled" ? value : undefined;
 }
 
 function asStringArray(value: unknown): string[] | undefined {
@@ -245,6 +268,39 @@ function parseBindSourceInput(body: Record<string, unknown>): BindSourceInput {
   };
 }
 
+function parseDisableBindingInput(body: Record<string, unknown>): DisableBindingInput {
+  return {
+    reason: typeof body.reason === "string" ? body.reason : undefined,
+    disabled_by_ref: typeof body.disabled_by_ref === "string" ? body.disabled_by_ref : undefined,
+    disabled_at: typeof body.disabled_at === "string" ? body.disabled_at : undefined,
+    metadata: asRecord(body.metadata)
+  };
+}
+
+function parseRebindSourceInput(body: Record<string, unknown>): RebindSourceInput {
+  return {
+    session_id: requireNonEmptyString(body.session_id, "session_id"),
+    rebound_by_ref: typeof body.rebound_by_ref === "string" ? body.rebound_by_ref : undefined,
+    rebound_at: typeof body.rebound_at === "string" ? body.rebound_at : undefined,
+    metadata: asRecord(body.metadata)
+  };
+}
+
+function parseBindingListFilters(url: URL): BindingListFilters {
+  const statusValue = url.searchParams.get("status");
+  if (statusValue !== null && !asBindingStatus(statusValue)) {
+    throw new HttpError(400, "status must be active or disabled.");
+  }
+
+  return {
+    binding_id: url.searchParams.get("binding_id") ?? undefined,
+    session_id: url.searchParams.get("session_id") ?? undefined,
+    source_type: url.searchParams.get("source_type") ?? undefined,
+    source_thread_key: url.searchParams.get("source_thread_key") ?? undefined,
+    status: asBindingStatus(statusValue)
+  };
+}
+
 function readHeader(request: IncomingMessage, headerName: string): string | undefined {
   const value = request.headers[headerName.toLowerCase()];
 
@@ -306,7 +362,7 @@ export class ManagerServer {
       }
 
       if (request.method === "GET" && pathname === "/bindings") {
-        jsonResponse(response, 200, await this.controlPlane.listBindings());
+        jsonResponse(response, 200, await this.controlPlane.listBindingsWithFilters(parseBindingListFilters(url)));
         return;
       }
 
@@ -326,6 +382,38 @@ export class ManagerServer {
           response,
           200,
           serializeBindSourceResult(await this.controlPlane.bindSource(parseBindSourceInput(body)))
+        );
+        return;
+      }
+
+      const disableBindingRoute = matchBindingActionRoute(pathname, "disable");
+      if (request.method === "POST" && disableBindingRoute) {
+        const body = await readJsonBody(request);
+        jsonResponse(
+          response,
+          200,
+          serializeDisableBindingResult(
+            await this.controlPlane.disableBinding(
+              disableBindingRoute.bindingId,
+              parseDisableBindingInput(body)
+            )
+          )
+        );
+        return;
+      }
+
+      const rebindBindingRoute = matchBindingActionRoute(pathname, "rebind");
+      if (request.method === "POST" && rebindBindingRoute) {
+        const body = await readJsonBody(request);
+        jsonResponse(
+          response,
+          200,
+          serializeRebindSourceResult(
+            await this.controlPlane.rebindBinding(
+              rebindBindingRoute.bindingId,
+              parseRebindSourceInput(body)
+            )
+          )
         );
         return;
       }

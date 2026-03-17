@@ -3,12 +3,17 @@ import path from "node:path";
 
 import type {
   AdoptSessionInput,
+  BindingListFilters,
   BindSourceInput,
   BindSourceResult,
   ClearBlockerInput,
   CloseSessionInput,
+  DisableBindingInput,
+  DisableBindingResult,
   InboundHandlingResult,
   RequestHumanDecisionInput,
+  RebindSourceInput,
+  RebindSourceResult,
   ReservedContractMutationResult,
   ResolveHumanDecisionInput,
   DetectBlockerInput,
@@ -282,6 +287,10 @@ export class ControlPlane {
     return this.bindingService.listBindings();
   }
 
+  async listBindingsWithFilters(filters: BindingListFilters) {
+    return this.bindingService.listBindings(filters);
+  }
+
   async bindSource(input: BindSourceInput): Promise<BindSourceResult> {
     const session = await this.sessionService.requireSession(input.session_id);
     const run = session.active_run_id
@@ -295,6 +304,46 @@ export class ControlPlane {
     return {
       binding: bound.binding,
       created: bound.created,
+      session: detail.session,
+      run: detail.run,
+      checkpoint: detail.checkpoint,
+      summary: detail.summary
+    };
+  }
+
+  async disableBinding(
+    bindingId: string,
+    input: DisableBindingInput
+  ): Promise<DisableBindingResult> {
+    const disabled = await this.bindingService.disableBinding(bindingId, input);
+
+    await this.refreshDerivedViews();
+
+    const detail = await this.getSessionDetail(disabled.session.session_id);
+    return {
+      binding: disabled.binding,
+      changed: disabled.changed,
+      session: detail.session,
+      run: detail.run,
+      checkpoint: detail.checkpoint,
+      summary: detail.summary
+    };
+  }
+
+  async rebindBinding(
+    bindingId: string,
+    input: RebindSourceInput
+  ): Promise<RebindSourceResult> {
+    const targetSession = await this.sessionService.requireSession(input.session_id);
+    const rebound = await this.bindingService.rebindBinding(bindingId, targetSession, input);
+
+    await this.refreshDerivedViews();
+
+    const detail = await this.getSessionDetail(rebound.session.session_id);
+    return {
+      binding: rebound.binding,
+      previous_session_id: rebound.previousSessionId,
+      changed: rebound.changed,
       session: detail.session,
       run: detail.run,
       checkpoint: detail.checkpoint,

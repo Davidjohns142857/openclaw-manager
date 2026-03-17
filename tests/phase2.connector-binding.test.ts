@@ -47,7 +47,7 @@ test("bind writes a durable connector registry entry and is idempotent for the s
     });
     assert.equal(second.created, false);
 
-    const bindings = await client.listBindings();
+    const bindings = await client.listBindings({ status: "active" });
     assert.equal(bindings.length, 1);
     assert.equal(bindings[0]?.session_id, adopted.session.session_id);
 
@@ -61,6 +61,121 @@ test("bind writes a durable connector registry entry and is idempotent for the s
     const paths = sessionPaths(sidecar.tempRoot, adopted.session.session_id, runId!);
     const events = await readJsonl<{ event_type: string }>(paths.events);
     assert.equal(events.filter((event) => event.event_type === "external_trigger_bound").length, 2);
+  } finally {
+    await sidecar.cleanup();
+  }
+});
+
+test("disable binding removes the active source-channel projection and keeps a disabled durable record", async () => {
+  const sidecar = await startTempSidecar();
+
+  try {
+    const client = new ManagerSidecarClient({ baseUrl: sidecar.baseUrl });
+    const adopted = await client.adopt({
+      title: "Disable binding lifecycle",
+      objective: "Verify bindings can be disabled without deleting history."
+    });
+
+    const bound = await client.bind({
+      session_id: adopted.session.session_id,
+      source_type: "telegram",
+      source_thread_key: "tg-thread-disable-001"
+    });
+
+    const disabled = await client.disableBinding(bound.binding.binding_id, {
+      reason: "source archived",
+      disabled_by_ref: "user_primary"
+    });
+    assert.equal(disabled.changed, true);
+    assert.equal(disabled.binding.status, "disabled");
+    assert.equal(disabled.session.source_channels.length, 0);
+
+    const activeBindings = await client.listBindings({ status: "active" });
+    assert.equal(activeBindings.length, 0);
+    const disabledBindings = await client.listBindings({ status: "disabled" });
+    assert.equal(disabledBindings.length, 1);
+    assert.equal(disabledBindings[0]?.binding_id, bound.binding.binding_id);
+
+    await assert.rejects(
+      () =>
+        client.inboundMessage({
+          request_id: "req_binding_disabled_001",
+          source_type: "telegram",
+          source_thread_key: "tg-thread-disable-001",
+          message_type: "user_message",
+          content: "Disabled bindings should not resolve."
+        }),
+      (error: unknown) =>
+        error instanceof ManagerSidecarHttpError && error.statusCode === 404
+    );
+
+    const runId = adopted.run?.run_id;
+    assert.ok(runId);
+    const paths = sessionPaths(sidecar.tempRoot, adopted.session.session_id, runId!);
+    const events = await readJsonl<{ event_type: string }>(paths.events);
+    assert.equal(events.filter((event) => event.event_type === "external_trigger_unbound").length, 1);
+  } finally {
+    await sidecar.cleanup();
+  }
+});
+
+test("rebind moves an active source thread onto a new session and keeps inbound routing canonical", async () => {
+  const sidecar = await startTempSidecar();
+
+  try {
+    const client = new ManagerSidecarClient({ baseUrl: sidecar.baseUrl });
+    const first = await client.adopt({
+      title: "Rebind source primary",
+      objective: "Own the source before rebind."
+    });
+    const second = await client.adopt({
+      title: "Rebind source target",
+      objective: "Receive the source after rebind."
+    });
+
+    const bound = await client.bind({
+      session_id: first.session.session_id,
+      source_type: "telegram",
+      source_thread_key: "tg-thread-rebind-001"
+    });
+
+    const rebound = await client.rebindBinding(bound.binding.binding_id, {
+      session_id: second.session.session_id,
+      rebound_by_ref: "user_primary"
+    });
+    assert.equal(rebound.changed, true);
+    assert.equal(rebound.previous_session_id, first.session.session_id);
+    assert.equal(rebound.binding.status, "active");
+    assert.equal(rebound.binding.session_id, second.session.session_id);
+    assert.equal(rebound.session.session_id, second.session.session_id);
+    assert.equal(rebound.session.source_channels[0]?.source_ref, "tg-thread-rebind-001");
+
+    const firstDetail = await client.getSession(first.session.session_id);
+    assert.equal(firstDetail.session.source_channels.length, 0);
+
+    const routed = await client.inboundMessage({
+      request_id: "req_binding_rebind_001",
+      source_type: "telegram",
+      source_thread_key: "tg-thread-rebind-001",
+      message_type: "user_message",
+      content: "This should arrive on the rebound session."
+    });
+    assert.equal(routed.session.session_id, second.session.session_id);
+    assert.equal(routed.queued, true);
+
+    const reboundByTarget = await client.listBindings({
+      session_id: second.session.session_id,
+      source_type: "telegram",
+      status: "active"
+    });
+    assert.equal(reboundByTarget.length, 1);
+    assert.equal(reboundByTarget[0]?.binding_id, bound.binding.binding_id);
+
+    const firstRunId = first.run?.run_id;
+    assert.ok(firstRunId);
+    const firstPaths = sessionPaths(sidecar.tempRoot, first.session.session_id, firstRunId!);
+    const firstEvents = await readJsonl<{ event_type: string }>(firstPaths.events);
+    assert.equal(firstEvents.filter((event) => event.event_type === "external_trigger_rebound").length, 1);
   } finally {
     await sidecar.cleanup();
   }
@@ -196,6 +311,14 @@ test("skill command layer exposes bind through the client contract without impor
       calls.push(`bind:${input.session_id}:${input.source_type}:${input.source_thread_key}`);
       return { ok: true };
     },
+    async disableBinding(bindingId: string) {
+      calls.push(`unbind:${bindingId}`);
+      return { bindingId };
+    },
+    async rebindBinding(bindingId: string, input: { session_id: string }) {
+      calls.push(`rebind:${bindingId}:${input.session_id}`);
+      return { bindingId, sessionId: input.session_id };
+    },
     async resume(sessionId: string) {
       calls.push(`resume:${sessionId}`);
       return { sessionId };
@@ -219,6 +342,17 @@ test("skill command layer exposes bind through the client contract without impor
     source_type: "telegram",
     source_thread_key: "tg-boundary-001"
   });
+  await executeManagerCommand(fakeClient, "/unbind", {
+    binding_id: "bind_boundary_001"
+  });
+  await executeManagerCommand(fakeClient, "/rebind", {
+    binding_id: "bind_boundary_001",
+    session_id: "sess_rebind_boundary"
+  });
 
-  assert.deepEqual(calls, ["bind:sess_bind_boundary:telegram:tg-boundary-001"]);
+  assert.deepEqual(calls, [
+    "bind:sess_bind_boundary:telegram:tg-boundary-001",
+    "unbind:bind_boundary_001",
+    "rebind:bind_boundary_001:sess_rebind_boundary"
+  ]);
 });

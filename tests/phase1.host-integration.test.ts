@@ -47,6 +47,32 @@ test("thin host integration runs the canonical command flow over real HTTP", asy
     assert.equal(bound.binding.session_id, sessionId);
     assert.equal(bound.binding.source_thread_key, "tg-host-flow-001");
 
+    const reboundTarget = await client.adopt({
+      title: "Host integration rebound target",
+      objective: "Verify binding lifecycle stays on canonical HTTP."
+    });
+    const rebound = (await executeManagerCommand(client, "/rebind", {
+      binding_id: bound.binding.binding_id,
+      session_id: reboundTarget.session.session_id
+    })) as {
+      previous_session_id: string;
+      changed: boolean;
+      binding: { session_id: string };
+    };
+    assert.equal(rebound.changed, true);
+    assert.equal(rebound.previous_session_id, sessionId);
+    assert.equal(rebound.binding.session_id, reboundTarget.session.session_id);
+
+    const unbound = (await executeManagerCommand(client, "/unbind", {
+      binding_id: bound.binding.binding_id,
+      reason: "Route moved away from host flow."
+    })) as {
+      changed: boolean;
+      binding: { status: string };
+    };
+    assert.equal(unbound.changed, true);
+    assert.equal(unbound.binding.status, "disabled");
+
     const checkpointed = (await executeManagerCommand(client, "/checkpoint", {
       session_id: sessionId
     })) as {
@@ -199,6 +225,14 @@ test("skill command layer depends on the client contract rather than control-pla
       calls.push(`bind:${input.session_id}:${input.source_type}:${input.source_thread_key}`);
       return { ok: true };
     },
+    async disableBinding(bindingId: string) {
+      calls.push(`unbind:${bindingId}`);
+      return { bindingId };
+    },
+    async rebindBinding(bindingId: string, input: { session_id: string }) {
+      calls.push(`rebind:${bindingId}:${input.session_id}`);
+      return { bindingId, sessionId: input.session_id };
+    },
     async resume(sessionId: string) {
       calls.push(`resume:${sessionId}`);
       return { sessionId };
@@ -228,6 +262,13 @@ test("skill command layer depends on the client contract rather than control-pla
     source_type: "telegram",
     source_thread_key: "tg_boundary"
   });
+  await executeManagerCommand(fakeClient, "/unbind", {
+    binding_id: "bind_boundary_001"
+  });
+  await executeManagerCommand(fakeClient, "/rebind", {
+    binding_id: "bind_boundary_001",
+    session_id: "sess_boundary_2"
+  });
   await executeManagerCommand(fakeClient, "/checkpoint", {
     session_id: "sess_boundary"
   });
@@ -240,6 +281,8 @@ test("skill command layer depends on the client contract rather than control-pla
     "tasks",
     "adopt",
     "bind:sess_boundary:telegram:tg_boundary",
+    "unbind:bind_boundary_001",
+    "rebind:bind_boundary_001:sess_boundary_2",
     "checkpoint:sess_boundary",
     "close:sess_boundary"
   ]);

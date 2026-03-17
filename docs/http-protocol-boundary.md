@@ -43,6 +43,8 @@ Current normalized ingress endpoint:
 
 - `POST /inbound-message`
 - `POST /bind`
+- `POST /bindings/:binding_id/disable`
+- `POST /bindings/:binding_id/rebind`
 - `POST /connectors/github/events`
 - `POST /connectors/browser/messages`
 
@@ -98,6 +100,7 @@ Current canonical read endpoints:
 - `GET /sessions`
 - `GET /sessions/:session_id`
 - `GET /bindings`
+- `GET /bindings?status=active|disabled&session_id=...&source_type=...`
 - `GET /focus`
 - `GET /digest`
 - `GET /contracts`
@@ -106,12 +109,18 @@ Current canonical mutating endpoints that also return the same session-detail en
 
 - `POST /adopt`
 - `POST /bind`
+- `POST /bindings/:binding_id/disable`
+- `POST /bindings/:binding_id/rebind`
 - `POST /sessions/:session_id/resume`
 - `POST /sessions/:session_id/checkpoint`
 - `POST /sessions/:session_id/close`
 
 Reserved mutation contracts for future decision / blocker lifecycle work are published through
 `GET /contracts`. They are intentionally contract-defined before they are behavior-complete.
+
+Binding-specific note:
+
+- disabled bindings stay in durable storage but are ignored by binding-aware inbound resolution
 
 If a future WebSocket layer is added, it should only emit invalidation hints such as:
 

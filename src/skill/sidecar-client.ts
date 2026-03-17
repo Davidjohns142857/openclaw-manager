@@ -3,12 +3,17 @@ import type { BrowserConnectorMessageInput } from "../connectors/browser.ts";
 import type { SessionActivity } from "../shared/activity.ts";
 import type {
   AdoptSessionInput,
+  BindingListFilters,
   BindSourceInput,
   BindSourceResult,
   ClearBlockerInput,
   CloseSessionInput,
   DetectBlockerInput,
+  DisableBindingInput,
+  DisableBindingResult,
   RequestHumanDecisionInput,
+  RebindSourceInput,
+  RebindSourceResult,
   ReservedContractMutationResult,
   ResolveHumanDecisionInput,
   ShareSnapshotResult
@@ -55,6 +60,16 @@ export interface ReservedMutationEnvelope
 }
 
 export interface BindSourceEnvelope extends Omit<BindSourceResult, "binding" | "session"> {
+  binding: ConnectorBinding;
+  session: SessionWithActivity;
+}
+
+export interface DisableBindingEnvelope extends Omit<DisableBindingResult, "binding" | "session"> {
+  binding: ConnectorBinding;
+  session: SessionWithActivity;
+}
+
+export interface RebindSourceEnvelope extends Omit<RebindSourceResult, "binding" | "session"> {
   binding: ConnectorBinding;
   session: SessionWithActivity;
 }
@@ -115,8 +130,26 @@ export class ManagerSidecarClient implements ManagerCommandClient {
     return this.request("GET", "/sessions");
   }
 
-  async listBindings(): Promise<ConnectorBinding[]> {
-    return this.request("GET", "/bindings");
+  async listBindings(filters?: BindingListFilters): Promise<ConnectorBinding[]> {
+    const search = new URLSearchParams();
+    if (filters?.binding_id) {
+      search.set("binding_id", filters.binding_id);
+    }
+    if (filters?.session_id) {
+      search.set("session_id", filters.session_id);
+    }
+    if (filters?.source_type) {
+      search.set("source_type", filters.source_type);
+    }
+    if (filters?.source_thread_key) {
+      search.set("source_thread_key", filters.source_thread_key);
+    }
+    if (filters?.status) {
+      search.set("status", filters.status);
+    }
+
+    const suffix = search.size > 0 ? `?${search.toString()}` : "";
+    return this.request("GET", `/bindings${suffix}`);
   }
 
   async getSession(sessionId: string): Promise<SessionDetailEnvelope> {
@@ -137,6 +170,20 @@ export class ManagerSidecarClient implements ManagerCommandClient {
 
   async bind(input: BindSourceInput): Promise<BindSourceEnvelope> {
     return this.request("POST", "/bind", input);
+  }
+
+  async disableBinding(
+    bindingId: string,
+    input: DisableBindingInput = {}
+  ): Promise<DisableBindingEnvelope> {
+    return this.request("POST", `/bindings/${encodeURIComponent(bindingId)}/disable`, input);
+  }
+
+  async rebindBinding(
+    bindingId: string,
+    input: RebindSourceInput
+  ): Promise<RebindSourceEnvelope> {
+    return this.request("POST", `/bindings/${encodeURIComponent(bindingId)}/rebind`, input);
   }
 
   async resume(sessionId: string): Promise<SessionDetailEnvelope> {

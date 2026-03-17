@@ -16,6 +16,7 @@ Use this skill when the user is managing long-running OpenClaw work rather than 
 - generating a compressed multi-task digest with `/digest`
 - exporting a session snapshot with `/share <session_id>`
 - binding an external source thread with `/bind <session_id> <source_type> <source_thread_key>`
+- disabling or moving an external source binding with `/unbind <binding_id>` or `/rebind <binding_id> <session_id>`
 - closing or checkpointing a thread with `/close` or `/checkpoint`
 
 ## Working Rules

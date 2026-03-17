@@ -269,12 +269,15 @@
 - binding conflict 会拒绝 cross-session 抢占
 - 未绑定 source 在缺少 `target_session_id` 时返回 `404`
 - `/bind` 已进入 command surface，但实现仍然只走 canonical sidecar HTTP
+- `/bindings/:binding_id/disable` 会停用 active binding，但保留 durable 记录
+- `/bindings/:binding_id/rebind` 会把 source ownership 受控移动到新 session
+- `GET /bindings` 支持按 `status/session/source_type` 做最小筛选
 
 适合继续补的独立测试方向：
 
-- disabled binding / rebind 语义
 - connector polling/webhook adapter contract
 - 多 connector 同 session 的 source-channel 管理
+- same-session disabled binding reactivation
 
 ### 3.12 GitHub Connector Adapter
 
@@ -338,6 +341,7 @@
 - host HTTP 接入
 - host message admission
 - connector binding registry
+- binding disable / rebind lifecycle
 - binding-aware external inbound resolution
 - first real GitHub connector adapter
 - browser-plugin ingress adapter

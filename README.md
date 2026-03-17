@@ -57,6 +57,7 @@ By default, runtime state is written to `.openclaw-manager-state/` in this repos
 - [`src/api/server.ts`](/Users/yangshangqing/metaclaw/src/api/server.ts): minimal HTTP control plane API
 - [`src/host/`](/Users/yangshangqing/metaclaw/src/host): thin host-side message admission and direct-ingress logic
 - [`src/connectors/`](/Users/yangshangqing/metaclaw/src/connectors): normalized external-source adapters, currently including GitHub webhook and browser-plugin ingress adapters
+- [`src/control-plane/binding-service.ts`](/Users/yangshangqing/metaclaw/src/control-plane/binding-service.ts): binding lifecycle, including bind, disable, rebind, and active-routing resolution
 - [`skills/openclaw-manager/SKILL.md`](/Users/yangshangqing/metaclaw/skills/openclaw-manager/SKILL.md): manager skill instructions and command surface
 - [`src/skill/sidecar-client.ts`](/Users/yangshangqing/metaclaw/src/skill/sidecar-client.ts): thin OpenClaw host client for the local sidecar
 

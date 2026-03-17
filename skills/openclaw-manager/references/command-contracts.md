@@ -40,6 +40,16 @@
 - Creates or reuses a durable external-source binding for a session.
 - Equivalent sidecar API: `POST /bind`
 
+### `/unbind <binding_id>`
+
+- Disables an active external-source binding while keeping the durable record.
+- Equivalent sidecar API: `POST /bindings/:binding_id/disable`
+
+### `/rebind <binding_id> <session_id>`
+
+- Moves or reactivates an external-source binding onto a target session.
+- Equivalent sidecar API: `POST /bindings/:binding_id/rebind`
+
 ### `/checkpoint <session_id>`
 
 - Refreshes `checkpoint.json` and `summary.md` for the target session.

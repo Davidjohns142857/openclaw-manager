@@ -37,6 +37,8 @@ binding registry 当前落在：
 
 - `GET /bindings`
 - `POST /bind`
+- `POST /bindings/:binding_id/disable`
+- `POST /bindings/:binding_id/rebind`
 
 `POST /bind` 请求体：
 
@@ -59,6 +61,26 @@ binding registry 当前落在：
 
 - `created=true` 表示首次建立 active binding
 - `created=false` 表示同 session 的重复绑定请求，被幂等吸收
+
+`GET /bindings` 当前支持最小筛选参数：
+
+- `binding_id`
+- `session_id`
+- `source_type`
+- `source_thread_key`
+- `status=active|disabled`
+
+`POST /bindings/:binding_id/disable` 语义：
+
+- 把 active binding 变成 `disabled`
+- 从 session 的 `source_channels` projection 中移除该 source thread
+- 保留 durable binding record，不删除历史
+
+`POST /bindings/:binding_id/rebind` 语义：
+
+- 可把 active binding 从旧 session 移到新 session
+- 也可把 disabled binding 重新激活到指定 session
+- rebind 后的 inbound routing 仍只认 active binding
 
 ## 3. Binding-Aware Inbound
 

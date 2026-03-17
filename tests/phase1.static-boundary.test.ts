@@ -83,7 +83,16 @@ test("server route layer exports canonical session activity and command boundary
       source_thread_key: "tg_route_bound_001"
     });
     assert.equal(bindResponse.statusCode, 200);
-    assert.ok((bindResponse.body as { binding: unknown }).binding);
+    const bound = bindResponse.body as { binding: { binding_id: string } };
+    assert.ok(bound.binding);
+
+    const filteredBindingsResponse = await dispatchRoute(
+      server,
+      "GET",
+      `/bindings?status=active&session_id=${adopted.session.session_id}`
+    );
+    assert.equal(filteredBindingsResponse.statusCode, 200);
+    assert.equal((filteredBindingsResponse.body as Array<unknown>).length, 1);
 
     const inboundResponse = await dispatchRoute(server, "POST", "/inbound-message", {
       request_id: "req_route_001",
@@ -96,6 +105,42 @@ test("server route layer exports canonical session activity and command boundary
     const inbound = inboundResponse.body as Record<string, unknown>;
     assert.equal(inbound.duplicate, false);
     assert.ok(inbound.session);
+
+    const reboundTarget = await dispatchRoute(server, "POST", "/adopt", {
+      title: "Route rebound target",
+      objective: "Verify binding lifecycle routes stay aligned."
+    });
+    assert.equal(reboundTarget.statusCode, 200);
+    const reboundSessionId = (reboundTarget.body as { session: { session_id: string } }).session
+      .session_id;
+
+    const rebindResponse = await dispatchRoute(
+      server,
+      "POST",
+      `/bindings/${bound.binding.binding_id}/rebind`,
+      {
+        session_id: reboundSessionId
+      }
+    );
+    assert.equal(rebindResponse.statusCode, 200);
+    assert.equal(
+      (rebindResponse.body as { binding: { session_id: string } }).binding.session_id,
+      reboundSessionId
+    );
+
+    const disableResponse = await dispatchRoute(
+      server,
+      "POST",
+      `/bindings/${bound.binding.binding_id}/disable`,
+      {
+        reason: "route boundary disable"
+      }
+    );
+    assert.equal(disableResponse.statusCode, 200);
+    assert.equal(
+      (disableResponse.body as { binding: { status: string } }).binding.status,
+      "disabled"
+    );
 
     const resumeResponse = await dispatchRoute(
       server,

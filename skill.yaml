@@ -15,3 +15,5 @@ commands:
   - "/close <session_id>"
   - "/adopt"
   - "/bind <session_id> <source_type> <source_thread_key>"
+  - "/unbind <binding_id>"
+  - "/rebind <binding_id> <session_id>"

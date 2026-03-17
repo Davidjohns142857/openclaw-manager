@@ -1,6 +1,11 @@
 import { deriveSessionActivity } from "../shared/activity.ts";
 import type { Checkpoint, ConnectorBinding, Run, Session } from "../shared/types.ts";
-import type { BindSourceResult, ReservedContractMutationResult } from "../shared/contracts.ts";
+import type {
+  BindSourceResult,
+  DisableBindingResult,
+  RebindSourceResult,
+  ReservedContractMutationResult
+} from "../shared/contracts.ts";
 
 export function serializeSession(session: Session, run: Run | null): Record<string, unknown> {
   return {
@@ -46,6 +51,23 @@ export function serializeBindSourceResult(result: BindSourceResult): Record<stri
   return {
     binding: serializeBinding(result.binding),
     created: result.created,
+    ...serializeSessionDetail(result)
+  };
+}
+
+export function serializeDisableBindingResult(result: DisableBindingResult): Record<string, unknown> {
+  return {
+    binding: serializeBinding(result.binding),
+    changed: result.changed,
+    ...serializeSessionDetail(result)
+  };
+}
+
+export function serializeRebindSourceResult(result: RebindSourceResult): Record<string, unknown> {
+  return {
+    binding: serializeBinding(result.binding),
+    previous_session_id: result.previous_session_id,
+    changed: result.changed,
     ...serializeSessionDetail(result)
   };
 }
