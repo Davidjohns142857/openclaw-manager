@@ -317,6 +317,25 @@
 - richer page-context payload normalization
 - browser-side retry/backoff contract
 
+### 3.14 Run Lifecycle And Evidence
+
+文件：
+
+- [`tests/phase2.run-lifecycle.test.ts`](/Users/yangshangqing/metaclaw/tests/phase2.run-lifecycle.test.ts)
+
+当前覆盖：
+
+- `waiting_human` run 会作为真实 paused-terminal 状态结束，并推进 recovery head
+- `blocked` run 会推进 checkpoint 并阻止 `resume` 自动继续
+- `failed` run 不会推进 recovery head，且与 `blocked` 保持不同语义
+- run 会稳定关联 `events_ref`、`skill_traces_ref`、`spool_ref`、`checkpoint`、`summary`、`artifact_refs`
+
+适合继续补的独立测试方向：
+
+- `cancelled` / `superseded` 的更细 checkpoint 语义
+- run-level artifact export / evidence snapshot
+- run trigger 统计与 capability facts 的联动
+
 ## 4. 当前自动化校验总表
 
 截至当前，仓库内已有的自动化校验入口包括：
@@ -345,6 +364,7 @@
 - binding-aware external inbound resolution
 - first real GitHub connector adapter
 - browser-plugin ingress adapter
+- run lifecycle and evidence refs
 - `session.activity` 与 `focus` 的基础交互语义
 - reserved decision/blocker API registry
 - feature-gated reserved mutation routes

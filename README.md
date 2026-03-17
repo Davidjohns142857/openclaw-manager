@@ -11,6 +11,7 @@ This repository now contains a Phase 1 MVP scaffold:
 - a requirement mapping from the source concept docs under [`docs/mvp-requirements.md`](/Users/yangshangqing/metaclaw/docs/mvp-requirements.md)
 - explicit transport rules under [`docs/http-protocol-boundary.md`](/Users/yangshangqing/metaclaw/docs/http-protocol-boundary.md)
 - explicit connector/binding rules under [`docs/connector-protocol.md`](/Users/yangshangqing/metaclaw/docs/connector-protocol.md)
+- explicit run lifecycle rules under [`docs/run-lifecycle.md`](/Users/yangshangqing/metaclaw/docs/run-lifecycle.md)
 - a first real GitHub connector contract under [`docs/github-connector.md`](/Users/yangshangqing/metaclaw/docs/github-connector.md)
 - a thin browser-plugin connector contract under [`docs/browser-connector.md`](/Users/yangshangqing/metaclaw/docs/browser-connector.md)
 - explicit recovery rules under [`docs/recovery-model.md`](/Users/yangshangqing/metaclaw/docs/recovery-model.md)

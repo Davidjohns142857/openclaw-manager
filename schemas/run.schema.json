@@ -83,7 +83,16 @@
         "start_checkpoint_ref": {
           "type": ["string", "null"]
         },
+        "recovery_checkpoint_ref": {
+          "type": ["string", "null"]
+        },
         "end_checkpoint_ref": {
+          "type": ["string", "null"]
+        },
+        "events_ref": {
+          "type": ["string", "null"]
+        },
+        "skill_traces_ref": {
           "type": ["string", "null"]
         },
         "artifact_refs": {
@@ -93,6 +102,9 @@
           }
         },
         "spool_ref": {
+          "type": ["string", "null"]
+        },
+        "summary_ref": {
           "type": ["string", "null"]
         }
       },
@@ -114,6 +126,9 @@
           ]
         },
         "summary": {
+          "type": ["string", "null"]
+        },
+        "reason_code": {
           "type": ["string", "null"]
         },
         "human_takeover": {
@@ -144,4 +159,3 @@
   },
   "additionalProperties": true
 }
-

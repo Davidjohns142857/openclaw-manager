@@ -1,10 +1,14 @@
 import type {
+  Blocker,
   Checkpoint,
   ConnectorBinding,
   ConnectorBindingStatus,
   NormalizedInboundMessage,
+  PendingHumanDecision,
   Priority,
   Run,
+  RunResultType,
+  RunStatus,
   Session,
   SourceChannel
 } from "./types.ts";
@@ -106,6 +110,29 @@ export interface InboundHandlingResult {
   run_started: boolean;
   duplicate: boolean;
   queued: boolean;
+}
+
+export interface SettleRunInput {
+  status: Extract<
+    RunStatus,
+    "waiting_human" | "blocked" | "completed" | "failed" | "cancelled" | "superseded"
+  >;
+  result_type?: RunResultType;
+  summary?: string;
+  reason_code?: string;
+  next_machine_actions?: string[];
+  next_human_actions?: string[];
+  blockers?: Blocker[];
+  pending_human_decisions?: PendingHumanDecision[];
+  checkpoint_notes?: string[];
+}
+
+export interface RunSettlementResult {
+  session: Session;
+  run: Run;
+  checkpoint: Checkpoint | null;
+  summary: string | null;
+  recovery_head_advanced: boolean;
 }
 
 export interface RequestHumanDecisionInput {

@@ -10,6 +10,7 @@ const requiredPaths = [
   "skill.yaml",
   "docs/mvp-requirements.md",
   "docs/connector-protocol.md",
+  "docs/run-lifecycle.md",
   "docs/browser-connector.md",
   "docs/github-connector.md",
   "docs/openclaw-host-integration.md",

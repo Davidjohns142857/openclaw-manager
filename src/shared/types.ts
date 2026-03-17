@@ -192,14 +192,19 @@ export interface RunExecution {
   invoked_skills: string[];
   invoked_tools: string[];
   start_checkpoint_ref: string | null;
+  recovery_checkpoint_ref: string | null;
   end_checkpoint_ref: string | null;
+  events_ref: string | null;
+  skill_traces_ref: string | null;
   artifact_refs: string[];
   spool_ref: string | null;
+  summary_ref: string | null;
 }
 
 export interface RunOutcome {
   result_type: RunResultType | null;
   summary: string | null;
+  reason_code: string | null;
   human_takeover: boolean;
   closure_contribution: number | null;
 }
