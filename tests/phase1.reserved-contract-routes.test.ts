@@ -108,14 +108,21 @@ test("decision request minimal mutation writes an event and updates focus withou
     const body = response.body as {
       status: string;
       mutation_applied: boolean;
-      session: { session_id: string; status: string; metadata: Record<string, unknown> };
+      session: {
+        session_id: string;
+        status: string;
+        status_reason: { source_kind: string; source_decision_id: string | null };
+        metadata: Record<string, unknown>;
+      };
       run: { run_id: string } | null;
       checkpoint: unknown;
     };
 
     assert.equal(body.status, "accepted");
     assert.equal(body.mutation_applied, true);
-    assert.equal(body.session.status, "active");
+    assert.equal(body.session.status, "waiting_human");
+    assert.equal(body.session.status_reason.source_kind, "pending_human_decision");
+    assert.equal(body.session.status_reason.source_decision_id, "dec_req_v1");
     assert.equal(body.run?.run_id, adopted.run.run_id);
 
     const checkpointAfter = await manager.store.readCheckpoint(
@@ -181,13 +188,20 @@ test("blocker detect minimal mutation writes an event and updates focus without 
     const body = response.body as {
       status: string;
       mutation_applied: boolean;
-      session: { session_id: string; status: string; metadata: Record<string, unknown> };
+      session: {
+        session_id: string;
+        status: string;
+        status_reason: { source_kind: string; source_blocker_id: string | null };
+        metadata: Record<string, unknown>;
+      };
       run: { run_id: string } | null;
     };
 
     assert.equal(body.status, "accepted");
     assert.equal(body.mutation_applied, true);
-    assert.equal(body.session.status, "active");
+    assert.equal(body.session.status, "blocked");
+    assert.equal(body.session.status_reason.source_kind, "blocker");
+    assert.equal(body.session.status_reason.source_blocker_id, "blk_req_v1");
     assert.equal(body.run?.run_id, adopted.run.run_id);
 
     const checkpointAfter = await manager.store.readCheckpoint(

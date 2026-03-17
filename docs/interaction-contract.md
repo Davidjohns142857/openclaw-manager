@@ -20,6 +20,11 @@
 - `session.activity`：给宿主和列表页使用的最小高层状态合同
 - `focus`：给人类决策使用的注意力压缩面
 
+同时，`session.status` 现在应被理解为 **控制面摘要状态**，不是另一套独立执行状态机。
+关于它如何从 paused run / decision / blocker 事实派生，请参考：
+
+- [session-status-derivation.md](/Users/yangshangqing/metaclaw/docs/session-status-derivation.md)
+
 不要混用它们。
 
 ### 1.1 `session.activity` 不是 attention queue
@@ -115,12 +120,12 @@
 `waiting_human`
 
 - 含义：session 需要明确的人类决策才能继续
-- 触发：`pending_human_decisions` 非空，或 `session.status=waiting_human`
+- 触发：effective pending decisions 非空，或派生后的 `session.status=waiting_human`
 
 `blocked`
 
 - 含义：session 已被明确阻塞，或失败模式已经足以说明它卡住了
-- 触发：`blockers` 非空，或 `session.status=blocked`，或 `failed_run_count >= 2`
+- 触发：effective blockers 非空，或派生后的 `session.status=blocked`，或 `failed_run_count >= 2`
 
 `desynced`
 

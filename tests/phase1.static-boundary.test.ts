@@ -13,6 +13,10 @@ function manifestCommands(manifest: string): string[] {
   return [...manifest.matchAll(/- "([^"]+)"/g)].map((match) => match[1].split(" ")[0]);
 }
 
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
 test("command registry matches skill manifest and skill instructions", async () => {
   const [manifest, skillMd] = await Promise.all([
     readFile(path.join(repoRoot, "skill.yaml"), "utf8"),
@@ -37,6 +41,9 @@ test("all shipped schemas parse as valid JSON", async () => {
     "schemas/skill-trace.schema.json",
     "schemas/attention-unit.schema.json",
     "schemas/capability-fact.schema.json",
+    "schemas/local-distillation.schema.json",
+    "schemas/fact-outbox-batch.schema.json",
+    "schemas/fact-outbox-receipt.schema.json",
     "schemas/inbound-message.schema.json",
     "schemas/connector-binding.schema.json"
   ];
@@ -44,6 +51,90 @@ test("all shipped schemas parse as valid JSON", async () => {
   for (const schemaFile of schemaFiles) {
     const raw = await readFile(path.join(repoRoot, schemaFile), "utf8");
     assert.doesNotThrow(() => JSON.parse(raw), schemaFile);
+  }
+});
+
+test("run guarantees doc stays aligned with the recovery and focus baseline", async () => {
+  const guarantees = await readFile(path.join(repoRoot, "docs/run-guarantees.md"), "utf8");
+
+  for (const snippet of [
+    "open：`accepted`、`queued`、`running`",
+    "paused-terminal：`waiting_human`、`blocked`",
+    "ended-terminal：`completed`、`failed`、`cancelled`、`superseded`",
+    "`status=completed` 只允许 `outcome.result_type=completed | partial_progress | no_op`",
+    "`status=waiting_human` 只允许 `outcome.result_type=waiting_human`",
+    "`status=cancelled | superseded` 时 `outcome.result_type=null`，并且 `reason_code` 必填",
+    "终态会推进 committed recovery head：`waiting_human`、`blocked`、`completed`",
+    "终态不会推进 committed recovery head：`failed`、`cancelled`、`superseded`",
+    "新 run 的 `start_checkpoint_ref` 优先指向最近一次推进过 head 的 `end_checkpoint_ref`",
+    "面对 `waiting_human`：不自动开新 run；恢复 committed checkpoint；保留 checkpoint 之后进入的 inbound queue",
+    "面对 `blocked`：不自动开新 run；恢复 committed checkpoint；保留 checkpoint 之后进入的 inbound queue",
+    "面对 `failed`：恢复最近 committed checkpoint，然后创建新 run，`trigger_type=resume`",
+    "`retry` / `resume` 总是创建新 run",
+    "tests/phase2.run-lifecycle.test.ts"
+  ]) {
+    assert.match(guarantees, new RegExp(escapeRegExp(snippet)));
+  }
+});
+
+test("local distillation doc stays aligned with the local-only aggregate baseline", async () => {
+  const document = await readFile(path.join(repoRoot, "docs/local-distillation.md"), "utf8");
+
+  for (const snippet of [
+    "Input: durable terminal `session` state plus durable `run` history and durable `skill_trace` history.",
+    "Output: one stable snapshot at `indexes/local_distillation.json`.",
+    "Read surface: `GET /distillation/local`.",
+    "Recompute surface: `POST /distill` and `/distill`.",
+    "This layer is strictly node-local.",
+    "formal [`CapabilityFact`]",
+    "`closure_rate`",
+    "`recovery_success_rate`",
+    "`human_intervention_rate`",
+    "`blocked_recurrence_rate`",
+    "`run_trigger_rate`",
+    "`invocation_count`",
+    "`success_rate` / `failure_rate`",
+    "`workflow_closure_rate`",
+    "`workflow_efficiency`",
+    "Only terminal sessions participate in the snapshot.",
+    "Closing a session refreshes the local snapshot automatically.",
+    "Each aggregate fact carries `aggregation_window` and `privacy`.",
+    "Public ingest remains a future, separate pipeline",
+    "tests/phase3.local-distillation.test.ts"
+  ]) {
+    assert.match(document, new RegExp(escapeRegExp(snippet)));
+  }
+});
+
+test("capability fact and outbox docs stay aligned with the submission baseline", async () => {
+  const [factDoc, outboxDoc] = await Promise.all([
+    readFile(path.join(repoRoot, "docs/capability-fact-contract.md"), "utf8"),
+    readFile(path.join(repoRoot, "docs/public-facts-outbox.md"), "utf8")
+  ]);
+
+  for (const snippet of [
+    "`fact_kind`",
+    "`subject`",
+    "`aggregation_window`",
+    "`privacy`",
+    "raw node facts are `export_policy=local_only`",
+    "aggregated node/scenario/skill/workflow facts are `export_policy=public_submit_allowed`",
+    "`pending`",
+    "`claimed`",
+    "`acked`",
+    "`failed_retryable`",
+    "`dead_letter`",
+    "Duplicate is treated as logical success",
+    "Retrying the same batch must keep `batch_id` and `content_hash` unchanged.",
+    "`dry-run`",
+    "`local-file`",
+    "`mock-http`",
+    "`http`",
+    "`POST /public-facts/submit`",
+    "`/submit-public-facts`",
+    "tests/phase3.public-fact-submission.test.ts"
+  ]) {
+    assert.match(`${factDoc}\n${outboxDoc}`, new RegExp(escapeRegExp(snippet)));
   }
 });
 
@@ -76,6 +167,22 @@ test("server route layer exports canonical session activity and command boundary
     assert.equal(detailResponse.statusCode, 200);
     const detail = detailResponse.body as { session: Record<string, unknown> };
     assert.ok(detail.session.activity);
+
+    const timelineResponse = await dispatchRoute(
+      server,
+      "GET",
+      `/sessions/${adopted.session.session_id}/timeline`
+    );
+    assert.equal(timelineResponse.statusCode, 200);
+    const timeline = timelineResponse.body as {
+      contract_id: string;
+      session: { session_id: string };
+      runs: Array<{ run_id: string; trigger: { trigger_type: string } }>;
+    };
+    assert.equal(timeline.contract_id, "session_run_timeline_v1");
+    assert.equal(timeline.session.session_id, adopted.session.session_id);
+    assert.equal(timeline.runs.length, 1);
+    assert.equal(timeline.runs[0]?.trigger.trigger_type, "manual");
 
     const bindResponse = await dispatchRoute(server, "POST", "/bind", {
       session_id: adopted.session.session_id,
@@ -168,6 +275,24 @@ test("server route layer exports canonical session activity and command boundary
     );
     assert.equal(closeResponse.statusCode, 200);
     assert.ok((closeResponse.body as { session: { activity: unknown } }).session.activity);
+
+    const localDistillationResponse = await dispatchRoute(server, "GET", "/distillation/local");
+    assert.equal(localDistillationResponse.statusCode, 200);
+    const snapshot = localDistillationResponse.body as {
+      contract_id: string;
+      source_session_count: number;
+      facts: unknown[];
+    };
+    assert.equal(snapshot.contract_id, "local_distillation_v1");
+    assert.equal(snapshot.source_session_count, 1);
+    assert.ok(snapshot.facts.length >= 1);
+
+    const recomputedResponse = await dispatchRoute(server, "POST", "/distill");
+    assert.equal(recomputedResponse.statusCode, 200);
+    assert.equal(
+      (recomputedResponse.body as { contract_id: string }).contract_id,
+      "local_distillation_v1"
+    );
   } finally {
     await manager.cleanup();
   }

@@ -33,6 +33,40 @@ run 的第一职责是隔离单次执行。
 - `waiting_human` 不是标签，而是一次 run 的暂停结束态
 - `blocked` 不是 `failed` 的别名，而是可恢复但当前被阻塞的结束态
 - `failed` 表示这次执行失败，但不自动等价于 session 被 block
+- terminal run 不允许再回退到 open status；新的尝试必须创建新 run
+
+### 2.1 Status 与 Outcome 的 canonical 映射
+
+`status` 表示 run 在生命周期中的位置。  
+`outcome.result_type` 表示这次执行留下的语义性结论。
+
+当前阶段，这两者的 canonical 映射固定如下：
+
+| run.status | allowed outcome.result_type | 说明 |
+| --- | --- | --- |
+| `waiting_human` | `waiting_human` | 命名与 status 对齐；不是历史遗留的 `awaiting_human` |
+| `blocked` | `blocked` | run 因阻塞结束 |
+| `completed` | `completed` / `partial_progress` / `no_op` | `completed` 是生命周期终态；语义结论再细分 |
+| `failed` | `failed` | 失败不等于 blocked |
+| `cancelled` | `null` | 需要 `reason_code` 解释为何取消 |
+| `superseded` | `null` | 需要 `reason_code` 解释为何被替代 |
+
+终态事件约束：
+
+- `completed` -> `run_completed`
+- `failed` -> `run_failed`
+- `cancelled` -> `run_cancelled`
+- `superseded` -> `run_superseded`
+
+额外约束：
+
+- `partial_progress` 和 `no_op` 只允许出现在 `status=completed`
+- `cancelled` / `superseded` 不借用 `no_op`
+- `waiting_human` / `blocked` / `failed` / `cancelled` / `superseded` 的 `closure_contribution` 为 `null`
+- `completed` 的 `closure_contribution=1`
+- `partial_progress` 的 `closure_contribution` 必须在 `(0, 1)` 之间
+- `no_op` 的 `closure_contribution=0`
+- session 被显式关闭但没有新增 closure 时，应使用 `status=completed + result_type=no_op`，而不是 `cancelled + no_op`
 
 ## 3. Trigger 语义
 
@@ -65,10 +99,17 @@ run 与 checkpoint 的关系当前收紧为：
 - `cancelled`：默认不作为一般 run lifecycle 的推进条件
 - `superseded`：不允许推进
 
+`resume` 或新的 run 开始时，`execution.start_checkpoint_ref` 的选择顺序固定为：
+
+1. 最近一次 `end_checkpoint_ref != null` 的 run
+2. 如果还没有任何推进过 head 的 run，再回退到最近一次 `recovery_checkpoint_ref != null` 的 run
+3. 如果以上都不存在，则为 `null`
+
 这意味着：
 
 - paused run 的恢复是结构化恢复，不靠历史回放
 - failed run 不会覆盖掉最后一个可信 checkpoint
+- 已有 terminal head 时，failed / cancelled / superseded run 不会抢走下一次 `resume` 的起点
 - paused run 结束后新进入的 durable inbound queue，`resume` 不会被旧 checkpoint 覆盖掉
 
 ## 5. Session Projection

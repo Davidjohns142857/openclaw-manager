@@ -168,4 +168,4 @@
 - decision 和 blocker 是结构化对象，不是备注文本
 - 它们会阻止 auto-continue
 - 它们属于 recovery-authoritative state
-- 它们会投影到 `session.status` 与 `focus`
+- 它们会投影到派生后的 `session.status`、`session.status_reason` 与 `focus`

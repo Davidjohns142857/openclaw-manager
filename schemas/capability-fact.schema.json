@@ -5,13 +5,15 @@
   "type": "object",
   "required": [
     "fact_id",
-    "subject_type",
-    "subject_ref",
+    "fact_kind",
+    "subject",
     "scenario_signature",
     "metric_name",
     "metric_value",
     "sample_size",
     "confidence",
+    "aggregation_window",
+    "privacy",
     "computed_at"
   ],
   "properties": {
@@ -19,12 +21,26 @@
       "type": "string",
       "pattern": "^fact_[A-Za-z0-9_-]+$"
     },
-    "subject_type": {
+    "fact_kind": {
       "type": "string",
-      "enum": ["session", "run", "skill", "workflow", "connector"]
+      "enum": ["raw_observation", "aggregate_metric"]
     },
-    "subject_ref": {
-      "type": "string"
+    "subject": {
+      "type": "object",
+      "required": ["subject_type", "subject_ref", "subject_version"],
+      "properties": {
+        "subject_type": {
+          "type": "string",
+          "enum": ["node", "scenario", "session", "run", "skill", "workflow", "connector"]
+        },
+        "subject_ref": {
+          "type": "string"
+        },
+        "subject_version": {
+          "type": ["string", "null"]
+        }
+      },
+      "additionalProperties": false
     },
     "scenario_signature": {
       "type": "string"
@@ -44,6 +60,53 @@
       "minimum": 0,
       "maximum": 1
     },
+    "aggregation_window": {
+      "type": "object",
+      "required": ["window_type", "start_at", "end_at"],
+      "properties": {
+        "window_type": {
+          "type": "string",
+          "enum": ["point_in_time", "closed_session_history"]
+        },
+        "start_at": {
+          "type": ["string", "null"]
+        },
+        "end_at": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "privacy": {
+      "type": "object",
+      "required": [
+        "privacy_tier",
+        "export_policy",
+        "contains_identifiers",
+        "contains_content",
+        "declaration"
+      ],
+      "properties": {
+        "privacy_tier": {
+          "type": "string",
+          "enum": ["node_private", "aggregated_export_safe"]
+        },
+        "export_policy": {
+          "type": "string",
+          "enum": ["local_only", "public_submit_allowed"]
+        },
+        "contains_identifiers": {
+          "type": "boolean"
+        },
+        "contains_content": {
+          "type": "boolean"
+        },
+        "declaration": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
     "evidence_refs": {
       "type": "array",
       "items": {
@@ -60,4 +123,3 @@
   },
   "additionalProperties": true
 }
-

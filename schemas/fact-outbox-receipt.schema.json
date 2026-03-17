@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "openclaw-manager/fact-outbox-receipt.schema.json",
+  "title": "CapabilityFactOutboxReceipt",
+  "type": "object",
+  "required": [
+    "contract_id",
+    "receipt_id",
+    "batch_id",
+    "mode",
+    "result",
+    "from_state",
+    "to_state",
+    "batch_content_hash",
+    "attempt_number",
+    "response_code",
+    "transport_reference",
+    "recorded_at",
+    "metadata"
+  ],
+  "properties": {
+    "contract_id": {
+      "type": "string",
+      "const": "capability_fact_receipt_v1"
+    },
+    "receipt_id": {
+      "type": "string",
+      "pattern": "^receipt_[A-Za-z0-9_-]+$"
+    },
+    "batch_id": {
+      "type": "string",
+      "pattern": "^batch_[A-Za-z0-9_-]+$"
+    },
+    "mode": {
+      "type": "string",
+      "enum": ["dry-run", "local-file", "mock-http", "http"]
+    },
+    "result": {
+      "type": "string",
+      "enum": ["claimed", "accepted", "duplicate", "retryable_error", "rejected"]
+    },
+    "from_state": {
+      "type": "string",
+      "enum": ["pending", "claimed", "acked", "failed_retryable", "dead_letter", "dry_run"]
+    },
+    "to_state": {
+      "type": "string",
+      "enum": ["pending", "claimed", "acked", "failed_retryable", "dead_letter", "dry_run"]
+    },
+    "batch_content_hash": {
+      "type": "string"
+    },
+    "attempt_number": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "response_code": {
+      "type": "string"
+    },
+    "transport_reference": {
+      "type": ["string", "null"]
+    },
+    "recorded_at": {
+      "type": "string"
+    },
+    "metadata": {
+      "type": "object"
+    }
+  },
+  "additionalProperties": true
+}

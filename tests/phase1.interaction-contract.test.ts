@@ -91,7 +91,6 @@ test("focus chooses waiting_human as the primary category and preserves merged s
     );
 
     session.active_run_id = null;
-    session.status = "waiting_human";
     session.state.blockers.push({
       blocker_id: "blk_interaction",
       type: "external_dependency",
@@ -149,7 +148,6 @@ test("focus orders sessions after per-session collapse by actionable priority", 
       human.session.session_id
     );
     humanSession.active_run_id = null;
-    humanSession.status = "waiting_human";
     humanSession.state.pending_human_decisions.push({
       decision_id: "dec_queue",
       summary: "Choose whether to continue",

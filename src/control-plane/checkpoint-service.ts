@@ -1,6 +1,7 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 
+import { deriveSessionStatusReason } from "../shared/session-status.ts";
 import type { Checkpoint, ManagerConfig, Run, Session } from "../shared/types.ts";
 import { isoNow } from "../shared/time.ts";
 import { renderTemplate } from "../shared/template.ts";
@@ -27,10 +28,12 @@ export class CheckpointService {
   }
 
   buildCheckpoint(session: Session, run: Run): Checkpoint {
+    const statusReason = deriveSessionStatusReason(session, run);
+
     return {
       session_id: session.session_id,
       run_id: run.run_id,
-      session_status: session.status,
+      session_status: statusReason.status,
       phase: session.state.phase,
       blockers: session.state.blockers,
       pending_human_decisions: session.state.pending_human_decisions,
@@ -42,7 +45,12 @@ export class CheckpointService {
         ? session.metadata.assumptions.filter((value): value is string => typeof value === "string")
         : [],
       metadata: {
-        planner: run.planner.planner_name
+        planner: run.planner.planner_name,
+        status_source_kind: statusReason.source_kind,
+        status_source_run_id: statusReason.source_run_id,
+        status_source_run_status: statusReason.source_run_status,
+        status_source_decision_id: statusReason.source_decision_id,
+        status_source_blocker_id: statusReason.source_blocker_id
       },
       created_at: isoNow()
     };

@@ -15,6 +15,9 @@ import type {
   RebindSourceInput,
   RebindSourceResult,
   RunSettlementResult,
+  SubmitPublicFactsInput,
+  SubmitPublicFactsResult,
+  SessionTimelineView,
   ReservedContractMutationResult,
   ResolveHumanDecisionInput,
   DetectBlockerInput,
@@ -22,25 +25,45 @@ import type {
   SettleRunInput,
   ShareSnapshotResult
 } from "../shared/contracts.ts";
-import type { Checkpoint, ManagerConfig, Run, Session } from "../shared/types.ts";
+import type {
+  Checkpoint,
+  CapabilityFactOutboxBatch,
+  CapabilityFactOutboxReceipt,
+  LocalDistillationSnapshot,
+  ManagerConfig,
+  Run,
+  RunTrigger,
+  Session
+} from "../shared/types.ts";
 import {
+  buildSettledRunOutcome,
   canAdvanceRecoveryHeadForRunStatus,
   isPausedRunStatus,
   shouldAutoStartRunOnResume,
   projectSessionStatusAfterRun
 } from "../shared/run-lifecycle.ts";
+import {
+  applyDerivedSessionStatus,
+  readSessionStatusReason,
+  sameSessionStatusReason
+} from "../shared/session-status.ts";
 import { isoNow } from "../shared/time.ts";
 import { canAutoContinueSession, isTerminalSessionStatus } from "../shared/state.ts";
 import { renderTemplate } from "../shared/template.ts";
 import { buildSessionIndexes } from "../storage/indexes.ts";
 import { FilesystemStore } from "../storage/fs-store.ts";
+import { InProcessLock } from "../storage/locks.ts";
 import {
   normalizeInboundMessage,
   type ExternalInboundMessageInput,
   type NormalizeInboundMessageInput
 } from "../connectors/base.ts";
 import { CapabilityFactService } from "../telemetry/capability-facts.ts";
+import { LocalDistillationService } from "../telemetry/local-distillation.ts";
+import { FactOutboxService, type FactOutboxBatchDetail } from "../telemetry/fact-outbox-service.ts";
+import { PublicFactSubmitter } from "../telemetry/public-fact-submitter.ts";
 import { SkillTraceService } from "../telemetry/skill-trace.ts";
+import { TimelineService } from "../timeline/timeline-service.ts";
 import { AttentionService } from "./attention-service.ts";
 import {
   BindingService,
@@ -70,7 +93,12 @@ export class ControlPlane {
   shareService: ShareService;
   skillTraceService: SkillTraceService;
   capabilityFactService: CapabilityFactService;
+  localDistillationService: LocalDistillationService;
+  factOutboxService: FactOutboxService;
+  publicFactSubmitter: PublicFactSubmitter;
   reservedContractService: ReservedContractService;
+  timelineService: TimelineService;
+  sessionMutationLocks: Map<string, InProcessLock>;
 
   constructor(config: ManagerConfig, store: FilesystemStore) {
     this.config = config;
@@ -84,15 +112,21 @@ export class ControlPlane {
     this.shareService = new ShareService(config, store);
     this.skillTraceService = new SkillTraceService(store);
     this.capabilityFactService = new CapabilityFactService();
+    this.localDistillationService = new LocalDistillationService(store);
+    this.factOutboxService = new FactOutboxService(store);
+    this.publicFactSubmitter = new PublicFactSubmitter(config, store, this.factOutboxService);
     this.reservedContractService = new ReservedContractService(
       this.sessionService,
       this.eventService
     );
+    this.timelineService = new TimelineService(store);
+    this.sessionMutationLocks = new Map();
   }
 
   async initialize(): Promise<void> {
     await this.store.ensureLayout();
     await this.refreshDerivedViews();
+    await this.localDistillationService.refresh();
   }
 
   async listTasks(): Promise<Session[]> {
@@ -104,27 +138,147 @@ export class ControlPlane {
     return run ?? null;
   }
 
+  private async resolveRecoverySourceRun(sessionId: string): Promise<Run | null> {
+    const runs = await this.store.listRuns(sessionId);
+    const latestTerminalHead = runs.find((run) => run.execution.end_checkpoint_ref !== null);
+
+    if (latestTerminalHead) {
+      return latestTerminalHead;
+    }
+
+    const latestRecoveryCheckpoint = runs.find(
+      (run) => run.execution.recovery_checkpoint_ref !== null
+    );
+
+    return latestRecoveryCheckpoint ?? runs[0] ?? null;
+  }
+
+  private async readCommittedRecoveryState(
+    sessionId: string,
+    run: Run | null
+  ): Promise<{ checkpoint: Checkpoint | null; summary: string | null }> {
+    if (!run) {
+      return {
+        checkpoint: null,
+        summary: await this.store.readSummary(sessionId)
+      };
+    }
+
+    return {
+      checkpoint: await this.store.readCheckpoint(sessionId, run.run_id),
+      summary: await this.store.readRecoverySummary(sessionId, run.run_id)
+    };
+  }
+
   async getSessionDetail(sessionId: string): Promise<{
     session: Session;
     run: Run | null;
     checkpoint: Checkpoint | null;
     summary: string | null;
   }> {
-    const session = await this.sessionService.requireSession(sessionId);
-    const run = session.active_run_id
-      ? await this.store.readRun(session.session_id, session.active_run_id)
-      : await this.getLatestRun(session.session_id);
-    const checkpoint = run ? await this.store.readCheckpoint(session.session_id, run.run_id) : null;
-    const summary = run
-      ? await this.store.readRecoverySummary(session.session_id, run.run_id)
-      : await this.store.readSummary(session.session_id);
+    const storedSession = await this.sessionService.requireSession(sessionId);
+    const run = storedSession.active_run_id
+      ? await this.store.readRun(storedSession.session_id, storedSession.active_run_id)
+      : await this.getLatestRun(storedSession.session_id);
+    const session = await this.projectSessionSummary(storedSession, run);
+    const recoverySourceRun = run ?? (await this.resolveRecoverySourceRun(storedSession.session_id));
+    const { checkpoint, summary } = await this.readCommittedRecoveryState(
+      session.session_id,
+      recoverySourceRun
+    );
 
     return { session, run, checkpoint, summary };
   }
 
+  async getSessionTimeline(sessionId: string): Promise<SessionTimelineView> {
+    const storedSession = await this.sessionService.requireSession(sessionId);
+    const runs = await this.store.listRuns(storedSession.session_id);
+    const currentRun = storedSession.active_run_id
+      ? await this.store.readRun(storedSession.session_id, storedSession.active_run_id)
+      : runs[0] ?? null;
+    const session = await this.projectSessionSummary(storedSession, currentRun);
+
+    return this.timelineService.buildSessionTimeline(session, currentRun, runs);
+  }
+
+  async getLocalDistillation(): Promise<LocalDistillationSnapshot | null> {
+    return this.localDistillationService.getSnapshot();
+  }
+
+  async distillLocalFacts(): Promise<LocalDistillationSnapshot> {
+    return this.localDistillationService.refresh();
+  }
+
+  async listFactOutboxBatches(): Promise<CapabilityFactOutboxBatch[]> {
+    return this.factOutboxService.listBatches();
+  }
+
+  async getFactOutboxBatch(batchId: string): Promise<FactOutboxBatchDetail | null> {
+    return this.factOutboxService.readBatch(batchId);
+  }
+
+  async submitPublicFacts(input: SubmitPublicFactsInput): Promise<SubmitPublicFactsResult> {
+    const snapshot = await this.localDistillationService.getSnapshot();
+    return this.publicFactSubmitter.submit(snapshot, input);
+  }
+
+  private async projectSessionSummary(session: Session, latestRun: Run | null): Promise<Session> {
+    const projected = applyDerivedSessionStatus(session, latestRun);
+    const currentReason = readSessionStatusReason(session);
+    const projectedReason = readSessionStatusReason(projected);
+
+    if (session.status === projected.status && sameSessionStatusReason(currentReason, projectedReason!)) {
+      return session;
+    }
+
+    return this.sessionService.saveSession(projected);
+  }
+
+  private async saveProjectedSession(session: Session, latestRun: Run | null): Promise<Session> {
+    return this.sessionService.saveSession(applyDerivedSessionStatus(session, latestRun));
+  }
+
+  private sessionMutationLock(sessionId: string): InProcessLock {
+    let existing = this.sessionMutationLocks.get(sessionId);
+
+    if (!existing) {
+      existing = new InProcessLock();
+      this.sessionMutationLocks.set(sessionId, existing);
+    }
+
+    return existing;
+  }
+
+  private async withSessionMutationLock<T>(
+    sessionId: string,
+    operation: () => Promise<T>
+  ): Promise<T> {
+    return this.sessionMutationLock(sessionId).runExclusive(operation);
+  }
+
+  private async resolveRunStartCheckpointRef(session: Session): Promise<string | null> {
+    const recoverySourceRun = await this.resolveRecoverySourceRun(session.session_id);
+
+    if (recoverySourceRun?.execution.end_checkpoint_ref) {
+      return recoverySourceRun.execution.end_checkpoint_ref;
+    }
+
+    if (recoverySourceRun?.execution.recovery_checkpoint_ref) {
+      return recoverySourceRun.execution.recovery_checkpoint_ref;
+    }
+
+    return session.latest_checkpoint_ref;
+  }
+
+  private async startRunForSession(session: Session, trigger: RunTrigger): Promise<Run> {
+    return this.runService.startRun(session, trigger, {
+      startCheckpointRef: await this.resolveRunStartCheckpointRef(session)
+    });
+  }
+
   async adoptSession(input: AdoptSessionInput): Promise<{ session: Session; run: Run }> {
     let session = await this.sessionService.createSession(input);
-    let run = await this.runService.startRun(session, {
+    let run = await this.startRunForSession(session, {
       trigger_type: "manual",
       trigger_ref: null,
       request_id: null,
@@ -150,7 +304,7 @@ export class ControlPlane {
     session.latest_summary_ref = "summary.md";
     session.latest_checkpoint_ref = checkpointRef(run.run_id);
     session.metadata.summary_needs_refresh = false;
-    session = await this.sessionService.saveSession(session);
+    session = await this.saveProjectedSession(session, run);
 
     await this.refreshDerivedViews();
     return { session, run };
@@ -163,46 +317,61 @@ export class ControlPlane {
       ? await this.store.readRun(session.session_id, session.active_run_id)
       : null;
     const latestRun = run ?? (await this.getLatestRun(session.session_id));
-    let checkpoint = latestRun
-      ? await this.store.readCheckpoint(session.session_id, latestRun.run_id)
-      : null;
-    let summary = latestRun
-      ? await this.store.readRecoverySummary(session.session_id, latestRun.run_id)
-      : await this.store.readSummary(session.session_id);
+    const recoverySourceRun = run ?? (await this.resolveRecoverySourceRun(session.session_id));
+    let { checkpoint, summary } = await this.readCommittedRecoveryState(
+      session.session_id,
+      recoverySourceRun
+    );
 
-    if (latestRun && !checkpoint && canAdvanceRecoveryHeadForRunStatus(latestRun.status)) {
+    if (
+      recoverySourceRun &&
+      !checkpoint &&
+      canAdvanceRecoveryHeadForRunStatus(recoverySourceRun.status)
+    ) {
       throw new Error(
-        `Recovery checkpoint missing or uncommitted for session ${session.session_id} run ${latestRun.run_id}. Refresh explicitly before resuming.`
+        `Recovery checkpoint missing or uncommitted for session ${session.session_id} run ${recoverySourceRun.run_id}. Refresh explicitly before resuming.`
       );
     }
 
-    if (latestRun && checkpoint) {
+    if (recoverySourceRun && checkpoint) {
       session = this.checkpointService.applyCheckpoint(session, checkpoint);
       session.state.pending_external_inputs = Array.from(
         new Set([...checkpoint.pending_external_inputs, ...pendingExternalInputs])
       );
       session.metadata.pending_inbound_count = session.state.pending_external_inputs.length;
       session.latest_checkpoint_ref = checkpointRef(checkpoint.run_id);
-      session = await this.sessionService.saveSession(session);
+      session = await this.saveProjectedSession(session, latestRun);
     }
 
-    if (latestRun && checkpoint && !summary) {
-      summary = await this.checkpointService.renderSummary(session, latestRun, checkpoint, [
+    if (recoverySourceRun && checkpoint && !summary) {
+      summary = await this.checkpointService.renderSummary(session, recoverySourceRun, checkpoint, [
         "Summary regenerated from committed checkpoint."
       ]);
-      await this.store.writeCommittedRecoverySummary(session.session_id, latestRun.run_id, summary);
-      run = await this.runService.syncCommittedRecoveryRefs(session.session_id, latestRun.run_id, {
-        checkpointRef: checkpointRef(latestRun.run_id),
-        summaryRef: "summary.md",
-        markAsTerminal:
-          isPausedRunStatus(latestRun.status) || latestRun.status === "completed"
-      });
+      await this.store.writeCommittedRecoverySummary(
+        session.session_id,
+        recoverySourceRun.run_id,
+        summary
+      );
+      const refreshedRecoveryRun = await this.runService.syncCommittedRecoveryRefs(
+        session.session_id,
+        recoverySourceRun.run_id,
+        {
+          checkpointRef: checkpointRef(recoverySourceRun.run_id),
+          summaryRef: "summary.md",
+          markAsTerminal:
+            isPausedRunStatus(recoverySourceRun.status) || recoverySourceRun.status === "completed"
+        }
+      );
+      if (latestRun?.run_id === refreshedRecoveryRun.run_id) {
+        run = refreshedRecoveryRun;
+      }
       session.latest_summary_ref = "summary.md";
+      session.latest_checkpoint_ref = checkpointRef(recoverySourceRun.run_id);
       session.metadata.summary_needs_refresh = false;
       session = await this.sessionService.saveSession(session);
       await this.eventService.record({
         sessionId: session.session_id,
-        runId: latestRun.run_id,
+        runId: recoverySourceRun.run_id,
         eventType: "summary_refreshed",
         payload: {
           summary_ref: "summary.md",
@@ -212,9 +381,11 @@ export class ControlPlane {
       await this.refreshDerivedViews();
     }
 
+    session = await this.saveProjectedSession(session, run ?? latestRun);
+
     if (!run && !isTerminalSessionStatus(session.status) && shouldAutoStartRunOnResume(session, latestRun)) {
       const pendingInputs = [...session.state.pending_external_inputs];
-      run = await this.runService.startRun(session, {
+      run = await this.startRunForSession(session, {
         trigger_type: "resume",
         trigger_ref: null,
         request_id: null,
@@ -222,7 +393,6 @@ export class ControlPlane {
       });
 
       session.active_run_id = run.run_id;
-      session.status = "active";
       session.metrics.run_count += 1;
       session.metrics.last_activity_at = run.started_at;
       session.latest_checkpoint_ref = checkpointRef(run.run_id);
@@ -241,11 +411,10 @@ export class ControlPlane {
         summaryRef: "summary.md",
         markAsTerminal: false
       });
-
       session.latest_summary_ref = "summary.md";
       session.latest_checkpoint_ref = checkpointRef(run.run_id);
       session.metadata.summary_needs_refresh = false;
-      session = await this.sessionService.saveSession(session);
+      session = await this.saveProjectedSession(session, run);
 
       await this.refreshDerivedViews();
       return {
@@ -256,6 +425,7 @@ export class ControlPlane {
       };
     }
 
+    session = await this.saveProjectedSession(session, run ?? latestRun);
     return { session, run: run ?? latestRun, checkpoint, summary };
   }
 
@@ -265,9 +435,11 @@ export class ControlPlane {
       ? await this.store.readRun(session.session_id, session.active_run_id)
       : await this.getLatestRun(session.session_id);
 
+    session = await this.saveProjectedSession(session, run);
+
     if (!run && !isTerminalSessionStatus(session.status)) {
       if (shouldAutoStartRunOnResume(session, null)) {
-        run = await this.runService.startRun(session, {
+        run = await this.startRunForSession(session, {
           trigger_type: "manual",
           trigger_ref: null,
           request_id: null,
@@ -278,7 +450,7 @@ export class ControlPlane {
         session.metrics.run_count += 1;
         session.metrics.last_activity_at = run.started_at;
         session.latest_checkpoint_ref = checkpointRef(run.run_id);
-        session = await this.sessionService.saveSession(session);
+        session = await this.saveProjectedSession(session, run);
       }
     }
 
@@ -296,11 +468,16 @@ export class ControlPlane {
       !canAdvanceRecoveryHeadForRunStatus(run.status) &&
       run.status !== "running"
     ) {
+      const recoverySourceRun = await this.resolveRecoverySourceRun(session.session_id);
+      const { checkpoint, summary } = await this.readCommittedRecoveryState(
+        session.session_id,
+        recoverySourceRun
+      );
       return {
         session,
         run,
-        checkpoint: await this.store.readCheckpoint(session.session_id, run.run_id),
-        summary: await this.store.readRecoverySummary(session.session_id, run.run_id)
+        checkpoint,
+        summary
       };
     }
 
@@ -316,7 +493,7 @@ export class ControlPlane {
     session.latest_summary_ref = "summary.md";
     session.latest_checkpoint_ref = checkpointRef(run.run_id);
     session.metadata.summary_needs_refresh = false;
-    session = await this.sessionService.saveSession(session);
+    session = await this.saveProjectedSession(session, run);
 
     await this.refreshDerivedViews();
 
@@ -352,13 +529,17 @@ export class ControlPlane {
       session.state.next_human_actions = input.next_human_actions;
     }
 
-    let run = await this.runService.transitionRun(session.session_id, activeRun.run_id, input.status, {
-      result_type: input.result_type ?? deriveResultTypeFromStatus(input.status),
-      summary: input.summary ?? defaultRunOutcomeSummary(input.status),
-      reason_code: input.reason_code ?? null,
-      human_takeover: input.status === "waiting_human",
-      closure_contribution: input.status === "completed" ? 1 : 0
+    const outcome = buildSettledRunOutcome(input.status, {
+      result_type: input.result_type,
+      summary: input.summary ?? defaultRunOutcomeSummary(input.status, input.result_type ?? null),
+      reason_code: input.reason_code ?? null
     });
+    let run = await this.runService.transitionRun(
+      session.session_id,
+      activeRun.run_id,
+      input.status,
+      outcome
+    );
 
     session.active_run_id = null;
     session.status = projectSessionStatusAfterRun(session, run);
@@ -372,7 +553,7 @@ export class ControlPlane {
       session.metrics.failed_run_count += 1;
     }
 
-    session = await this.sessionService.saveSession(session);
+    session = await this.saveProjectedSession(session, run);
 
     let checkpoint: Checkpoint | null = null;
     let summary: string | null = null;
@@ -381,7 +562,7 @@ export class ControlPlane {
     if (recoveryHeadAdvanced) {
       const refreshed = await this.checkpointService.refreshRecoveryArtifacts(session, run, [
         ...(input.checkpoint_notes ?? []),
-        input.summary ?? defaultRunOutcomeSummary(input.status)
+        input.summary ?? defaultRunOutcomeSummary(input.status, run.outcome.result_type)
       ]);
       run = await this.runService.syncCommittedRecoveryRefs(session.session_id, run.run_id, {
         checkpointRef: checkpointRef(run.run_id),
@@ -393,7 +574,7 @@ export class ControlPlane {
       session.latest_summary_ref = "summary.md";
       session.latest_checkpoint_ref = checkpointRef(run.run_id);
       session.metadata.summary_needs_refresh = false;
-      session = await this.sessionService.saveSession(session);
+      session = await this.saveProjectedSession(session, run);
     }
 
     await this.refreshDerivedViews();
@@ -737,16 +918,16 @@ export class ControlPlane {
       : await this.getLatestRun(session.session_id);
 
     if (run && session.active_run_id === run.run_id) {
+      const runStatus = "completed";
       run = await this.runService.transitionRun(
         session.session_id,
         run.run_id,
-        input.resolution === "abandoned" ? "cancelled" : "completed",
-        {
+        runStatus,
+        buildSettledRunOutcome(runStatus, {
           result_type: input.resolution === "abandoned" ? "no_op" : "completed",
           summary: input.outcome_summary,
-          reason_code: input.resolution === "abandoned" ? "session_abandoned" : "session_closed",
-          closure_contribution: input.resolution === "abandoned" ? 0 : 1
-        }
+          reason_code: input.resolution === "abandoned" ? "session_abandoned" : "session_closed"
+        })
       );
     }
 
@@ -754,11 +935,15 @@ export class ControlPlane {
     session.status = input.resolution === "abandoned" ? "abandoned" : "completed";
     session.lifecycle_stage = "closure";
     session.state.goal_status = input.resolution === "abandoned" ? "abandoned" : "complete";
+    session.state.blockers = [];
+    session.state.pending_human_decisions = [];
+    session.state.pending_external_inputs = [];
     session.state.next_machine_actions = [];
     session.state.next_human_actions = [];
     session.metrics.last_activity_at = isoNow();
+    session.metadata.pending_inbound_count = 0;
     session.metadata.summary_needs_refresh = true;
-    session = await this.sessionService.saveSession(session);
+    session = await this.saveProjectedSession(session, run);
 
     if (run) {
       const refreshed = await this.checkpointService.refreshRecoveryArtifacts(session, run, [
@@ -773,7 +958,7 @@ export class ControlPlane {
       session.latest_summary_ref = "summary.md";
       session.latest_checkpoint_ref = checkpointRef(run.run_id);
       session.metadata.summary_needs_refresh = false;
-      session = await this.sessionService.saveSession(session);
+      session = await this.saveProjectedSession(session, run);
 
       await this.eventService.record({
         sessionId: session.session_id,
@@ -806,6 +991,7 @@ export class ControlPlane {
       });
     }
 
+    await this.localDistillationService.refresh();
     await this.refreshDerivedViews();
     return session;
   }
@@ -836,111 +1022,120 @@ export class ControlPlane {
       };
     }
 
-    let session = await this.sessionService.requireSession(message.target_session_id);
-    await this.eventService.record({
-      sessionId: session.session_id,
-      eventType: "message_received",
-      actor: {
-        actor_type: "external",
-        actor_ref: message.source_type
-      },
-      causality: {
-        request_id: message.request_id,
-        external_trigger_id: message.external_trigger_id
-      },
-      payload: {
-        source_thread_key: message.source_thread_key,
-        message_type: message.message_type
-      }
-    });
-    await this.eventService.record({
-      sessionId: session.session_id,
-      eventType: "message_normalized",
-      actor: {
-        actor_type: "system",
-        actor_ref: "connector.normalizer"
-      },
-      causality: {
-        request_id: message.request_id,
-        external_trigger_id: message.external_trigger_id
-      },
-      payload: {
-        request_id: message.request_id
-      }
-    });
+    const result = await this.withSessionMutationLock(message.target_session_id, async () => {
+      let session = await this.sessionService.requireSession(message.target_session_id);
+      const latestRun = session.active_run_id
+        ? await this.store.readRun(session.session_id, session.active_run_id)
+        : await this.getLatestRun(session.session_id);
 
-    const pendingInboundCount = Number(session.metadata.pending_inbound_count ?? 0) + 1;
-    session.metadata.pending_inbound_count = pendingInboundCount;
-    session.state.pending_external_inputs = Array.from(
-      new Set([...session.state.pending_external_inputs, message.request_id])
-    );
-    session.metrics.last_activity_at = message.timestamp;
-    session.metadata.summary_needs_refresh = true;
-    session = await this.sessionService.saveSession(session);
-
-    let run: Run | null = null;
-    let runStarted = false;
-
-    if (canAutoContinueSession(session) && !session.active_run_id) {
-      run = await this.runService.startRun(session, {
-        trigger_type: "external_message",
-        trigger_ref: null,
-        request_id: message.request_id,
-        external_trigger_id: message.external_trigger_id
+      await this.eventService.record({
+        sessionId: session.session_id,
+        eventType: "message_received",
+        actor: {
+          actor_type: "external",
+          actor_ref: message.source_type
+        },
+        causality: {
+          request_id: message.request_id,
+          external_trigger_id: message.external_trigger_id
+        },
+        payload: {
+          source_thread_key: message.source_thread_key,
+          message_type: message.message_type
+        }
+      });
+      await this.eventService.record({
+        sessionId: session.session_id,
+        eventType: "message_normalized",
+        actor: {
+          actor_type: "system",
+          actor_ref: "connector.normalizer"
+        },
+        causality: {
+          request_id: message.request_id,
+          external_trigger_id: message.external_trigger_id
+        },
+        payload: {
+          request_id: message.request_id
+        }
       });
 
-      session.active_run_id = run.run_id;
-      session.status = "active";
-      session.metrics.run_count += 1;
-      session.metrics.last_activity_at = run.started_at;
-      session.state.pending_external_inputs = session.state.pending_external_inputs.filter(
-        (requestId) => requestId !== message.request_id
+      session.state.pending_external_inputs = Array.from(
+        new Set([...session.state.pending_external_inputs, message.request_id])
       );
-      session.metadata.pending_inbound_count = Math.max(0, pendingInboundCount - 1);
-      session.latest_checkpoint_ref = checkpointRef(run.run_id);
+      session.metadata.pending_inbound_count = session.state.pending_external_inputs.length;
+      session.metrics.last_activity_at = message.timestamp;
+      session.metadata.summary_needs_refresh = true;
       session = await this.sessionService.saveSession(session);
 
-      await this.checkpointService.refreshRecoveryArtifacts(session, run, [
-        `Inbound message accepted from ${message.source_type}.`
-      ]);
-      run = await this.runService.syncCommittedRecoveryRefs(session.session_id, run.run_id, {
-        checkpointRef: checkpointRef(run.run_id),
-        summaryRef: "summary.md",
-        markAsTerminal: false
-      });
+      let run: Run | null = null;
+      let runStarted = false;
 
-      session.latest_summary_ref = "summary.md";
-      session.latest_checkpoint_ref = checkpointRef(run.run_id);
-      session.metadata.summary_needs_refresh = false;
-      session = await this.sessionService.saveSession(session);
-      runStarted = true;
-    } else {
-      if (session.state.pending_human_decisions.length > 0) {
-        session.status = "waiting_human";
-      } else if (session.state.blockers.length > 0) {
-        session.status = "blocked";
+      if (canAutoContinueSession(session, latestRun) && !session.active_run_id) {
+        run = await this.startRunForSession(session, {
+          trigger_type: "external_message",
+          trigger_ref: null,
+          request_id: message.request_id,
+          external_trigger_id: message.external_trigger_id
+        });
+
+        session.active_run_id = run.run_id;
+        session.metrics.run_count += 1;
+        session.metrics.last_activity_at = run.started_at;
+        session.state.pending_external_inputs = session.state.pending_external_inputs.filter(
+          (requestId) => requestId !== message.request_id
+        );
+        session.metadata.pending_inbound_count = session.state.pending_external_inputs.length;
+        session.latest_checkpoint_ref = checkpointRef(run.run_id);
+        session = await this.sessionService.saveSession(session);
+
+        await this.checkpointService.refreshRecoveryArtifacts(session, run, [
+          `Inbound message accepted from ${message.source_type}.`
+        ]);
+        run = await this.runService.syncCommittedRecoveryRefs(session.session_id, run.run_id, {
+          checkpointRef: checkpointRef(run.run_id),
+          summaryRef: "summary.md",
+          markAsTerminal: false
+        });
+
+        session.latest_summary_ref = "summary.md";
+        session.latest_checkpoint_ref = checkpointRef(run.run_id);
+        session.metadata.summary_needs_refresh = false;
+        session = await this.saveProjectedSession(session, run);
+        runStarted = true;
+      } else {
+        session = await this.saveProjectedSession(session, latestRun);
       }
 
-      session = await this.sessionService.saveSession(session);
-    }
+      return {
+        message,
+        session,
+        run,
+        run_started: runStarted,
+        duplicate: false,
+        queued: !runStarted
+      };
+    });
 
     await this.refreshDerivedViews();
 
-    return {
-      message,
-      session,
-      run,
-      run_started: runStarted,
-      duplicate: false,
-      queued: !runStarted
-    };
+    return result;
   }
 
   static ConnectorBindingConflictError = ConnectorBindingConflictError;
   static ConnectorBindingNotFoundError = ConnectorBindingNotFoundError;
 
   async refreshDerivedViews(): Promise<void> {
-    const sessions = await this.sessionService.listSessions();
+    const storedSessions = await this.sessionService.listSessions();
+    const sessions = await Promise.all(
+      storedSessions.map(async (session) => {
+        const latestRun = session.active_run_id
+          ? await this.store.readRun(session.session_id, session.active_run_id)
+          : await this.getLatestRun(session.session_id);
+
+        return this.projectSessionSummary(session, latestRun);
+      })
+    );
     const sessionIndexes = buildSessionIndexes(sessions);
     const attentionQueue = this.attentionService.buildAttentionQueue(sessions);
     const attentionBySession = new Map<string, ReturnType<AttentionService["buildAttentionForSession"]>>();
@@ -962,29 +1157,24 @@ export class ControlPlane {
   }
 }
 
-function deriveResultTypeFromStatus(status: SettleRunInput["status"]) {
-  switch (status) {
-    case "waiting_human":
-      return "awaiting_human";
-    case "blocked":
-      return "blocked";
-    case "completed":
-      return "completed";
-    case "failed":
-      return "failed";
-    case "cancelled":
-    case "superseded":
-      return "no_op";
-  }
-}
-
-function defaultRunOutcomeSummary(status: SettleRunInput["status"]): string {
+function defaultRunOutcomeSummary(
+  status: SettleRunInput["status"],
+  resultType: SettleRunInput["result_type"] | null = null
+): string {
   switch (status) {
     case "waiting_human":
       return "Run paused pending human input.";
     case "blocked":
       return "Run ended in a blocked state.";
     case "completed":
+      if (resultType === "partial_progress") {
+        return "Run ended with partial progress.";
+      }
+
+      if (resultType === "no_op") {
+        return "Run ended cleanly without changing task closure.";
+      }
+
       return "Run completed successfully.";
     case "failed":
       return "Run failed and needs review.";

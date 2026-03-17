@@ -116,6 +116,8 @@
 
 - sequential duplicate `request_id` 幂等
 - concurrent duplicate `request_id` 不会双写事件
+- concurrent distinct inbound 不会丢失 queued request_id / `pending_inbound_count`
+- concurrent distinct inbound 在可 auto-continue 的 session 上只会启动 1 个新 run
 - checkpoint/summary 写入失败时不会留下 torn recovery artifacts
 
 适合继续补的独立测试方向：
@@ -211,12 +213,12 @@
 - `waiting_human` session 收到 inbound 时会 queue，而不是 auto-start run
 - `blocked` session 收到 inbound 时会 queue，而不是 auto-start run
 - checkpoint / resume 会恢复 blocker 与 pending decision 的结构化状态
+- `close` 会清理 blocker / pending decision / queued inbound 噪音，不把它们带进 terminal checkpoint
 
 适合继续补的独立测试方向：
 
 - future resolve / clear API 的事件与状态投影
 - failed-run 导致 blocked 的投影是否需要实体 blocker
-- close / archive 后 decision / blocker 的保留策略
 
 ### 3.9 Reserved API Contracts
 
@@ -272,6 +274,7 @@
 - `/bindings/:binding_id/disable` 会停用 active binding，但保留 durable 记录
 - `/bindings/:binding_id/rebind` 会把 source ownership 受控移动到新 session
 - `GET /bindings` 支持按 `status/session/source_type` 做最小筛选
+- unchanged binding registry 的 hot-path read 会复用已校验缓存，而不是每次全量重新校验
 
 适合继续补的独立测试方向：
 
@@ -322,20 +325,116 @@
 文件：
 
 - [`tests/phase2.run-lifecycle.test.ts`](/Users/yangshangqing/metaclaw/tests/phase2.run-lifecycle.test.ts)
+- [`docs/run-guarantees.md`](/Users/yangshangqing/metaclaw/docs/run-guarantees.md)
 
 当前覆盖：
 
 - `waiting_human` run 会作为真实 paused-terminal 状态结束，并推进 recovery head
+- `waiting_human` / `blocked` / `failed` / `completed` / `cancelled` / `superseded` 与 `outcome.result_type` 的 canonical 映射被显式校验
+- `completed` 只允许 `completed / partial_progress / no_op`，并且 `partial_progress` / `no_op` 的 `closure_contribution` 语义固定
 - `paused` run 在 checkpoint 之后收到新的 inbound backlog 时，`resume` 仍会保留 queue，并在 `focus` 中折叠为 `waiting_human/blocked + desynced + summary_drift`
 - `completed` run 会推进 recovery head、保持 quiet focus，并在下一次 `resume` 时作为新 run 的 `start_checkpoint_ref`
 - `failed` run 不会推进 recovery head，且与 `blocked` 保持不同语义；重复失败会在 `focus` 中升级为 `blocked`
 - `cancelled` / `superseded` run 不会推进 recovery head，但 `resume` 仍会从最近 committed checkpoint 启动下一次 run
+- `transitionRun` 具备状态转移守卫，不允许 terminal run 被直接改回 `running`
+- `superseded` 会发出专门的 `run_superseded` 事件，而不是混入通用 `run_status_changed`
+- 当更近的 failed run 存在自己的 recovery checkpoint 时，`resume` 仍优先选择最近一次 terminal head，而不是盲目跟随最新 run
 - run 会稳定关联 `events_ref`、`skill_traces_ref`、`spool_ref`、`checkpoint`、`summary`、`artifact_refs`
 
 适合继续补的独立测试方向：
 
 - run-level artifact export / evidence snapshot
 - run trigger 统计与 capability facts 的联动
+
+### 3.15 Session Status Derivation
+
+文件：
+
+- [`tests/phase2.session-status-derivation.test.ts`](/Users/yangshangqing/metaclaw/tests/phase2.session-status-derivation.test.ts)
+- [`docs/session-status-derivation.md`](/Users/yangshangqing/metaclaw/docs/session-status-derivation.md)
+
+当前覆盖：
+
+- paused run 会把 `session.status` 投影成 `waiting_human` / `blocked`
+- unresolved decision / blocker facts 会投影 `session.status`，但不改变 run state
+- `session.status_reason` 能说明当前 summary status 来自 paused run、decision 还是 blocker
+
+适合继续补的独立测试方向：
+
+- session status precedence 冲突矩阵
+- terminal session vs paused run 的优先级
+- share / export 面对 `status_reason` 的呈现
+
+### 3.16 Run Timeline And Evidence View
+
+文件：
+
+- [`tests/phase2.timeline.test.ts`](/Users/yangshangqing/metaclaw/tests/phase2.timeline.test.ts)
+- [`docs/run-timeline-contract.md`](/Users/yangshangqing/metaclaw/docs/run-timeline-contract.md)
+
+当前覆盖：
+
+- `GET /sessions/:session_id/timeline` 返回稳定的 `session_run_timeline_v1`
+- timeline 能按 run 回答 trigger、status flow、outcome
+- timeline 会暴露每个 run 的 committed checkpoint 摘要与 terminal head marker
+- timeline 会暴露每个 run 的最小 evidence refs 与计数
+
+适合继续补的独立测试方向：
+
+- session-level timeline markdown export
+- richer run milestone events beyond status-flow
+- evidence snapshot bundling
+
+### 3.17 Local Distillation
+
+文件：
+
+- [`tests/phase3.local-distillation.test.ts`](/Users/yangshangqing/metaclaw/tests/phase3.local-distillation.test.ts)
+- [`docs/local-distillation.md`](/Users/yangshangqing/metaclaw/docs/local-distillation.md)
+
+当前覆盖：
+
+- `closeSession` 会自动刷新本地蒸馏快照
+- `GET /distillation/local` 和 `POST /distill` 返回稳定的 `local_distillation_v1`
+- 本地蒸馏当前会输出 `closure_rate`、`recovery_success_rate`、`human_intervention_rate`、`blocked_recurrence_rate`、`run_trigger_rate`
+- 本地蒸馏现在还会输出 skill-level facts：`invocation_count`、`success_rate`、`failure_rate`、`avg_duration_ms`、`avg_closure_contribution`、`primary_contribution_rate`、`regressive_rate`、`blocker_trigger_rate`
+- 本地蒸馏现在还会输出 workflow-level facts：`workflow_closure_rate`、`workflow_efficiency`
+- 蒸馏同时输出 node scope 和 scenario scope
+- 蒸馏同时输出 `skill` 和 `workflow` subject，并直接复用到现有 public-facts outbox
+- `/distill` 只做本地重算，不生成 public outbox 或公网提交副作用
+
+适合继续补的独立测试方向：
+
+- 时间窗口和增量重算
+- richer duration / failure-mode metrics
+- workflow synergy / co-skill 增益
+
+### 3.18 Public Fact Submission Pipeline
+
+文件：
+
+- [`tests/phase3.public-fact-submission.test.ts`](/Users/yangshangqing/metaclaw/tests/phase3.public-fact-submission.test.ts)
+- [`docs/capability-fact-contract.md`](/Users/yangshangqing/metaclaw/docs/capability-fact-contract.md)
+- [`docs/public-facts-outbox.md`](/Users/yangshangqing/metaclaw/docs/public-facts-outbox.md)
+
+当前覆盖：
+
+- 本地 aggregate stats 现在是正式 `CapabilityFact`，而不是散落指标
+- fact 包含 `subject`、`scenario_signature`、`metric_name`、`metric_value`、`sample_size`、`confidence`、`aggregation_window`、`computed_at`、`privacy`
+- outbox 状态机已经落地：`pending -> claimed -> acked / failed_retryable / dead_letter`
+- `dry-run` 不写 outbox state，只验证筛选和 batch 切分
+- `local-file` 会走完整 batch/receipt 状态机
+- `mock-http` 会覆盖 `accepted / duplicate / retryable_error / rejected`
+- `http` 会把同一批 facts 提交到配置好的公网 ingest endpoint，并复用同一套 receipt / retry / dead-letter 规则
+- duplicate 被视为逻辑成功；retryable 会保留原 batch 待重试；rejected 会进入 dead letter
+- receipt 足以追踪每次提交的命运
+- skill/workflow aggregate facts 会进入同一套 outbox batching / receipt / submit 流程，而不是单独走第二条出口
+
+适合继续补的独立测试方向：
+
+- batch compaction / merge policy
+- richer transport metadata and auth envelope
+- selective export policy by subject_type / metric family
 
 ## 4. 当前自动化校验总表
 
@@ -366,6 +465,10 @@
 - first real GitHub connector adapter
 - browser-plugin ingress adapter
 - run lifecycle and evidence refs
+- session status derivation
+- run timeline and evidence view
+- local-only distilled node/scenario stats
+- local capability-fact / outbox / submit pipeline
 - `session.activity` 与 `focus` 的基础交互语义
 - reserved decision/blocker API registry
 - feature-gated reserved mutation routes

@@ -18,6 +18,7 @@ import type {
   Checkpoint,
   ConnectorBinding,
   Event,
+  LocalDistillationSnapshot,
   ManagerConfig,
   NormalizedInboundMessage,
   RecoveryHead,
@@ -32,11 +33,13 @@ export class FilesystemStore {
   config: ManagerConfig;
   lock: InProcessLock;
   schemaRegistry: SchemaRegistry;
+  bindingsCache: ConnectorBinding[] | null;
 
   constructor(config: ManagerConfig) {
     this.config = config;
     this.lock = new InProcessLock();
     this.schemaRegistry = new SchemaRegistry(config.schemasDir);
+    this.bindingsCache = null;
   }
 
   paths() {
@@ -50,7 +53,13 @@ export class FilesystemStore {
       bindings: path.join(root, "connectors", "bindings.json"),
       inbox: path.join(root, "connectors", "inbox"),
       snapshots: path.join(root, "snapshots"),
-      exports: path.join(root, "exports")
+      exports: path.join(root, "exports"),
+      config: path.join(root, "config"),
+      localDistillation: path.join(root, "indexes", "local_distillation.json"),
+      publicFactsOutbox: path.join(root, "exports", "public-facts-outbox"),
+      publicFactsOutboxReceipts: path.join(root, "exports", "public-facts-outbox", "receipts"),
+      publicFactsOutboxLocalFile: path.join(root, "exports", "public-facts-outbox", "local-file"),
+      publicFactsNodeSecret: path.join(root, "config", "public-facts-node-secret.txt")
     };
   }
 
@@ -79,7 +88,8 @@ export class FilesystemStore {
       mkdir(paths.connectors, { recursive: true }),
       mkdir(paths.inbox, { recursive: true }),
       mkdir(paths.snapshots, { recursive: true }),
-      mkdir(paths.exports, { recursive: true })
+      mkdir(paths.exports, { recursive: true }),
+      mkdir(paths.config, { recursive: true })
     ]);
   }
 
@@ -105,6 +115,24 @@ export class FilesystemStore {
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code === "ENOENT") {
         return null;
+      }
+
+      throw error;
+    }
+  }
+
+  async readJsonl<T>(filePath: string): Promise<T[]> {
+    try {
+      const contents = await readFile(filePath, "utf8");
+
+      return contents
+        .split("\n")
+        .map((line) => line.trim())
+        .filter(Boolean)
+        .map((line) => JSON.parse(line) as T);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+        return [];
       }
 
       throw error;
@@ -395,6 +423,16 @@ export class FilesystemStore {
     });
   }
 
+  async readRunEvents(sessionId: string, runId: string): Promise<Event[]> {
+    const events = await this.readJsonl<Event>(path.join(this.runDir(sessionId, runId), "events.jsonl"));
+
+    for (const event of events) {
+      await this.schemaRegistry.validateOrThrow("event", event);
+    }
+
+    return events.sort((left, right) => left.timestamp.localeCompare(right.timestamp));
+  }
+
   async appendSkillTrace(sessionId: string, runId: string, trace: SkillTrace): Promise<void> {
     await this.schemaRegistry.validateOrThrow("skill-trace", trace);
 
@@ -404,11 +442,27 @@ export class FilesystemStore {
     });
   }
 
+  async readSkillTraces(sessionId: string, runId: string): Promise<SkillTrace[]> {
+    const traces = await this.readJsonl<SkillTrace>(
+      path.join(this.runDir(sessionId, runId), "skill_traces.jsonl")
+    );
+
+    for (const trace of traces) {
+      await this.schemaRegistry.validateOrThrow("skill-trace", trace);
+    }
+
+    return traces.sort((left, right) => left.created_at.localeCompare(right.created_at));
+  }
+
   async appendSpoolLine(sessionId: string, runId: string, payload: unknown): Promise<void> {
     await this.lock.runExclusive(async () => {
       await this.ensureRunLayout(sessionId, runId);
       await this.appendJsonl(path.join(this.runDir(sessionId, runId), "spool.jsonl"), payload);
     });
+  }
+
+  async readSpoolLines(sessionId: string, runId: string): Promise<unknown[]> {
+    return this.readJsonl<unknown>(path.join(this.runDir(sessionId, runId), "spool.jsonl"));
   }
 
   async writeSessionIndexes(sessionsIndex: unknown, activeSessionsIndex: unknown): Promise<void> {
@@ -442,19 +496,38 @@ export class FilesystemStore {
     });
   }
 
+  async readLocalDistillation(): Promise<LocalDistillationSnapshot | null> {
+    return this.readValidatedJson<LocalDistillationSnapshot>(
+      "local-distillation",
+      this.paths().localDistillation
+    );
+  }
+
+  async writeLocalDistillation(snapshot: LocalDistillationSnapshot): Promise<void> {
+    await this.schemaRegistry.validateOrThrow("local-distillation", snapshot);
+
+    await this.lock.runExclusive(async () => {
+      await this.writeJson(this.paths().localDistillation, snapshot);
+    });
+  }
+
   async readAttentionQueue(): Promise<AttentionUnit[] | null> {
     return this.readJson<AttentionUnit[]>(path.join(this.paths().indexes, "attention_queue.json"));
   }
 
   async readBindings(): Promise<ConnectorBinding[]> {
-    const bindings =
-      (await this.readJson<ConnectorBinding[]>(this.paths().bindings)) ?? [];
+    if (this.bindingsCache !== null) {
+      return cloneBindings(this.bindingsCache);
+    }
+
+    const bindings = (await this.readJson<ConnectorBinding[]>(this.paths().bindings)) ?? [];
 
     for (const binding of bindings) {
       await this.schemaRegistry.validateOrThrow("connector-binding", binding);
     }
 
-    return bindings;
+    this.bindingsCache = cloneBindings(bindings);
+    return cloneBindings(this.bindingsCache);
   }
 
   async writeBindings(bindings: ConnectorBinding[]): Promise<void> {
@@ -462,10 +535,14 @@ export class FilesystemStore {
       await this.schemaRegistry.validateOrThrow("connector-binding", binding);
     }
 
+    const cachedBindings = cloneBindings(bindings);
+
     await this.lock.runExclusive(async () => {
       await mkdir(this.paths().connectors, { recursive: true });
       await this.writeJson(this.paths().bindings, bindings);
     });
+
+    this.bindingsCache = cachedBindings;
   }
 
   async tryClaimInboundMessage(message: NormalizedInboundMessage): Promise<{
@@ -538,4 +615,8 @@ export class FilesystemStore {
 
     return targetDir;
   }
+}
+
+function cloneBindings(bindings: ConnectorBinding[]): ConnectorBinding[] {
+  return structuredClone(bindings);
 }

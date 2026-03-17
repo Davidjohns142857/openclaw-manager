@@ -118,7 +118,7 @@
           "enum": [
             "no_op",
             "partial_progress",
-            "awaiting_human",
+            "waiting_human",
             "blocked",
             "completed",
             "failed",
@@ -157,5 +157,238 @@
       "type": "object"
     }
   },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "waiting_human"
+          }
+        }
+      },
+      "then": {
+        "required": ["outcome"],
+        "properties": {
+          "outcome": {
+            "type": "object",
+            "required": ["result_type", "human_takeover", "closure_contribution"],
+            "properties": {
+              "result_type": {
+                "const": "waiting_human"
+              },
+              "human_takeover": {
+                "const": true
+              },
+              "closure_contribution": {
+                "type": "null"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "blocked"
+          }
+        }
+      },
+      "then": {
+        "required": ["outcome"],
+        "properties": {
+          "outcome": {
+            "type": "object",
+            "required": ["result_type", "human_takeover", "closure_contribution"],
+            "properties": {
+              "result_type": {
+                "const": "blocked"
+              },
+              "human_takeover": {
+                "const": false
+              },
+              "closure_contribution": {
+                "type": "null"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "completed"
+          }
+        }
+      },
+      "then": {
+        "required": ["outcome"],
+        "properties": {
+          "outcome": {
+            "type": "object",
+            "required": ["result_type", "human_takeover", "closure_contribution"],
+            "properties": {
+              "result_type": {
+                "enum": ["completed", "partial_progress", "no_op"]
+              },
+              "human_takeover": {
+                "const": false
+              }
+            },
+            "allOf": [
+              {
+                "if": {
+                  "properties": {
+                    "result_type": {
+                      "const": "completed"
+                    }
+                  }
+                },
+                "then": {
+                  "properties": {
+                    "closure_contribution": {
+                      "const": 1
+                    }
+                  }
+                }
+              },
+              {
+                "if": {
+                  "properties": {
+                    "result_type": {
+                      "const": "partial_progress"
+                    }
+                  }
+                },
+                "then": {
+                  "properties": {
+                    "closure_contribution": {
+                      "type": "number",
+                      "exclusiveMinimum": 0,
+                      "exclusiveMaximum": 1
+                    }
+                  }
+                }
+              },
+              {
+                "if": {
+                  "properties": {
+                    "result_type": {
+                      "const": "no_op"
+                    }
+                  }
+                },
+                "then": {
+                  "properties": {
+                    "closure_contribution": {
+                      "const": 0
+                    }
+                  }
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "failed"
+          }
+        }
+      },
+      "then": {
+        "required": ["outcome"],
+        "properties": {
+          "outcome": {
+            "type": "object",
+            "required": ["result_type", "human_takeover", "closure_contribution"],
+            "properties": {
+              "result_type": {
+                "const": "failed"
+              },
+              "human_takeover": {
+                "const": false
+              },
+              "closure_contribution": {
+                "type": "null"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "cancelled"
+          }
+        }
+      },
+      "then": {
+        "required": ["outcome"],
+        "properties": {
+          "outcome": {
+            "type": "object",
+            "required": ["result_type", "reason_code", "human_takeover", "closure_contribution"],
+            "properties": {
+              "result_type": {
+                "type": "null"
+              },
+              "reason_code": {
+                "type": "string",
+                "minLength": 1
+              },
+              "human_takeover": {
+                "const": false
+              },
+              "closure_contribution": {
+                "type": "null"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "superseded"
+          }
+        }
+      },
+      "then": {
+        "required": ["outcome"],
+        "properties": {
+          "outcome": {
+            "type": "object",
+            "required": ["result_type", "reason_code", "human_takeover", "closure_contribution"],
+            "properties": {
+              "result_type": {
+                "type": "null"
+              },
+              "reason_code": {
+                "type": "string",
+                "minLength": 1
+              },
+              "human_takeover": {
+                "const": false
+              },
+              "closure_contribution": {
+                "type": "null"
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
   "additionalProperties": true
 }

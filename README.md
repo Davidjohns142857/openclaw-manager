@@ -21,6 +21,9 @@ This repository now contains a Phase 1 MVP scaffold:
 - a decision/blocker lifecycle contract under [`docs/decision-blocker-contract.md`](/Users/yangshangqing/metaclaw/docs/decision-blocker-contract.md)
 - a reserved decision/blocker API contract under [`docs/decision-blocker-api-contract.md`](/Users/yangshangqing/metaclaw/docs/decision-blocker-api-contract.md)
 - a reserved-contract implementation strategy under [`docs/reserved-contract-implementation-strategy.md`](/Users/yangshangqing/metaclaw/docs/reserved-contract-implementation-strategy.md)
+- a local-only distillation contract under [`docs/local-distillation.md`](/Users/yangshangqing/metaclaw/docs/local-distillation.md)
+- a stable local capability-fact contract under [`docs/capability-fact-contract.md`](/Users/yangshangqing/metaclaw/docs/capability-fact-contract.md)
+- a node-side outbox / submit contract under [`docs/public-facts-outbox.md`](/Users/yangshangqing/metaclaw/docs/public-facts-outbox.md)
 - a current test coverage map under [`docs/test-functionality-list.md`](/Users/yangshangqing/metaclaw/docs/test-functionality-list.md)
 - a guarded parallel-development handoff under [`docs/phase1-guarded-expansion-collaboration.md`](/Users/yangshangqing/metaclaw/docs/phase1-guarded-expansion-collaboration.md)
 
@@ -33,6 +36,8 @@ The current implementation targets Phase 1 from `openclaw_manager_overview.md`:
 - checkpoint + summary recovery
 - basic attention queue derivation
 - local snapshot export
+- local-only distilled node/scenario stats
+- local outbox and dry-run / local-file / mock-http / http submission pipeline
 - minimal sidecar API and skill command contracts
 
 Out of scope for this scaffold:
@@ -49,6 +54,13 @@ Out of scope for this scaffold:
 3. Run the local smoke flow: `npm run smoke`
 
 By default, runtime state is written to `.openclaw-manager-state/` in this repository. Override with `OPENCLAW_MANAGER_HOME=/path/to/state`.
+
+Public fact live-ingest defaults to `http://142.171.114.18/v1/ingest`. Override with:
+
+- `OPENCLAW_MANAGER_PUBLIC_FACTS_ENDPOINT`
+- `OPENCLAW_MANAGER_PUBLIC_FACTS_TIMEOUT_MS`
+- `OPENCLAW_MANAGER_PUBLIC_FACTS_AUTH_TOKEN`
+- `OPENCLAW_MANAGER_PUBLIC_FACTS_SCHEMA_VERSION`
 
 ## Repository Layout
 

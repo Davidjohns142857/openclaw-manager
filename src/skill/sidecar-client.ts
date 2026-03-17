@@ -1,6 +1,7 @@
 import type { ExternalInboundMessageInput } from "../connectors/base.ts";
 import type { BrowserConnectorMessageInput } from "../connectors/browser.ts";
 import type { SessionActivity } from "../shared/activity.ts";
+import type { SessionStatusReason } from "../shared/session-status.ts";
 import type {
   AdoptSessionInput,
   BindingListFilters,
@@ -16,12 +17,17 @@ import type {
   RebindSourceResult,
   ReservedContractMutationResult,
   ResolveHumanDecisionInput,
-  ShareSnapshotResult
+  SessionTimelineView,
+  ShareSnapshotResult,
+  CapabilityFactOutboxDetail,
+  SubmitPublicFactsInput,
+  SubmitPublicFactsResult
 } from "../shared/contracts.ts";
 import type {
   AttentionUnit,
   Checkpoint,
   ConnectorBinding,
+  LocalDistillationSnapshot,
   Run,
   Session
 } from "../shared/types.ts";
@@ -29,6 +35,7 @@ import type { ManagerCommandClient, ManagerCommandDefinition } from "./commands.
 
 export interface SessionWithActivity extends Session {
   activity: SessionActivity;
+  status_reason: SessionStatusReason;
 }
 
 export interface SessionDetailEnvelope {
@@ -156,12 +163,36 @@ export class ManagerSidecarClient implements ManagerCommandClient {
     return this.request("GET", `/sessions/${encodeURIComponent(sessionId)}`);
   }
 
+  async getSessionTimeline(sessionId: string): Promise<SessionTimelineView> {
+    return this.request("GET", `/sessions/${encodeURIComponent(sessionId)}/timeline`);
+  }
+
   async focus(): Promise<AttentionUnit[]> {
     return this.request("GET", "/focus");
   }
 
   async digest(): Promise<{ digest: string }> {
     return this.request("GET", "/digest");
+  }
+
+  async getLocalDistillation(): Promise<LocalDistillationSnapshot | null> {
+    return this.request("GET", "/distillation/local");
+  }
+
+  async distill(): Promise<LocalDistillationSnapshot | null> {
+    return this.request("POST", "/distill");
+  }
+
+  async submitPublicFacts(input: SubmitPublicFactsInput): Promise<SubmitPublicFactsResult> {
+    return this.request("POST", "/public-facts/submit", input);
+  }
+
+  async listPublicFactOutbox(): Promise<Array<Record<string, unknown>>> {
+    return this.request("GET", "/public-facts/outbox");
+  }
+
+  async getPublicFactOutboxBatch(batchId: string): Promise<CapabilityFactOutboxDetail | null> {
+    return this.request("GET", `/public-facts/outbox/${encodeURIComponent(batchId)}`);
   }
 
   async adopt(input: AdoptSessionInput): Promise<SessionDetailEnvelope> {

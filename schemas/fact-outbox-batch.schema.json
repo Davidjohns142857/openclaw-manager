@@ -1,0 +1,202 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "openclaw-manager/fact-outbox-batch.schema.json",
+  "title": "CapabilityFactOutboxBatch",
+  "$defs": {
+    "capability_fact": {
+      "type": "object",
+      "required": [
+        "fact_id",
+        "fact_kind",
+        "subject",
+        "scenario_signature",
+        "metric_name",
+        "metric_value",
+        "sample_size",
+        "confidence",
+        "aggregation_window",
+        "privacy",
+        "computed_at"
+      ],
+      "properties": {
+        "fact_id": {
+          "type": "string",
+          "pattern": "^fact_[A-Za-z0-9_-]+$"
+        },
+        "fact_kind": {
+          "type": "string",
+          "enum": ["raw_observation", "aggregate_metric"]
+        },
+        "subject": {
+          "type": "object",
+          "required": ["subject_type", "subject_ref", "subject_version"],
+          "properties": {
+            "subject_type": {
+              "type": "string",
+              "enum": ["node", "scenario", "session", "run", "skill", "workflow", "connector"]
+            },
+            "subject_ref": {
+              "type": "string"
+            },
+            "subject_version": {
+              "type": ["string", "null"]
+            }
+          },
+          "additionalProperties": false
+        },
+        "scenario_signature": {
+          "type": "string"
+        },
+        "metric_name": {
+          "type": "string"
+        },
+        "metric_value": {
+          "type": ["number", "string", "boolean"]
+        },
+        "sample_size": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "confidence": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "aggregation_window": {
+          "type": "object",
+          "required": ["window_type", "start_at", "end_at"],
+          "properties": {
+            "window_type": {
+              "type": "string",
+              "enum": ["point_in_time", "closed_session_history"]
+            },
+            "start_at": {
+              "type": ["string", "null"]
+            },
+            "end_at": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false
+        },
+        "privacy": {
+          "type": "object",
+          "required": [
+            "privacy_tier",
+            "export_policy",
+            "contains_identifiers",
+            "contains_content",
+            "declaration"
+          ],
+          "properties": {
+            "privacy_tier": {
+              "type": "string",
+              "enum": ["node_private", "aggregated_export_safe"]
+            },
+            "export_policy": {
+              "type": "string",
+              "enum": ["local_only", "public_submit_allowed"]
+            },
+            "contains_identifiers": {
+              "type": "boolean"
+            },
+            "contains_content": {
+              "type": "boolean"
+            },
+            "declaration": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false
+        },
+        "evidence_refs": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "metadata": {
+          "type": "object"
+        },
+        "computed_at": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true
+    }
+  },
+  "type": "object",
+  "required": [
+    "contract_id",
+    "batch_id",
+    "state",
+    "transport_mode",
+    "fact_ids",
+    "fact_count",
+    "facts",
+    "content_hash",
+    "attempt_count",
+    "last_attempt_at",
+    "last_receipt_id",
+    "created_at",
+    "updated_at",
+    "metadata"
+  ],
+  "properties": {
+    "contract_id": {
+      "type": "string",
+      "const": "capability_fact_batch_v1"
+    },
+    "batch_id": {
+      "type": "string",
+      "pattern": "^batch_[A-Za-z0-9_-]+$"
+    },
+    "state": {
+      "type": "string",
+      "enum": ["pending", "claimed", "acked", "failed_retryable", "dead_letter"]
+    },
+    "transport_mode": {
+      "type": ["string", "null"],
+      "enum": ["local-file", "mock-http", "http", null]
+    },
+    "fact_ids": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "fact_count": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "facts": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/capability_fact"
+      }
+    },
+    "content_hash": {
+      "type": "string"
+    },
+    "attempt_count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "last_attempt_at": {
+      "type": ["string", "null"]
+    },
+    "last_receipt_id": {
+      "type": ["string", "null"]
+    },
+    "created_at": {
+      "type": "string"
+    },
+    "updated_at": {
+      "type": "string"
+    },
+    "metadata": {
+      "type": "object"
+    }
+  },
+  "additionalProperties": true
+}

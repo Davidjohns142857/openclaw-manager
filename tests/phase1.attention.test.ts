@@ -15,7 +15,6 @@ test("focus should collapse one noisy session into at most one next-action item"
       adopted.session.session_id
     );
 
-    session.status = "waiting_human";
     session.state.blockers.push({
       blocker_id: "blk_001",
       type: "external_dependency",

@@ -32,6 +32,13 @@ export type RunStatus =
   | "failed"
   | "cancelled"
   | "superseded";
+export type SettledRunStatus =
+  | "waiting_human"
+  | "blocked"
+  | "completed"
+  | "failed"
+  | "cancelled"
+  | "superseded";
 export type RunTriggerType =
   | "manual"
   | "message"
@@ -43,7 +50,7 @@ export type RunTriggerType =
 export type RunResultType =
   | "no_op"
   | "partial_progress"
-  | "awaiting_human"
+  | "waiting_human"
   | "blocked"
   | "completed"
   | "failed";
@@ -56,6 +63,7 @@ export type EventType =
   | "run_completed"
   | "run_failed"
   | "run_cancelled"
+  | "run_superseded"
   | "skill_invoked"
   | "skill_completed"
   | "skill_failed"
@@ -89,6 +97,30 @@ export type MessageType =
   | "system_update"
   | "artifact_notice"
   | "decision_response";
+export type CapabilityFactSubjectType =
+  | "node"
+  | "scenario"
+  | "session"
+  | "run"
+  | "skill"
+  | "workflow"
+  | "connector";
+export type CapabilityFactKind = "raw_observation" | "aggregate_metric";
+export type CapabilityFactExportPolicy = "local_only" | "public_submit_allowed";
+export type CapabilityFactPrivacyTier = "node_private" | "aggregated_export_safe";
+export type CapabilityFactWindowType = "point_in_time" | "closed_session_history";
+export type CapabilityFactOutboxState =
+  | "pending"
+  | "claimed"
+  | "acked"
+  | "failed_retryable"
+  | "dead_letter";
+export type PublicFactSubmitMode = "dry-run" | "local-file" | "mock-http" | "http";
+export type MockTransportResult =
+  | "accepted"
+  | "duplicate"
+  | "retryable_error"
+  | "rejected";
 
 export interface OwnerRef {
   type: OwnerType;
@@ -291,18 +323,101 @@ export interface AttentionUnit {
   created_at: string;
 }
 
+export interface CapabilityFactSubject {
+  subject_type: CapabilityFactSubjectType;
+  subject_ref: string;
+  subject_version: string | null;
+}
+
+export interface CapabilityFactAggregationWindow {
+  window_type: CapabilityFactWindowType;
+  start_at: string | null;
+  end_at: string;
+}
+
+export interface CapabilityFactPrivacy {
+  privacy_tier: CapabilityFactPrivacyTier;
+  export_policy: CapabilityFactExportPolicy;
+  contains_identifiers: boolean;
+  contains_content: boolean;
+  declaration: string;
+}
+
 export interface CapabilityFact {
   fact_id: string;
-  subject_type: "session" | "run" | "skill" | "workflow" | "connector";
-  subject_ref: string;
+  fact_kind: CapabilityFactKind;
+  subject: CapabilityFactSubject;
   scenario_signature: string;
   metric_name: string;
   metric_value: number | string | boolean;
   sample_size: number;
   confidence: number;
+  aggregation_window: CapabilityFactAggregationWindow;
+  privacy: CapabilityFactPrivacy;
   evidence_refs: string[];
   metadata: Record<string, unknown>;
   computed_at: string;
+}
+
+export type LocalDistillationScopeType = "node" | "scenario" | "skill" | "workflow";
+export type LocalDistilledMetricName =
+  | "closure_rate"
+  | "recovery_success_rate"
+  | "human_intervention_rate"
+  | "blocked_recurrence_rate"
+  | "run_trigger_rate"
+  | "success_rate"
+  | "failure_rate"
+  | "avg_duration_ms"
+  | "avg_closure_contribution"
+  | "primary_contribution_rate"
+  | "regressive_rate"
+  | "blocker_trigger_rate"
+  | "invocation_count"
+  | "workflow_closure_rate"
+  | "workflow_efficiency";
+export type LocalDistilledFact = CapabilityFact;
+
+export interface LocalDistillationSnapshot {
+  contract_id: "local_distillation_v1";
+  generated_at: string;
+  source_session_count: number;
+  source_run_count: number;
+  scenario_count: number;
+  facts: CapabilityFact[];
+}
+
+export interface CapabilityFactOutboxBatch {
+  contract_id: "capability_fact_batch_v1";
+  batch_id: string;
+  state: CapabilityFactOutboxState;
+  transport_mode: Exclude<PublicFactSubmitMode, "dry-run"> | null;
+  fact_ids: string[];
+  fact_count: number;
+  facts: CapabilityFact[];
+  content_hash: string;
+  attempt_count: number;
+  last_attempt_at: string | null;
+  last_receipt_id: string | null;
+  created_at: string;
+  updated_at: string;
+  metadata: Record<string, unknown>;
+}
+
+export interface CapabilityFactOutboxReceipt {
+  contract_id: "capability_fact_receipt_v1";
+  receipt_id: string;
+  batch_id: string;
+  mode: PublicFactSubmitMode;
+  result: "claimed" | MockTransportResult;
+  from_state: CapabilityFactOutboxState | "dry_run";
+  to_state: CapabilityFactOutboxState | "dry_run";
+  batch_content_hash: string;
+  attempt_number: number;
+  response_code: string;
+  transport_reference: string | null;
+  recorded_at: string;
+  metadata: Record<string, unknown>;
 }
 
 export interface AttachmentRef {
@@ -353,6 +468,13 @@ export interface ManagerFeatureFlags {
   blocker_lifecycle_v1: boolean;
 }
 
+export interface PublicFactsTransportConfig {
+  endpoint: string;
+  timeout_ms: number;
+  auth_token: string | null;
+  schema_version: string;
+}
+
 export interface SessionIndexEntry {
   session_id: string;
   title: string;
@@ -371,4 +493,40 @@ export interface ManagerConfig {
   schemasDir: string;
   port: number;
   features: ManagerFeatureFlags;
+  public_facts: PublicFactsTransportConfig;
+}
+
+export interface PublicCapabilityFact {
+  public_fact_id: string;
+  schema_version: string;
+  node_fingerprint: string;
+  subject_type: CapabilityFactSubjectType;
+  subject_ref: string;
+  subject_version: string | null;
+  scenario_signature: string;
+  scenario_tags: string[];
+  metric_name: string;
+  metric_value: number | string | boolean;
+  sample_size: number;
+  confidence: number;
+  context?: Record<string, unknown>;
+  computed_at: string;
+  submitted_at: string;
+}
+
+export interface PublicCapabilityFactBatchRequest {
+  schema_version: string;
+  node_fingerprint: string;
+  batch_id: string;
+  submitted_at: string;
+  facts: PublicCapabilityFact[];
+}
+
+export interface PublicCapabilityFactBatchResponse {
+  status: "accepted" | "duplicate" | "partial" | "rejected";
+  batch_id: string;
+  accepted_count?: number;
+  rejected_count?: number;
+  rejected_facts?: Array<{ public_fact_id: string; reason: string }>;
+  receipt_id?: string | null;
 }

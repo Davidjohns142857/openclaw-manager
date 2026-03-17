@@ -16,7 +16,6 @@ test("waiting_human sessions queue inbound updates instead of auto-starting a ru
     );
 
     session.active_run_id = null;
-    session.status = "waiting_human";
     session.state.pending_human_decisions.push({
       decision_id: "dec_waiting_001",
       summary: "Confirm whether to proceed",
@@ -58,7 +57,6 @@ test("blocked sessions queue inbound updates instead of auto-starting a run", as
     );
 
     session.active_run_id = null;
-    session.status = "blocked";
     session.state.blockers.push({
       blocker_id: "blk_blocked_001",
       type: "external_dependency",
@@ -100,7 +98,6 @@ test("checkpoint restores blocker and pending decision state during resume", asy
     let session = await manager.controlPlane.sessionService.requireSession(
       adopted.session.session_id
     );
-    session.status = "waiting_human";
     session.state.blockers = [
       {
         blocker_id: "blk_recovery_001",
@@ -139,6 +136,58 @@ test("checkpoint restores blocker and pending decision state during resume", asy
     assert.equal(resumed.session.state.pending_human_decisions.length, 1);
     assert.equal(resumed.session.state.blockers[0]?.blocker_id, "blk_recovery_001");
     assert.equal(resumed.session.state.pending_human_decisions[0]?.decision_id, "dec_recovery_001");
+  } finally {
+    await manager.cleanup();
+  }
+});
+
+test("close clears blocker, decision, and queued-inbound noise from the terminal checkpoint", async () => {
+  const manager = await createTempManager();
+
+  try {
+    let session = (
+      await manager.controlPlane.adoptSession({
+        title: "Terminal cleanup",
+        objective: "Closed sessions should not retain open blocker/decision noise."
+      })
+    ).session;
+
+    session = await manager.controlPlane.sessionService.requireSession(session.session_id);
+    session.state.blockers = [
+      {
+        blocker_id: "blk_close_001",
+        type: "external_dependency",
+        summary: "Still waiting on a dependency before close.",
+        detected_at: "2026-03-16T00:00:00Z",
+        severity: "medium"
+      }
+    ];
+    session.state.pending_human_decisions = [
+      {
+        decision_id: "dec_close_001",
+        summary: "Need a final answer before close.",
+        requested_at: "2026-03-16T00:00:00Z",
+        urgency: "medium"
+      }
+    ];
+    session.state.pending_external_inputs = ["req_close_001"];
+    session.metadata.pending_inbound_count = 1;
+    await manager.controlPlane.sessionService.saveSession(session);
+
+    const closed = await manager.controlPlane.closeSession(session.session_id, {
+      outcome_summary: "Closed cleanly after manual review.",
+      resolution: "completed"
+    });
+
+    assert.equal(closed.state.blockers.length, 0);
+    assert.equal(closed.state.pending_human_decisions.length, 0);
+    assert.equal(closed.state.pending_external_inputs.length, 0);
+    assert.equal(closed.metadata.pending_inbound_count, 0);
+
+    const detail = await manager.controlPlane.getSessionDetail(session.session_id);
+    assert.equal(detail.checkpoint?.blockers.length, 0);
+    assert.equal(detail.checkpoint?.pending_human_decisions.length, 0);
+    assert.equal(detail.checkpoint?.pending_external_inputs.length, 0);
   } finally {
     await manager.cleanup();
   }
