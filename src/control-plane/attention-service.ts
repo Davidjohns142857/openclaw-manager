@@ -1,4 +1,5 @@
 import { createId } from "../shared/ids.ts";
+import { readReservedContractState } from "../shared/reserved-contracts.ts";
 import { addHours, hoursSince, isoNow } from "../shared/time.ts";
 import { isTerminalSessionStatus } from "../shared/state.ts";
 import type { AttentionCategory, AttentionUnit, Session } from "../shared/types.ts";
@@ -52,10 +53,32 @@ export class AttentionService {
     const items: AttentionUnit[] = [];
     const now = isoNow();
     const ageHours = hoursSince(session.metrics.last_activity_at);
+    const reservedState = readReservedContractState(session);
+    const effectivePendingDecisions =
+      session.state.pending_human_decisions.length > 0
+        ? session.state.pending_human_decisions.map((decision) => ({
+            summary: decision.summary,
+            urgency: decision.urgency
+          }))
+        : reservedState.pending_human_decisions.map((decision) => ({
+            summary: decision.summary,
+            urgency: decision.urgency
+          }));
+    const effectiveBlockers =
+      session.state.blockers.length > 0
+        ? session.state.blockers.map((blocker) => ({
+            summary: blocker.summary,
+            severity: blocker.severity
+          }))
+        : reservedState.blockers.map((blocker) => ({
+            summary: blocker.summary,
+            severity: blocker.severity
+          }));
 
-    if (session.state.pending_human_decisions.length > 0 || session.status === "waiting_human") {
+    if (effectivePendingDecisions.length > 0 || session.status === "waiting_human") {
       const urgency =
-        session.state.pending_human_decisions[0]?.urgency ?? (session.priority === "critical" ? "high" : "medium");
+        effectivePendingDecisions[0]?.urgency ??
+        (session.priority === "critical" ? "high" : "medium");
 
       items.push({
         attention_id: createId("attn"),
@@ -63,7 +86,7 @@ export class AttentionService {
         category: "waiting_human",
         urgency,
         expected_human_action: "Resolve the pending human decision",
-        reasoning_summary: session.state.pending_human_decisions
+        reasoning_summary: effectivePendingDecisions
           .map((decision) => decision.summary)
           .join("; "),
         stale_after: addHours(now, 6),
@@ -75,8 +98,8 @@ export class AttentionService {
       });
     }
 
-    if (session.state.blockers.length > 0 || session.status === "blocked" || session.metrics.failed_run_count >= 2) {
-      const severity = session.state.blockers[0]?.severity ?? "high";
+    if (effectiveBlockers.length > 0 || session.status === "blocked" || session.metrics.failed_run_count >= 2) {
+      const severity = effectiveBlockers[0]?.severity ?? "high";
 
       items.push({
         attention_id: createId("attn"),
@@ -85,7 +108,7 @@ export class AttentionService {
         urgency: severity,
         expected_human_action: "Remove or reframe the blocker",
         reasoning_summary:
-          session.state.blockers.map((blocker) => blocker.summary).join("; ") ||
+          effectiveBlockers.map((blocker) => blocker.summary).join("; ") ||
           "Repeated failed runs suggest the thread is blocked.",
         stale_after: addHours(now, 12),
         confidence: 0.85,

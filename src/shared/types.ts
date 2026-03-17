@@ -328,6 +328,11 @@ export interface RecoveryHead {
   committed_at: string;
 }
 
+export interface ManagerFeatureFlags {
+  decision_lifecycle_v1: boolean;
+  blocker_lifecycle_v1: boolean;
+}
+
 export interface SessionIndexEntry {
   session_id: string;
   title: string;
@@ -345,4 +350,5 @@ export interface ManagerConfig {
   templatesDir: string;
   schemasDir: string;
   port: number;
+  features: ManagerFeatureFlags;
 }

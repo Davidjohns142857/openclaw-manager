@@ -13,6 +13,7 @@ const requiredPaths = [
   "docs/interaction-contract.md",
   "docs/decision-blocker-contract.md",
   "docs/decision-blocker-api-contract.md",
+  "docs/reserved-contract-implementation-strategy.md",
   "schemas/session.schema.json",
   "schemas/run.schema.json",
   "schemas/event.schema.json",
@@ -22,9 +23,11 @@ const requiredPaths = [
   "src/api/server.ts",
   "src/api/contracts.ts",
   "src/control-plane/control-plane.ts",
+  "src/control-plane/reserved-contract-service.ts",
   "src/storage/fs-store.ts",
   "src/storage/schema-registry.ts",
   "src/skill/sidecar-client.ts",
+  "src/shared/reserved-contracts.ts",
   "skills/openclaw-manager/SKILL.md",
   "skills/openclaw-manager/agents/openai.yaml"
 ];

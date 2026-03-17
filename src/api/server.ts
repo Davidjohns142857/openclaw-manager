@@ -1,13 +1,32 @@
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 
-import type { CloseSessionInput } from "../shared/contracts.ts";
+import type {
+  ClearBlockerInput,
+  CloseSessionInput,
+  DetectBlockerInput,
+  RequestHumanDecisionInput,
+  ResolveHumanDecisionInput
+} from "../shared/contracts.ts";
 import { ControlPlane } from "../control-plane/control-plane.ts";
 import { buildApiContractIndex } from "./contracts.ts";
 import { handleInboundApi } from "./inbound.ts";
 import { buildHealthPayload } from "./health.ts";
 import { managerCommands } from "../skill/commands.ts";
 import type { ManagerConfig } from "../shared/types.ts";
-import { serializeSession, serializeSessionDetail } from "./serializers.ts";
+import {
+  serializeReservedMutationResult,
+  serializeSession,
+  serializeSessionDetail
+} from "./serializers.ts";
+
+class HttpError extends Error {
+  statusCode: number;
+
+  constructor(statusCode: number, message: string) {
+    super(message);
+    this.statusCode = statusCode;
+  }
+}
 
 function jsonResponse(response: ServerResponse, statusCode: number, payload: unknown): void {
   response.writeHead(statusCode, {
@@ -52,6 +71,129 @@ function matchSessionRoute(pathname: string, action?: string): string | null {
   }
 
   return null;
+}
+
+function splitPath(pathname: string): string[] {
+  return pathname.split("/").filter(Boolean).map((part) => decodeURIComponent(part));
+}
+
+function matchDecisionCollectionRoute(pathname: string): string | null {
+  const parts = splitPath(pathname);
+  return parts.length === 3 && parts[0] === "sessions" && parts[2] === "decisions" ? parts[1] : null;
+}
+
+function matchDecisionResolveRoute(pathname: string): { sessionId: string; decisionId: string } | null {
+  const parts = splitPath(pathname);
+  if (
+    parts.length === 5 &&
+    parts[0] === "sessions" &&
+    parts[2] === "decisions" &&
+    parts[4] === "resolve"
+  ) {
+    return {
+      sessionId: parts[1],
+      decisionId: parts[3]
+    };
+  }
+
+  return null;
+}
+
+function matchBlockerCollectionRoute(pathname: string): string | null {
+  const parts = splitPath(pathname);
+  return parts.length === 3 && parts[0] === "sessions" && parts[2] === "blockers" ? parts[1] : null;
+}
+
+function matchBlockerClearRoute(pathname: string): { sessionId: string; blockerId: string } | null {
+  const parts = splitPath(pathname);
+  if (
+    parts.length === 5 &&
+    parts[0] === "sessions" &&
+    parts[2] === "blockers" &&
+    parts[4] === "clear"
+  ) {
+    return {
+      sessionId: parts[1],
+      blockerId: parts[3]
+    };
+  }
+
+  return null;
+}
+
+function asRecord(value: unknown): Record<string, unknown> | undefined {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    return undefined;
+  }
+
+  return value as Record<string, unknown>;
+}
+
+function asPriority(value: unknown): "low" | "medium" | "high" | "critical" | undefined {
+  return value === "low" || value === "medium" || value === "high" || value === "critical"
+    ? value
+    : undefined;
+}
+
+function asStringArray(value: unknown): string[] | undefined {
+  return Array.isArray(value)
+    ? value.filter((entry): entry is string => typeof entry === "string")
+    : undefined;
+}
+
+function requireNonEmptyString(value: unknown, fieldName: string): string {
+  if (typeof value !== "string" || value.trim().length === 0) {
+    throw new HttpError(400, `${fieldName} must be a non-empty string.`);
+  }
+
+  return value;
+}
+
+function parseRequestHumanDecisionInput(body: Record<string, unknown>): RequestHumanDecisionInput {
+  return {
+    decision_id: typeof body.decision_id === "string" ? body.decision_id : undefined,
+    summary: requireNonEmptyString(body.summary, "summary"),
+    urgency: asPriority(body.urgency),
+    requested_by_ref: typeof body.requested_by_ref === "string" ? body.requested_by_ref : undefined,
+    requested_at: typeof body.requested_at === "string" ? body.requested_at : undefined,
+    next_human_actions: asStringArray(body.next_human_actions),
+    metadata: asRecord(body.metadata)
+  };
+}
+
+function parseResolveHumanDecisionInput(body: Record<string, unknown>): ResolveHumanDecisionInput {
+  return {
+    resolution_summary: requireNonEmptyString(body.resolution_summary, "resolution_summary"),
+    resolved_by_ref: typeof body.resolved_by_ref === "string" ? body.resolved_by_ref : undefined,
+    resolved_at: typeof body.resolved_at === "string" ? body.resolved_at : undefined,
+    next_machine_actions: asStringArray(body.next_machine_actions),
+    next_human_actions: asStringArray(body.next_human_actions),
+    metadata: asRecord(body.metadata)
+  };
+}
+
+function parseDetectBlockerInput(body: Record<string, unknown>): DetectBlockerInput {
+  return {
+    blocker_id: typeof body.blocker_id === "string" ? body.blocker_id : undefined,
+    type: requireNonEmptyString(body.type, "type"),
+    summary: requireNonEmptyString(body.summary, "summary"),
+    severity: asPriority(body.severity),
+    detected_by_ref: typeof body.detected_by_ref === "string" ? body.detected_by_ref : undefined,
+    detected_at: typeof body.detected_at === "string" ? body.detected_at : undefined,
+    next_human_actions: asStringArray(body.next_human_actions),
+    metadata: asRecord(body.metadata)
+  };
+}
+
+function parseClearBlockerInput(body: Record<string, unknown>): ClearBlockerInput {
+  return {
+    resolution_summary: requireNonEmptyString(body.resolution_summary, "resolution_summary"),
+    cleared_by_ref: typeof body.cleared_by_ref === "string" ? body.cleared_by_ref : undefined,
+    cleared_at: typeof body.cleared_at === "string" ? body.cleared_at : undefined,
+    next_machine_actions: asStringArray(body.next_machine_actions),
+    next_human_actions: asStringArray(body.next_human_actions),
+    metadata: asRecord(body.metadata)
+  };
 }
 
 export class ManagerServer {
@@ -182,6 +324,68 @@ export class ManagerServer {
         return;
       }
 
+      const decisionSessionId = matchDecisionCollectionRoute(pathname);
+      if (request.method === "POST" && decisionSessionId) {
+        const body = await readJsonBody(request);
+        const result = await this.controlPlane.requestHumanDecision(
+          decisionSessionId,
+          parseRequestHumanDecisionInput(body)
+        );
+        jsonResponse(
+          response,
+          result.status === "not_enabled" ? 501 : result.status === "rejected" ? 409 : 200,
+          serializeReservedMutationResult(result)
+        );
+        return;
+      }
+
+      const decisionResolve = matchDecisionResolveRoute(pathname);
+      if (request.method === "POST" && decisionResolve) {
+        const body = await readJsonBody(request);
+        const result = await this.controlPlane.resolveHumanDecision(
+          decisionResolve.sessionId,
+          decisionResolve.decisionId,
+          parseResolveHumanDecisionInput(body)
+        );
+        jsonResponse(
+          response,
+          result.status === "not_enabled" ? 501 : result.status === "rejected" ? 409 : 200,
+          serializeReservedMutationResult(result)
+        );
+        return;
+      }
+
+      const blockerSessionId = matchBlockerCollectionRoute(pathname);
+      if (request.method === "POST" && blockerSessionId) {
+        const body = await readJsonBody(request);
+        const result = await this.controlPlane.detectBlocker(
+          blockerSessionId,
+          parseDetectBlockerInput(body)
+        );
+        jsonResponse(
+          response,
+          result.status === "not_enabled" ? 501 : result.status === "rejected" ? 409 : 200,
+          serializeReservedMutationResult(result)
+        );
+        return;
+      }
+
+      const blockerClear = matchBlockerClearRoute(pathname);
+      if (request.method === "POST" && blockerClear) {
+        const body = await readJsonBody(request);
+        const result = await this.controlPlane.clearBlocker(
+          blockerClear.sessionId,
+          blockerClear.blockerId,
+          parseClearBlockerInput(body)
+        );
+        jsonResponse(
+          response,
+          result.status === "not_enabled" ? 501 : result.status === "rejected" ? 409 : 200,
+          serializeReservedMutationResult(result)
+        );
+        return;
+      }
+
       const resumeSessionId = matchSessionRoute(pathname, "resume");
       if (request.method === "POST" && resumeSessionId) {
         const resumed = await this.controlPlane.resumeSession(resumeSessionId);
@@ -240,7 +444,7 @@ export class ManagerServer {
         error: "Not found"
       });
     } catch (error) {
-      jsonResponse(response, 500, {
+      jsonResponse(response, error instanceof HttpError ? error.statusCode : 500, {
         error: error instanceof Error ? error.message : "Unknown server error"
       });
     }

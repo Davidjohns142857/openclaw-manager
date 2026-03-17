@@ -3,8 +3,13 @@ import path from "node:path";
 
 import type {
   AdoptSessionInput,
+  ClearBlockerInput,
   CloseSessionInput,
   InboundHandlingResult,
+  RequestHumanDecisionInput,
+  ReservedContractMutationResult,
+  ResolveHumanDecisionInput,
+  DetectBlockerInput,
   ResumeSessionResult,
   ShareSnapshotResult
 } from "../shared/contracts.ts";
@@ -21,6 +26,7 @@ import { AttentionService } from "./attention-service.ts";
 import { CheckpointService } from "./checkpoint-service.ts";
 import { EventService } from "./event-service.ts";
 import { RunService } from "./run-service.ts";
+import { ReservedContractService } from "./reserved-contract-service.ts";
 import { SessionService } from "./session-service.ts";
 import { ShareService } from "./share-service.ts";
 
@@ -39,6 +45,7 @@ export class ControlPlane {
   shareService: ShareService;
   skillTraceService: SkillTraceService;
   capabilityFactService: CapabilityFactService;
+  reservedContractService: ReservedContractService;
 
   constructor(config: ManagerConfig, store: FilesystemStore) {
     this.config = config;
@@ -51,6 +58,10 @@ export class ControlPlane {
     this.shareService = new ShareService(config, store);
     this.skillTraceService = new SkillTraceService(store);
     this.capabilityFactService = new CapabilityFactService();
+    this.reservedContractService = new ReservedContractService(
+      this.sessionService,
+      this.eventService
+    );
   }
 
   async initialize(): Promise<void> {
@@ -252,6 +263,157 @@ export class ControlPlane {
       checkpoint: refreshed.checkpoint,
       summary: refreshed.summary
     };
+  }
+
+  private async buildReservedContractResult(
+    sessionId: string,
+    meta: Omit<ReservedContractMutationResult, "session" | "run" | "checkpoint" | "summary">
+  ): Promise<ReservedContractMutationResult> {
+    const detail = await this.getSessionDetail(sessionId);
+
+    return {
+      ...meta,
+      session: detail.session,
+      run: detail.run,
+      checkpoint: detail.checkpoint,
+      summary: detail.summary
+    };
+  }
+
+  async requestHumanDecision(
+    sessionId: string,
+    input: RequestHumanDecisionInput
+  ): Promise<ReservedContractMutationResult> {
+    if (!this.config.features.decision_lifecycle_v1) {
+      return this.buildReservedContractResult(sessionId, {
+        contract_id: "session_decision_request_v1",
+        feature_flag: "decision_lifecycle_v1",
+        status: "not_enabled",
+        error_code: "FEATURE_NOT_ENABLED",
+        mutation_applied: false
+      });
+    }
+
+    const session = await this.sessionService.requireSession(sessionId);
+    const run = session.active_run_id
+      ? await this.store.readRun(session.session_id, session.active_run_id)
+      : await this.getLatestRun(session.session_id);
+    const outcome = await this.reservedContractService.requestHumanDecision(session, run, input);
+
+    await this.refreshDerivedViews();
+
+    return this.buildReservedContractResult(sessionId, {
+      contract_id: "session_decision_request_v1",
+      feature_flag: "decision_lifecycle_v1",
+      status: outcome.applied ? "accepted" : "rejected",
+      error_code: outcome.errorCode,
+      mutation_applied: outcome.applied
+    });
+  }
+
+  async resolveHumanDecision(
+    sessionId: string,
+    decisionId: string,
+    input: ResolveHumanDecisionInput
+  ): Promise<ReservedContractMutationResult> {
+    if (!this.config.features.decision_lifecycle_v1) {
+      return this.buildReservedContractResult(sessionId, {
+        contract_id: "session_decision_resolve_v1",
+        feature_flag: "decision_lifecycle_v1",
+        status: "not_enabled",
+        error_code: "FEATURE_NOT_ENABLED",
+        mutation_applied: false
+      });
+    }
+
+    const session = await this.sessionService.requireSession(sessionId);
+    const run = session.active_run_id
+      ? await this.store.readRun(session.session_id, session.active_run_id)
+      : await this.getLatestRun(session.session_id);
+    const outcome = await this.reservedContractService.resolveHumanDecision(
+      session,
+      run,
+      decisionId,
+      input
+    );
+
+    await this.refreshDerivedViews();
+
+    return this.buildReservedContractResult(sessionId, {
+      contract_id: "session_decision_resolve_v1",
+      feature_flag: "decision_lifecycle_v1",
+      status: outcome.applied ? "accepted" : "rejected",
+      error_code: outcome.errorCode,
+      mutation_applied: outcome.applied
+    });
+  }
+
+  async detectBlocker(
+    sessionId: string,
+    input: DetectBlockerInput
+  ): Promise<ReservedContractMutationResult> {
+    if (!this.config.features.blocker_lifecycle_v1) {
+      return this.buildReservedContractResult(sessionId, {
+        contract_id: "session_blocker_detect_v1",
+        feature_flag: "blocker_lifecycle_v1",
+        status: "not_enabled",
+        error_code: "FEATURE_NOT_ENABLED",
+        mutation_applied: false
+      });
+    }
+
+    const session = await this.sessionService.requireSession(sessionId);
+    const run = session.active_run_id
+      ? await this.store.readRun(session.session_id, session.active_run_id)
+      : await this.getLatestRun(session.session_id);
+    const outcome = await this.reservedContractService.detectBlocker(session, run, input);
+
+    await this.refreshDerivedViews();
+
+    return this.buildReservedContractResult(sessionId, {
+      contract_id: "session_blocker_detect_v1",
+      feature_flag: "blocker_lifecycle_v1",
+      status: outcome.applied ? "accepted" : "rejected",
+      error_code: outcome.errorCode,
+      mutation_applied: outcome.applied
+    });
+  }
+
+  async clearBlocker(
+    sessionId: string,
+    blockerId: string,
+    input: ClearBlockerInput
+  ): Promise<ReservedContractMutationResult> {
+    if (!this.config.features.blocker_lifecycle_v1) {
+      return this.buildReservedContractResult(sessionId, {
+        contract_id: "session_blocker_clear_v1",
+        feature_flag: "blocker_lifecycle_v1",
+        status: "not_enabled",
+        error_code: "FEATURE_NOT_ENABLED",
+        mutation_applied: false
+      });
+    }
+
+    const session = await this.sessionService.requireSession(sessionId);
+    const run = session.active_run_id
+      ? await this.store.readRun(session.session_id, session.active_run_id)
+      : await this.getLatestRun(session.session_id);
+    const outcome = await this.reservedContractService.clearBlocker(
+      session,
+      run,
+      blockerId,
+      input
+    );
+
+    await this.refreshDerivedViews();
+
+    return this.buildReservedContractResult(sessionId, {
+      contract_id: "session_blocker_clear_v1",
+      feature_flag: "blocker_lifecycle_v1",
+      status: outcome.applied ? "accepted" : "rejected",
+      error_code: outcome.errorCode,
+      mutation_applied: outcome.applied
+    });
   }
 
   async focus(): Promise<ReturnType<AttentionService["buildAttentionQueue"]>> {

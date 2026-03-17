@@ -15,6 +15,7 @@ This repository now contains a Phase 1 MVP scaffold:
 - an interaction semantics contract under [`docs/interaction-contract.md`](/Users/yangshangqing/metaclaw/docs/interaction-contract.md)
 - a decision/blocker lifecycle contract under [`docs/decision-blocker-contract.md`](/Users/yangshangqing/metaclaw/docs/decision-blocker-contract.md)
 - a reserved decision/blocker API contract under [`docs/decision-blocker-api-contract.md`](/Users/yangshangqing/metaclaw/docs/decision-blocker-api-contract.md)
+- a reserved-contract implementation strategy under [`docs/reserved-contract-implementation-strategy.md`](/Users/yangshangqing/metaclaw/docs/reserved-contract-implementation-strategy.md)
 - a current test coverage map under [`docs/test-functionality-list.md`](/Users/yangshangqing/metaclaw/docs/test-functionality-list.md)
 - a guarded parallel-development handoff under [`docs/phase1-guarded-expansion-collaboration.md`](/Users/yangshangqing/metaclaw/docs/phase1-guarded-expansion-collaboration.md)
 

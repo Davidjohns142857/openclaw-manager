@@ -15,7 +15,9 @@ export interface ApiContractField {
 export interface ReservedMutationContract {
   contract_id: string;
   contract_state: "reserved";
+  implementation_strategy: "feature_gated_minimal_mutation";
   owner: "ysq";
+  feature_flag: "decision_lifecycle_v1" | "blocker_lifecycle_v1";
   method: "POST";
   path: string;
   summary: string;
@@ -245,7 +247,9 @@ export function buildApiContractIndex(): ApiContractIndex {
       {
         contract_id: "session_decision_request_v1",
         contract_state: "reserved",
+        implementation_strategy: "feature_gated_minimal_mutation",
         owner: "ysq",
+        feature_flag: "decision_lifecycle_v1",
         method: "POST",
         path: "/sessions/:session_id/decisions",
         summary: "Create a structured pending human decision on a session.",
@@ -266,7 +270,9 @@ export function buildApiContractIndex(): ApiContractIndex {
       {
         contract_id: "session_decision_resolve_v1",
         contract_state: "reserved",
+        implementation_strategy: "feature_gated_minimal_mutation",
         owner: "ysq",
+        feature_flag: "decision_lifecycle_v1",
         method: "POST",
         path: "/sessions/:session_id/decisions/:decision_id/resolve",
         summary: "Resolve a structured pending human decision on a session.",
@@ -287,7 +293,9 @@ export function buildApiContractIndex(): ApiContractIndex {
       {
         contract_id: "session_blocker_detect_v1",
         contract_state: "reserved",
+        implementation_strategy: "feature_gated_minimal_mutation",
         owner: "ysq",
+        feature_flag: "blocker_lifecycle_v1",
         method: "POST",
         path: "/sessions/:session_id/blockers",
         summary: "Create a structured blocker on a session.",
@@ -308,7 +316,9 @@ export function buildApiContractIndex(): ApiContractIndex {
       {
         contract_id: "session_blocker_clear_v1",
         contract_state: "reserved",
+        implementation_strategy: "feature_gated_minimal_mutation",
         owner: "ysq",
+        feature_flag: "blocker_lifecycle_v1",
         method: "POST",
         path: "/sessions/:session_id/blockers/:blocker_id/clear",
         summary: "Clear a structured blocker on a session.",

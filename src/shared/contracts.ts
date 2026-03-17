@@ -87,3 +87,18 @@ export interface ClearBlockerInput {
   next_human_actions?: string[];
   metadata?: Record<string, unknown>;
 }
+
+export type ReservedContractStatus = "accepted" | "not_enabled" | "reserved" | "rejected";
+export type ReservedContractFeatureFlag = "decision_lifecycle_v1" | "blocker_lifecycle_v1";
+
+export interface ReservedContractMutationResult {
+  contract_id: string;
+  feature_flag: ReservedContractFeatureFlag;
+  status: ReservedContractStatus;
+  error_code: string | null;
+  mutation_applied: boolean;
+  session: Session;
+  run: Run | null;
+  checkpoint: Checkpoint | null;
+  summary: string | null;
+}

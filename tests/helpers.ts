@@ -4,12 +4,14 @@ import path from "node:path";
 
 import { bootstrapManager } from "../src/skill/bootstrap.ts";
 import { ManagerServer } from "../src/api/server.ts";
+import type { ManagerConfig } from "../src/shared/types.ts";
 
-export async function createTempManager() {
+export async function createTempManager(overrides: Partial<ManagerConfig> = {}) {
   const tempRoot = await mkdtemp(path.join(os.tmpdir(), "openclaw-manager-test-"));
   const boot = await bootstrapManager({
     stateRoot: tempRoot,
-    port: 0
+    port: 0,
+    ...overrides
   });
 
   return {
@@ -37,7 +39,18 @@ export async function readJson<T>(filePath: string): Promise<T> {
 }
 
 export async function readJsonl<T>(filePath: string): Promise<T[]> {
-  const raw = await readFile(filePath, "utf8");
+  let raw = "";
+
+  try {
+    raw = await readFile(filePath, "utf8");
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+      return [];
+    }
+
+    throw error;
+  }
+
   return raw
     .trim()
     .split("\n")
@@ -45,8 +58,8 @@ export async function readJsonl<T>(filePath: string): Promise<T[]> {
     .map((line) => JSON.parse(line) as T);
 }
 
-export async function startTempSidecar() {
-  const manager = await createTempManager();
+export async function startTempSidecar(overrides: Partial<ManagerConfig> = {}) {
+  const manager = await createTempManager(overrides);
   const server = new ManagerServer(manager.controlPlane, manager.config);
   await server.start();
 

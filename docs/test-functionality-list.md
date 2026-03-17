@@ -212,6 +212,25 @@
 - `/contracts` 中 implemented 与 reserved contract 的混排策略
 - host/client 对 `/contracts` 的消费方式
 
+### 3.9 Feature-Gated Reserved Mutation Routes
+
+文件：
+
+- [`tests/phase1.reserved-contract-routes.test.ts`](/Users/yangshangqing/metaclaw/tests/phase1.reserved-contract-routes.test.ts)
+
+当前覆盖：
+
+- 4 个 reserved routes 在 flag 关闭时返回 `501/not_enabled` 且保持 canonical envelope
+- `human_decision_requested` 在 flag 打开时只做 event + 轻量 session metadata + focus 重算
+- `blocker_detected` 在 flag 打开时只做 event + 轻量 session metadata + focus 重算
+- 不会自动创建新 run，也不会改写 committed checkpoint
+
+适合继续补的独立测试方向：
+
+- `resolved/cleared` 的最薄 mutation 验收
+- 400 schema validation 分支
+- duplicate decision_id / blocker_id 的 rejected 语义
+
 ## 4. 当前自动化校验总表
 
 截至当前，仓库内已有的自动化校验入口包括：
@@ -236,6 +255,7 @@
 - host HTTP 接入
 - `session.activity` 与 `focus` 的基础交互语义
 - reserved decision/blocker API registry
+- feature-gated reserved mutation routes
 
 尚适合补强：
 
