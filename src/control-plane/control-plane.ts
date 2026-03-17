@@ -158,6 +158,7 @@ export class ControlPlane {
 
   async resumeSession(sessionId: string): Promise<ResumeSessionResult> {
     let session = await this.sessionService.requireSession(sessionId);
+    const pendingExternalInputs = [...session.state.pending_external_inputs];
     let run = session.active_run_id
       ? await this.store.readRun(session.session_id, session.active_run_id)
       : null;
@@ -177,7 +178,11 @@ export class ControlPlane {
 
     if (latestRun && checkpoint) {
       session = this.checkpointService.applyCheckpoint(session, checkpoint);
-      session.latest_checkpoint_ref = checkpointRef(latestRun.run_id);
+      session.state.pending_external_inputs = Array.from(
+        new Set([...checkpoint.pending_external_inputs, ...pendingExternalInputs])
+      );
+      session.metadata.pending_inbound_count = session.state.pending_external_inputs.length;
+      session.latest_checkpoint_ref = checkpointRef(checkpoint.run_id);
       session = await this.sessionService.saveSession(session);
     }
 

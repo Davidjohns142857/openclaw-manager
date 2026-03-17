@@ -69,6 +69,7 @@ run 与 checkpoint 的关系当前收紧为：
 
 - paused run 的恢复是结构化恢复，不靠历史回放
 - failed run 不会覆盖掉最后一个可信 checkpoint
+- paused run 结束后新进入的 durable inbound queue，`resume` 不会被旧 checkpoint 覆盖掉
 
 ## 5. Session Projection
 
