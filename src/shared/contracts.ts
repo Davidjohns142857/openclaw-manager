@@ -15,6 +15,7 @@ import type {
   RunResultType,
   RunStatus,
   RunTrigger,
+  SettledRunStatus,
   Session,
   SessionStatus,
   SourceChannel
@@ -119,12 +120,8 @@ export interface InboundHandlingResult {
   queued: boolean;
 }
 
-export interface SettleRunInput {
-  status: Extract<
-    RunStatus,
-    "waiting_human" | "blocked" | "completed" | "failed" | "cancelled" | "superseded"
-  >;
-  result_type?: RunResultType;
+interface BaseSettleRunInput {
+  status: SettledRunStatus;
   summary?: string;
   reason_code?: string;
   next_machine_actions?: string[];
@@ -133,6 +130,32 @@ export interface SettleRunInput {
   pending_human_decisions?: PendingHumanDecision[];
   checkpoint_notes?: string[];
 }
+
+export type SettleRunInput =
+  | (BaseSettleRunInput & {
+      status: "waiting_human";
+      result_type?: "waiting_human";
+    })
+  | (BaseSettleRunInput & {
+      status: "blocked";
+      result_type?: "blocked";
+    })
+  | (BaseSettleRunInput & {
+      status: "completed";
+      result_type?: Extract<RunResultType, "completed" | "partial_progress" | "no_op">;
+    })
+  | (BaseSettleRunInput & {
+      status: "failed";
+      result_type?: "failed";
+    })
+  | (BaseSettleRunInput & {
+      status: "cancelled";
+      result_type?: null;
+    })
+  | (BaseSettleRunInput & {
+      status: "superseded";
+      result_type?: null;
+    });
 
 export interface RunSettlementResult {
   session: Session;

@@ -32,6 +32,13 @@ export type RunStatus =
   | "failed"
   | "cancelled"
   | "superseded";
+export type SettledRunStatus =
+  | "waiting_human"
+  | "blocked"
+  | "completed"
+  | "failed"
+  | "cancelled"
+  | "superseded";
 export type RunTriggerType =
   | "manual"
   | "message"
@@ -43,7 +50,7 @@ export type RunTriggerType =
 export type RunResultType =
   | "no_op"
   | "partial_progress"
-  | "awaiting_human"
+  | "waiting_human"
   | "blocked"
   | "completed"
   | "failed";

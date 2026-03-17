@@ -11,6 +11,12 @@
 - open：`accepted`、`queued`、`running`
 - paused-terminal：`waiting_human`、`blocked`
 - ended-terminal：`completed`、`failed`、`cancelled`、`superseded`
+- `status=completed` 只允许 `outcome.result_type=completed | partial_progress | no_op`
+- `status=waiting_human` 只允许 `outcome.result_type=waiting_human`
+- `status=failed` 只允许 `outcome.result_type=failed`
+- `status=cancelled | superseded` 时 `outcome.result_type=null`，并且 `reason_code` 必填
+- `partial_progress` 和 `no_op` 只属于 `completed`
+- session 的 `abandoned close` 如果需要结束当前 run，应落成 `completed + no_op`
 
 ## Focus
 
@@ -31,6 +37,7 @@
 - 终态会推进 committed recovery head：`waiting_human`、`blocked`、`completed`
 - 终态不会推进 committed recovery head：`failed`、`cancelled`、`superseded`
 - `end_checkpoint_ref` 是“run 结束时推进了 head”的 authoritative marker
+- 新 run 的 `start_checkpoint_ref` 优先指向最近一次推进过 head 的 `end_checkpoint_ref`；只有还没有 terminal head 时，才回退到最近的 `recovery_checkpoint_ref`
 
 ## Resume
 

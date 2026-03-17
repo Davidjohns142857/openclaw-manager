@@ -1,5 +1,5 @@
 import { createId } from "../shared/ids.ts";
-import { isEndedRunStatus } from "../shared/run-lifecycle.ts";
+import { assertRunOutcomeMatchesStatus, isEndedRunStatus } from "../shared/run-lifecycle.ts";
 import { isoNow } from "../shared/time.ts";
 import type { Run, RunOutcome, RunStatus, RunTrigger, Session } from "../shared/types.ts";
 import { FilesystemStore } from "../storage/fs-store.ts";
@@ -14,7 +14,13 @@ export class RunService {
     this.eventService = eventService;
   }
 
-  async startRun(session: Session, trigger: RunTrigger): Promise<Run> {
+  async startRun(
+    session: Session,
+    trigger: RunTrigger,
+    options: {
+      startCheckpointRef?: string | null;
+    } = {}
+  ): Promise<Run> {
     const startedAt = isoNow();
     const runId = createId("run");
 
@@ -30,7 +36,7 @@ export class RunService {
       execution: {
         invoked_skills: [],
         invoked_tools: [],
-        start_checkpoint_ref: session.latest_checkpoint_ref,
+        start_checkpoint_ref: options.startCheckpointRef ?? session.latest_checkpoint_ref,
         recovery_checkpoint_ref: null,
         end_checkpoint_ref: null,
         events_ref: `runs/${runId}/events.jsonl`,
@@ -97,6 +103,10 @@ export class RunService {
         duration_ms: endedAt ? Math.max(0, Date.parse(endedAt) - Date.parse(run.started_at)) : null
       }
     };
+
+    if (isEndedRunStatus(status)) {
+      assertRunOutcomeMatchesStatus(status, nextRun.outcome);
+    }
 
     await this.store.writeRun(sessionId, nextRun);
 

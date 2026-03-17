@@ -327,10 +327,13 @@
 当前覆盖：
 
 - `waiting_human` run 会作为真实 paused-terminal 状态结束，并推进 recovery head
+- `waiting_human` / `blocked` / `failed` / `completed` / `cancelled` / `superseded` 与 `outcome.result_type` 的 canonical 映射被显式校验
+- `completed` 只允许 `completed / partial_progress / no_op`，并且 `partial_progress` / `no_op` 的 `closure_contribution` 语义固定
 - `paused` run 在 checkpoint 之后收到新的 inbound backlog 时，`resume` 仍会保留 queue，并在 `focus` 中折叠为 `waiting_human/blocked + desynced + summary_drift`
 - `completed` run 会推进 recovery head、保持 quiet focus，并在下一次 `resume` 时作为新 run 的 `start_checkpoint_ref`
 - `failed` run 不会推进 recovery head，且与 `blocked` 保持不同语义；重复失败会在 `focus` 中升级为 `blocked`
 - `cancelled` / `superseded` run 不会推进 recovery head，但 `resume` 仍会从最近 committed checkpoint 启动下一次 run
+- 当更近的 failed run 存在自己的 recovery checkpoint 时，`resume` 仍优先选择最近一次 terminal head，而不是盲目跟随最新 run
 - run 会稳定关联 `events_ref`、`skill_traces_ref`、`spool_ref`、`checkpoint`、`summary`、`artifact_refs`
 
 适合继续补的独立测试方向：

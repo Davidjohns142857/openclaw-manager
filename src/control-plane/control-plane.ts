@@ -23,8 +23,9 @@ import type {
   SettleRunInput,
   ShareSnapshotResult
 } from "../shared/contracts.ts";
-import type { Checkpoint, ManagerConfig, Run, Session } from "../shared/types.ts";
+import type { Checkpoint, ManagerConfig, Run, RunTrigger, Session } from "../shared/types.ts";
 import {
+  buildSettledRunOutcome,
   canAdvanceRecoveryHeadForRunStatus,
   isPausedRunStatus,
   shouldAutoStartRunOnResume,
@@ -113,6 +114,38 @@ export class ControlPlane {
     return run ?? null;
   }
 
+  private async resolveRecoverySourceRun(sessionId: string): Promise<Run | null> {
+    const runs = await this.store.listRuns(sessionId);
+    const latestTerminalHead = runs.find((run) => run.execution.end_checkpoint_ref !== null);
+
+    if (latestTerminalHead) {
+      return latestTerminalHead;
+    }
+
+    const latestRecoveryCheckpoint = runs.find(
+      (run) => run.execution.recovery_checkpoint_ref !== null
+    );
+
+    return latestRecoveryCheckpoint ?? runs[0] ?? null;
+  }
+
+  private async readCommittedRecoveryState(
+    sessionId: string,
+    run: Run | null
+  ): Promise<{ checkpoint: Checkpoint | null; summary: string | null }> {
+    if (!run) {
+      return {
+        checkpoint: null,
+        summary: await this.store.readSummary(sessionId)
+      };
+    }
+
+    return {
+      checkpoint: await this.store.readCheckpoint(sessionId, run.run_id),
+      summary: await this.store.readRecoverySummary(sessionId, run.run_id)
+    };
+  }
+
   async getSessionDetail(sessionId: string): Promise<{
     session: Session;
     run: Run | null;
@@ -124,10 +157,11 @@ export class ControlPlane {
       ? await this.store.readRun(storedSession.session_id, storedSession.active_run_id)
       : await this.getLatestRun(storedSession.session_id);
     const session = await this.projectSessionSummary(storedSession, run);
-    const checkpoint = run ? await this.store.readCheckpoint(session.session_id, run.run_id) : null;
-    const summary = run
-      ? await this.store.readRecoverySummary(session.session_id, run.run_id)
-      : await this.store.readSummary(session.session_id);
+    const recoverySourceRun = run ?? (await this.resolveRecoverySourceRun(storedSession.session_id));
+    const { checkpoint, summary } = await this.readCommittedRecoveryState(
+      session.session_id,
+      recoverySourceRun
+    );
 
     return { session, run, checkpoint, summary };
   }
@@ -159,9 +193,29 @@ export class ControlPlane {
     return this.sessionService.saveSession(applyDerivedSessionStatus(session, latestRun));
   }
 
+  private async resolveRunStartCheckpointRef(session: Session): Promise<string | null> {
+    const recoverySourceRun = await this.resolveRecoverySourceRun(session.session_id);
+
+    if (recoverySourceRun?.execution.end_checkpoint_ref) {
+      return recoverySourceRun.execution.end_checkpoint_ref;
+    }
+
+    if (recoverySourceRun?.execution.recovery_checkpoint_ref) {
+      return recoverySourceRun.execution.recovery_checkpoint_ref;
+    }
+
+    return session.latest_checkpoint_ref;
+  }
+
+  private async startRunForSession(session: Session, trigger: RunTrigger): Promise<Run> {
+    return this.runService.startRun(session, trigger, {
+      startCheckpointRef: await this.resolveRunStartCheckpointRef(session)
+    });
+  }
+
   async adoptSession(input: AdoptSessionInput): Promise<{ session: Session; run: Run }> {
     let session = await this.sessionService.createSession(input);
-    let run = await this.runService.startRun(session, {
+    let run = await this.startRunForSession(session, {
       trigger_type: "manual",
       trigger_ref: null,
       request_id: null,
@@ -200,20 +254,23 @@ export class ControlPlane {
       ? await this.store.readRun(session.session_id, session.active_run_id)
       : null;
     const latestRun = run ?? (await this.getLatestRun(session.session_id));
-    let checkpoint = latestRun
-      ? await this.store.readCheckpoint(session.session_id, latestRun.run_id)
-      : null;
-    let summary = latestRun
-      ? await this.store.readRecoverySummary(session.session_id, latestRun.run_id)
-      : await this.store.readSummary(session.session_id);
+    const recoverySourceRun = run ?? (await this.resolveRecoverySourceRun(session.session_id));
+    let { checkpoint, summary } = await this.readCommittedRecoveryState(
+      session.session_id,
+      recoverySourceRun
+    );
 
-    if (latestRun && !checkpoint && canAdvanceRecoveryHeadForRunStatus(latestRun.status)) {
+    if (
+      recoverySourceRun &&
+      !checkpoint &&
+      canAdvanceRecoveryHeadForRunStatus(recoverySourceRun.status)
+    ) {
       throw new Error(
-        `Recovery checkpoint missing or uncommitted for session ${session.session_id} run ${latestRun.run_id}. Refresh explicitly before resuming.`
+        `Recovery checkpoint missing or uncommitted for session ${session.session_id} run ${recoverySourceRun.run_id}. Refresh explicitly before resuming.`
       );
     }
 
-    if (latestRun && checkpoint) {
+    if (recoverySourceRun && checkpoint) {
       session = this.checkpointService.applyCheckpoint(session, checkpoint);
       session.state.pending_external_inputs = Array.from(
         new Set([...checkpoint.pending_external_inputs, ...pendingExternalInputs])
@@ -223,23 +280,35 @@ export class ControlPlane {
       session = await this.saveProjectedSession(session, latestRun);
     }
 
-    if (latestRun && checkpoint && !summary) {
-      summary = await this.checkpointService.renderSummary(session, latestRun, checkpoint, [
+    if (recoverySourceRun && checkpoint && !summary) {
+      summary = await this.checkpointService.renderSummary(session, recoverySourceRun, checkpoint, [
         "Summary regenerated from committed checkpoint."
       ]);
-      await this.store.writeCommittedRecoverySummary(session.session_id, latestRun.run_id, summary);
-      run = await this.runService.syncCommittedRecoveryRefs(session.session_id, latestRun.run_id, {
-        checkpointRef: checkpointRef(latestRun.run_id),
-        summaryRef: "summary.md",
-        markAsTerminal:
-          isPausedRunStatus(latestRun.status) || latestRun.status === "completed"
-      });
+      await this.store.writeCommittedRecoverySummary(
+        session.session_id,
+        recoverySourceRun.run_id,
+        summary
+      );
+      const refreshedRecoveryRun = await this.runService.syncCommittedRecoveryRefs(
+        session.session_id,
+        recoverySourceRun.run_id,
+        {
+          checkpointRef: checkpointRef(recoverySourceRun.run_id),
+          summaryRef: "summary.md",
+          markAsTerminal:
+            isPausedRunStatus(recoverySourceRun.status) || recoverySourceRun.status === "completed"
+        }
+      );
+      if (latestRun?.run_id === refreshedRecoveryRun.run_id) {
+        run = refreshedRecoveryRun;
+      }
       session.latest_summary_ref = "summary.md";
+      session.latest_checkpoint_ref = checkpointRef(recoverySourceRun.run_id);
       session.metadata.summary_needs_refresh = false;
       session = await this.sessionService.saveSession(session);
       await this.eventService.record({
         sessionId: session.session_id,
-        runId: latestRun.run_id,
+        runId: recoverySourceRun.run_id,
         eventType: "summary_refreshed",
         payload: {
           summary_ref: "summary.md",
@@ -253,7 +322,7 @@ export class ControlPlane {
 
     if (!run && !isTerminalSessionStatus(session.status) && shouldAutoStartRunOnResume(session, latestRun)) {
       const pendingInputs = [...session.state.pending_external_inputs];
-      run = await this.runService.startRun(session, {
+      run = await this.startRunForSession(session, {
         trigger_type: "resume",
         trigger_ref: null,
         request_id: null,
@@ -279,7 +348,6 @@ export class ControlPlane {
         summaryRef: "summary.md",
         markAsTerminal: false
       });
-
       session.latest_summary_ref = "summary.md";
       session.latest_checkpoint_ref = checkpointRef(run.run_id);
       session.metadata.summary_needs_refresh = false;
@@ -308,7 +376,7 @@ export class ControlPlane {
 
     if (!run && !isTerminalSessionStatus(session.status)) {
       if (shouldAutoStartRunOnResume(session, null)) {
-        run = await this.runService.startRun(session, {
+        run = await this.startRunForSession(session, {
           trigger_type: "manual",
           trigger_ref: null,
           request_id: null,
@@ -337,11 +405,16 @@ export class ControlPlane {
       !canAdvanceRecoveryHeadForRunStatus(run.status) &&
       run.status !== "running"
     ) {
+      const recoverySourceRun = await this.resolveRecoverySourceRun(session.session_id);
+      const { checkpoint, summary } = await this.readCommittedRecoveryState(
+        session.session_id,
+        recoverySourceRun
+      );
       return {
         session,
         run,
-        checkpoint: await this.store.readCheckpoint(session.session_id, run.run_id),
-        summary: await this.store.readRecoverySummary(session.session_id, run.run_id)
+        checkpoint,
+        summary
       };
     }
 
@@ -393,13 +466,17 @@ export class ControlPlane {
       session.state.next_human_actions = input.next_human_actions;
     }
 
-    let run = await this.runService.transitionRun(session.session_id, activeRun.run_id, input.status, {
-      result_type: input.result_type ?? deriveResultTypeFromStatus(input.status),
-      summary: input.summary ?? defaultRunOutcomeSummary(input.status),
-      reason_code: input.reason_code ?? null,
-      human_takeover: input.status === "waiting_human",
-      closure_contribution: input.status === "completed" ? 1 : 0
+    const outcome = buildSettledRunOutcome(input.status, {
+      result_type: input.result_type,
+      summary: input.summary ?? defaultRunOutcomeSummary(input.status, input.result_type ?? null),
+      reason_code: input.reason_code ?? null
     });
+    let run = await this.runService.transitionRun(
+      session.session_id,
+      activeRun.run_id,
+      input.status,
+      outcome
+    );
 
     session.active_run_id = null;
     session.status = projectSessionStatusAfterRun(session, run);
@@ -422,7 +499,7 @@ export class ControlPlane {
     if (recoveryHeadAdvanced) {
       const refreshed = await this.checkpointService.refreshRecoveryArtifacts(session, run, [
         ...(input.checkpoint_notes ?? []),
-        input.summary ?? defaultRunOutcomeSummary(input.status)
+        input.summary ?? defaultRunOutcomeSummary(input.status, run.outcome.result_type)
       ]);
       run = await this.runService.syncCommittedRecoveryRefs(session.session_id, run.run_id, {
         checkpointRef: checkpointRef(run.run_id),
@@ -778,16 +855,16 @@ export class ControlPlane {
       : await this.getLatestRun(session.session_id);
 
     if (run && session.active_run_id === run.run_id) {
+      const runStatus = "completed";
       run = await this.runService.transitionRun(
         session.session_id,
         run.run_id,
-        input.resolution === "abandoned" ? "cancelled" : "completed",
-        {
+        runStatus,
+        buildSettledRunOutcome(runStatus, {
           result_type: input.resolution === "abandoned" ? "no_op" : "completed",
           summary: input.outcome_summary,
-          reason_code: input.resolution === "abandoned" ? "session_abandoned" : "session_closed",
-          closure_contribution: input.resolution === "abandoned" ? 0 : 1
-        }
+          reason_code: input.resolution === "abandoned" ? "session_abandoned" : "session_closed"
+        })
       );
     }
 
@@ -926,7 +1003,7 @@ export class ControlPlane {
     let runStarted = false;
 
     if (canAutoContinueSession(session, latestRun) && !session.active_run_id) {
-      run = await this.runService.startRun(session, {
+      run = await this.startRunForSession(session, {
         trigger_type: "external_message",
         trigger_ref: null,
         request_id: message.request_id,
@@ -1008,29 +1085,24 @@ export class ControlPlane {
   }
 }
 
-function deriveResultTypeFromStatus(status: SettleRunInput["status"]) {
-  switch (status) {
-    case "waiting_human":
-      return "awaiting_human";
-    case "blocked":
-      return "blocked";
-    case "completed":
-      return "completed";
-    case "failed":
-      return "failed";
-    case "cancelled":
-    case "superseded":
-      return "no_op";
-  }
-}
-
-function defaultRunOutcomeSummary(status: SettleRunInput["status"]): string {
+function defaultRunOutcomeSummary(
+  status: SettleRunInput["status"],
+  resultType: SettleRunInput["result_type"] | null = null
+): string {
   switch (status) {
     case "waiting_human":
       return "Run paused pending human input.";
     case "blocked":
       return "Run ended in a blocked state.";
     case "completed":
+      if (resultType === "partial_progress") {
+        return "Run ended with partial progress.";
+      }
+
+      if (resultType === "no_op") {
+        return "Run ended cleanly without changing task closure.";
+      }
+
       return "Run completed successfully.";
     case "failed":
       return "Run failed and needs review.";

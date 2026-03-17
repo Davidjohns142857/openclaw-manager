@@ -28,6 +28,9 @@ test("waiting_human run settlement keeps recovery authoritative while preserving
     });
 
     assert.equal(settled.run.status, "waiting_human");
+    assert.equal(settled.run.outcome.result_type, "waiting_human");
+    assert.equal(settled.run.outcome.closure_contribution, null);
+    assert.equal(settled.run.outcome.human_takeover, true);
     assert.ok(settled.run.ended_at);
     assert.equal(settled.recovery_head_advanced, true);
     assert.ok(settled.checkpoint);
@@ -98,6 +101,9 @@ test("blocked run settlement keeps recovery authoritative while preserving queue
     });
 
     assert.equal(settled.run.status, "blocked");
+    assert.equal(settled.run.outcome.result_type, "blocked");
+    assert.equal(settled.run.outcome.closure_contribution, null);
+    assert.equal(settled.run.outcome.human_takeover, false);
     assert.equal(settled.recovery_head_advanced, true);
     assert.ok(settled.checkpoint);
     assert.equal(settled.session.status, "blocked");
@@ -158,6 +164,8 @@ test("completed run advances recovery head, stays quiet in focus, and seeds the 
     });
 
     assert.equal(settled.run.status, "completed");
+    assert.equal(settled.run.outcome.result_type, "completed");
+    assert.equal(settled.run.outcome.closure_contribution, 1);
     assert.equal(settled.recovery_head_advanced, true);
     assert.equal(settled.session.status, "active");
     assert.equal(settled.session.active_run_id, null);
@@ -213,6 +221,8 @@ test("failed run stays resumable, restores committed checkpoint state, and escal
     });
 
     assert.equal(settled.run.status, "failed");
+    assert.equal(settled.run.outcome.result_type, "failed");
+    assert.equal(settled.run.outcome.closure_contribution, null);
     assert.equal(settled.recovery_head_advanced, false);
     assert.equal(settled.checkpoint, null);
     assert.equal(settled.run.execution.end_checkpoint_ref, null);
@@ -244,6 +254,7 @@ test("failed run stays resumable, restores committed checkpoint state, and escal
     });
 
     assert.equal(settledAgain.session.metrics.failed_run_count, 2);
+    assert.equal(settledAgain.session.status, "active");
 
     focus = await manager.controlPlane.focus();
     item = focus.find((entry) => entry.session_id === adopted.session.session_id);
@@ -278,10 +289,14 @@ for (const status of ["cancelled", "superseded"] as const) {
       });
 
       assert.equal(settled.run.status, status);
+      assert.equal(settled.run.outcome.result_type, null);
+      assert.equal(settled.run.outcome.reason_code, `${status}_by_control_plane`);
+      assert.equal(settled.run.outcome.closure_contribution, null);
       assert.equal(settled.recovery_head_advanced, false);
       assert.equal(settled.checkpoint, null);
       assert.equal(settled.run.execution.end_checkpoint_ref, null);
       assert.equal(settled.session.status, "active");
+      assert.equal(settled.session.active_run_id, null);
 
       const detail = await manager.controlPlane.getSessionDetail(adopted.session.session_id);
       assert.ok(detail.checkpoint);
@@ -311,6 +326,170 @@ for (const status of ["cancelled", "superseded"] as const) {
     }
   });
 }
+
+test("settled run rejects invalid status/result_type combinations", async () => {
+  const manager = await createTempManager();
+
+  try {
+    const invalidCases = [
+      {
+        status: "completed",
+        result_type: "failed",
+        reason_code: "invalid_completed_failed"
+      },
+      {
+        status: "waiting_human",
+        result_type: "blocked",
+        reason_code: "invalid_waiting_blocked"
+      },
+      {
+        status: "failed",
+        result_type: "completed",
+        reason_code: "invalid_failed_completed"
+      },
+      {
+        status: "cancelled",
+        result_type: "no_op",
+        reason_code: "invalid_cancelled_noop"
+      },
+      {
+        status: "cancelled",
+        result_type: null,
+        reason_code: undefined
+      }
+    ] as const;
+
+    for (const [index, invalidCase] of invalidCases.entries()) {
+      const adopted = await manager.controlPlane.adoptSession({
+        title: `Invalid run outcome ${index}`,
+        objective: "Reject invalid status/outcome combinations."
+      });
+
+      await assert.rejects(
+        manager.controlPlane.settleActiveRun(adopted.session.session_id, {
+          status: invalidCase.status,
+          result_type: invalidCase.result_type as never,
+          summary: "Invalid combination should be rejected.",
+          reason_code: invalidCase.reason_code
+        }),
+        /cannot use outcome\.result_type|must set outcome\.reason_code/
+      );
+    }
+  } finally {
+    await manager.cleanup();
+  }
+});
+
+for (const outcomeCase of [
+  {
+    result_type: "partial_progress" as const,
+    expected_contribution: 0.5
+  },
+  {
+    result_type: "no_op" as const,
+    expected_contribution: 0
+  }
+]) {
+  test(`completed run accepts ${outcomeCase.result_type} and keeps recovery/focus semantics stable`, async () => {
+    const manager = await createTempManager();
+
+    try {
+      const adopted = await manager.controlPlane.adoptSession({
+        title: `Completed ${outcomeCase.result_type}`,
+        objective: "Verify completed status can carry semantic outcomes safely."
+      });
+
+      const settled = await manager.controlPlane.settleActiveRun(adopted.session.session_id, {
+        status: "completed",
+        result_type: outcomeCase.result_type,
+        summary: `Run ended with ${outcomeCase.result_type}.`,
+        reason_code: `completed_${outcomeCase.result_type}`
+      });
+
+      assert.equal(settled.run.status, "completed");
+      assert.equal(settled.run.outcome.result_type, outcomeCase.result_type);
+      assert.equal(
+        settled.run.outcome.closure_contribution,
+        outcomeCase.expected_contribution
+      );
+      assert.equal(settled.recovery_head_advanced, true);
+      assert.equal(settled.run.execution.end_checkpoint_ref, `runs/${settled.run.run_id}/checkpoint.json`);
+      assert.equal(settled.session.status, "active");
+      assert.equal(settled.session.active_run_id, null);
+
+      const focus = await manager.controlPlane.focus();
+      assert.equal(
+        focus.some((entry) => entry.session_id === adopted.session.session_id),
+        false
+      );
+    } finally {
+      await manager.cleanup();
+    }
+  });
+}
+
+test("resume prefers the latest terminal recovery head over a newer failed run checkpoint", async () => {
+  const manager = await createTempManager();
+
+  try {
+    const adopted = await manager.controlPlane.adoptSession({
+      title: "Terminal head precedence",
+      objective: "Failed runs should not steal the next resume checkpoint."
+    });
+    let session = await manager.controlPlane.sessionService.requireSession(
+      adopted.session.session_id
+    );
+    session.state.phase = "phase_from_terminal_head";
+    session = await manager.controlPlane.sessionService.saveSession(session);
+    await manager.controlPlane.refreshCheckpoint(adopted.session.session_id);
+
+    const completed = await manager.controlPlane.settleActiveRun(adopted.session.session_id, {
+      status: "completed",
+      summary: "The baseline execution completed cleanly.",
+      reason_code: "baseline_completed"
+    });
+
+    const resumed = await manager.controlPlane.resumeSession(adopted.session.session_id);
+    assert.ok(resumed.run);
+    const failedRunId = resumed.run!.run_id;
+    assert.equal(
+      resumed.run?.execution.start_checkpoint_ref,
+      `runs/${completed.run.run_id}/checkpoint.json`
+    );
+
+    session = await manager.controlPlane.sessionService.requireSession(adopted.session.session_id);
+    session.state.phase = "mutated_in_failed_followup_run";
+    session = await manager.controlPlane.sessionService.saveSession(session);
+
+    const failed = await manager.controlPlane.settleActiveRun(adopted.session.session_id, {
+      status: "failed",
+      summary: "The follow-up run failed.",
+      reason_code: "tool_error"
+    });
+
+    assert.equal(failed.run.run_id, failedRunId);
+    assert.equal(failed.run.execution.end_checkpoint_ref, null);
+    assert.equal(
+      failed.run.execution.recovery_checkpoint_ref,
+      `runs/${failed.run.run_id}/checkpoint.json`
+    );
+
+    const resumedAgain = await manager.controlPlane.resumeSession(adopted.session.session_id);
+    assert.ok(resumedAgain.run);
+    assert.notEqual(resumedAgain.run?.run_id, failed.run.run_id);
+    assert.equal(
+      resumedAgain.run?.execution.start_checkpoint_ref,
+      `runs/${completed.run.run_id}/checkpoint.json`
+    );
+    assert.notEqual(
+      resumedAgain.run?.execution.start_checkpoint_ref,
+      failed.run.execution.recovery_checkpoint_ref
+    );
+    assert.equal(resumedAgain.session.state.phase, "phase_from_terminal_head");
+  } finally {
+    await manager.cleanup();
+  }
+});
 
 test("run keeps stable minimal evidence refs for events, spool, checkpoint, summary, tools, skills, and artifacts", async () => {
   const manager = await createTempManager();
