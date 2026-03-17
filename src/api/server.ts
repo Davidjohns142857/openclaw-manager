@@ -18,6 +18,7 @@ import { handleInboundApi } from "./inbound.ts";
 import { buildHealthPayload } from "./health.ts";
 import { managerCommands } from "../skill/commands.ts";
 import type { ManagerConfig } from "../shared/types.ts";
+import { normalizeGitHubWebhook } from "../connectors/github.ts";
 import {
   serializeBindSourceResult,
   serializeReservedMutationResult,
@@ -235,6 +236,16 @@ function parseBindSourceInput(body: Record<string, unknown>): BindSourceInput {
   };
 }
 
+function readHeader(request: IncomingMessage, headerName: string): string | undefined {
+  const value = request.headers[headerName.toLowerCase()];
+
+  if (Array.isArray(value)) {
+    return value[0];
+  }
+
+  return typeof value === "string" ? value : undefined;
+}
+
 export class ManagerServer {
   controlPlane: ControlPlane;
   config: ManagerConfig;
@@ -380,6 +391,26 @@ export class ManagerServer {
               ? (body.metadata as Record<string, unknown>)
               : {}
         }));
+        return;
+      }
+
+      if (request.method === "POST" && pathname === "/connectors/github/events") {
+        const body = await readJsonBody(request);
+        const normalized = normalizeGitHubWebhook({
+          delivery_id: readHeader(request, "x-github-delivery") ?? null,
+          event: readHeader(request, "x-github-event") ?? "",
+          body
+        });
+
+        if (normalized.ignored) {
+          jsonResponse(response, 202, normalized);
+          return;
+        }
+
+        jsonResponse(response, 200, {
+          ...normalized,
+          ...(await handleInboundApi(this.controlPlane, normalized.inbound))
+        });
         return;
       }
 

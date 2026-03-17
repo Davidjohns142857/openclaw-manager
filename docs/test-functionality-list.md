@@ -276,6 +276,25 @@
 - connector polling/webhook adapter contract
 - 多 connector 同 session 的 source-channel 管理
 
+### 3.12 GitHub Connector Adapter
+
+文件：
+
+- [`tests/phase2.github-connector.test.ts`](/Users/yangshangqing/metaclaw/tests/phase2.github-connector.test.ts)
+
+当前覆盖：
+
+- GitHub `issue_comment` webhook 可归一化为 canonical inbound 并通过 binding 路由进 session
+- 重复 `X-GitHub-Delivery` 不会重复写 `message_received`
+- `ping` 和不支持的 event/action 会被 `202 ignored`
+- GitHub thread key 与 generic binding registry 可以协同工作
+
+适合继续补的独立测试方向：
+
+- signature verification
+- `issues` / `issue_comment` 以外的 GitHub event 覆盖
+- PR review / discussion thread 归一化
+
 ## 4. 当前自动化校验总表
 
 截至当前，仓库内已有的自动化校验入口包括：
@@ -301,6 +320,7 @@
 - host message admission
 - connector binding registry
 - binding-aware external inbound resolution
+- first real GitHub connector adapter
 - `session.activity` 与 `focus` 的基础交互语义
 - reserved decision/blocker API registry
 - feature-gated reserved mutation routes

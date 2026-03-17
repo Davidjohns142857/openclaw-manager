@@ -137,6 +137,10 @@ control plane 只知道：
 - 多 binding merge / split
 - 跨 connector 的复杂 dedup
 
+当前仓库里已经有第一个真实 adapter：
+
+- GitHub webhook adapter，见 [`docs/github-connector.md`](/Users/yangshangqing/metaclaw/docs/github-connector.md)
+
 ## 6. 当前阶段的结论
 
 这层 foundation 的目的，是先让 external-source integration 有稳定骨架：

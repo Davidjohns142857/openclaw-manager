@@ -11,6 +11,7 @@ This repository now contains a Phase 1 MVP scaffold:
 - a requirement mapping from the source concept docs under [`docs/mvp-requirements.md`](/Users/yangshangqing/metaclaw/docs/mvp-requirements.md)
 - explicit transport rules under [`docs/http-protocol-boundary.md`](/Users/yangshangqing/metaclaw/docs/http-protocol-boundary.md)
 - explicit connector/binding rules under [`docs/connector-protocol.md`](/Users/yangshangqing/metaclaw/docs/connector-protocol.md)
+- a first real GitHub connector contract under [`docs/github-connector.md`](/Users/yangshangqing/metaclaw/docs/github-connector.md)
 - explicit recovery rules under [`docs/recovery-model.md`](/Users/yangshangqing/metaclaw/docs/recovery-model.md)
 - an OpenClaw host integration contract under [`docs/openclaw-host-integration.md`](/Users/yangshangqing/metaclaw/docs/openclaw-host-integration.md)
 - a host message capture / admission contract under [`docs/host-message-admission.md`](/Users/yangshangqing/metaclaw/docs/host-message-admission.md)
@@ -54,6 +55,7 @@ By default, runtime state is written to `.openclaw-manager-state/` in this repos
 - [`src/storage/`](/Users/yangshangqing/metaclaw/src/storage): filesystem-first durable state layer
 - [`src/api/server.ts`](/Users/yangshangqing/metaclaw/src/api/server.ts): minimal HTTP control plane API
 - [`src/host/`](/Users/yangshangqing/metaclaw/src/host): thin host-side message admission and direct-ingress logic
+- [`src/connectors/`](/Users/yangshangqing/metaclaw/src/connectors): normalized external-source adapters, currently including the first GitHub webhook adapter
 - [`skills/openclaw-manager/SKILL.md`](/Users/yangshangqing/metaclaw/skills/openclaw-manager/SKILL.md): manager skill instructions and command surface
 - [`src/skill/sidecar-client.ts`](/Users/yangshangqing/metaclaw/src/skill/sidecar-client.ts): thin OpenClaw host client for the local sidecar
 
