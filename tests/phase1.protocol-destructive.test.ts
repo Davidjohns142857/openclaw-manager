@@ -92,6 +92,135 @@ test("concurrent duplicate inbound deliveries should not double-append normalize
   }
 });
 
+test("concurrent distinct inbound messages preserve queued count and request ids for paused sessions", async () => {
+  const manager = await createTempManager();
+
+  try {
+    const adopted = await manager.controlPlane.adoptSession({
+      title: "Concurrent distinct paused inbound",
+      objective: "Distinct inbound updates must not lose queued state under concurrency."
+    });
+
+    await manager.controlPlane.settleActiveRun(adopted.session.session_id, {
+      status: "waiting_human",
+      summary: "Paused pending review.",
+      reason_code: "needs_review"
+    });
+
+    const originalSaveSession = manager.controlPlane.sessionService.saveSession.bind(
+      manager.controlPlane.sessionService
+    );
+    manager.controlPlane.sessionService.saveSession = async (session) => {
+      if (session.session_id === adopted.session.session_id) {
+        await new Promise((resolve) => setTimeout(resolve, 10));
+      }
+
+      return originalSaveSession(session);
+    };
+
+    const [first, second] = await Promise.all([
+      manager.controlPlane.handleInboundMessage({
+        request_id: "req_distinct_pause_001",
+        source_type: "telegram",
+        source_thread_key: "tg_distinct_pause_001",
+        target_session_id: adopted.session.session_id,
+        message_type: "user_message",
+        content: "First concurrent paused update"
+      }),
+      manager.controlPlane.handleInboundMessage({
+        request_id: "req_distinct_pause_002",
+        source_type: "telegram",
+        source_thread_key: "tg_distinct_pause_001",
+        target_session_id: adopted.session.session_id,
+        message_type: "user_message",
+        content: "Second concurrent paused update"
+      })
+    ]);
+
+    assert.equal(first.run_started, false);
+    assert.equal(second.run_started, false);
+    assert.equal(first.queued, true);
+    assert.equal(second.queued, true);
+
+    const refreshed = await manager.controlPlane.sessionService.requireSession(
+      adopted.session.session_id
+    );
+    assert.deepEqual(
+      [...refreshed.state.pending_external_inputs].sort(),
+      ["req_distinct_pause_001", "req_distinct_pause_002"]
+    );
+    assert.equal(refreshed.metadata.pending_inbound_count, 2);
+
+    manager.controlPlane.sessionService.saveSession = originalSaveSession;
+  } finally {
+    await manager.cleanup();
+  }
+});
+
+test("concurrent distinct inbound messages only auto-start one new run", async () => {
+  const manager = await createTempManager();
+
+  try {
+    const adopted = await manager.controlPlane.adoptSession({
+      title: "Concurrent distinct auto-start inbound",
+      objective: "Only one new run should start under concurrent distinct ingress."
+    });
+
+    await manager.controlPlane.settleActiveRun(adopted.session.session_id, {
+      status: "completed",
+      summary: "Initial run completed.",
+      reason_code: "initial_complete"
+    });
+
+    const originalSaveSession = manager.controlPlane.sessionService.saveSession.bind(
+      manager.controlPlane.sessionService
+    );
+    manager.controlPlane.sessionService.saveSession = async (session) => {
+      if (session.session_id === adopted.session.session_id) {
+        await new Promise((resolve) => setTimeout(resolve, 10));
+      }
+
+      return originalSaveSession(session);
+    };
+
+    const results = await Promise.all([
+      manager.controlPlane.handleInboundMessage({
+        request_id: "req_distinct_run_001",
+        source_type: "telegram",
+        source_thread_key: "tg_distinct_run_001",
+        target_session_id: adopted.session.session_id,
+        message_type: "user_message",
+        content: "First concurrent resumable update"
+      }),
+      manager.controlPlane.handleInboundMessage({
+        request_id: "req_distinct_run_002",
+        source_type: "telegram",
+        source_thread_key: "tg_distinct_run_001",
+        target_session_id: adopted.session.session_id,
+        message_type: "user_message",
+        content: "Second concurrent resumable update"
+      })
+    ]);
+
+    assert.equal(results.filter((result) => result.run_started).length, 1);
+
+    const refreshed = await manager.controlPlane.sessionService.requireSession(
+      adopted.session.session_id
+    );
+    const runs = await manager.store.listRuns(adopted.session.session_id);
+
+    assert.ok(refreshed.active_run_id);
+    assert.equal(refreshed.metrics.run_count, 2);
+    assert.equal(runs.length, 2);
+    assert.equal(refreshed.metadata.pending_inbound_count, 1);
+    assert.equal(refreshed.state.pending_external_inputs.length, 1);
+
+    manager.controlPlane.sessionService.saveSession = originalSaveSession;
+  } finally {
+    await manager.cleanup();
+  }
+});
+
 test("checkpoint refresh should not leave torn artifacts when summary persistence fails", async () => {
   const manager = await createTempManager();
 

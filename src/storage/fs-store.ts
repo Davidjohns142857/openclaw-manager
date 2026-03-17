@@ -32,11 +32,13 @@ export class FilesystemStore {
   config: ManagerConfig;
   lock: InProcessLock;
   schemaRegistry: SchemaRegistry;
+  bindingsCache: ConnectorBinding[] | null;
 
   constructor(config: ManagerConfig) {
     this.config = config;
     this.lock = new InProcessLock();
     this.schemaRegistry = new SchemaRegistry(config.schemasDir);
+    this.bindingsCache = null;
   }
 
   paths() {
@@ -491,14 +493,18 @@ export class FilesystemStore {
   }
 
   async readBindings(): Promise<ConnectorBinding[]> {
-    const bindings =
-      (await this.readJson<ConnectorBinding[]>(this.paths().bindings)) ?? [];
+    if (this.bindingsCache !== null) {
+      return cloneBindings(this.bindingsCache);
+    }
+
+    const bindings = (await this.readJson<ConnectorBinding[]>(this.paths().bindings)) ?? [];
 
     for (const binding of bindings) {
       await this.schemaRegistry.validateOrThrow("connector-binding", binding);
     }
 
-    return bindings;
+    this.bindingsCache = cloneBindings(bindings);
+    return cloneBindings(this.bindingsCache);
   }
 
   async writeBindings(bindings: ConnectorBinding[]): Promise<void> {
@@ -506,10 +512,14 @@ export class FilesystemStore {
       await this.schemaRegistry.validateOrThrow("connector-binding", binding);
     }
 
+    const cachedBindings = cloneBindings(bindings);
+
     await this.lock.runExclusive(async () => {
       await mkdir(this.paths().connectors, { recursive: true });
       await this.writeJson(this.paths().bindings, bindings);
     });
+
+    this.bindingsCache = cachedBindings;
   }
 
   async tryClaimInboundMessage(message: NormalizedInboundMessage): Promise<{
@@ -582,4 +592,8 @@ export class FilesystemStore {
 
     return targetDir;
   }
+}
+
+function cloneBindings(bindings: ConnectorBinding[]): ConnectorBinding[] {
+  return structuredClone(bindings);
 }

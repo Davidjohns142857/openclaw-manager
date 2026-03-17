@@ -41,6 +41,7 @@ import { canAutoContinueSession, isTerminalSessionStatus } from "../shared/state
 import { renderTemplate } from "../shared/template.ts";
 import { buildSessionIndexes } from "../storage/indexes.ts";
 import { FilesystemStore } from "../storage/fs-store.ts";
+import { InProcessLock } from "../storage/locks.ts";
 import {
   normalizeInboundMessage,
   type ExternalInboundMessageInput,
@@ -80,6 +81,7 @@ export class ControlPlane {
   capabilityFactService: CapabilityFactService;
   reservedContractService: ReservedContractService;
   timelineService: TimelineService;
+  sessionMutationLocks: Map<string, InProcessLock>;
 
   constructor(config: ManagerConfig, store: FilesystemStore) {
     this.config = config;
@@ -98,6 +100,7 @@ export class ControlPlane {
       this.eventService
     );
     this.timelineService = new TimelineService(store);
+    this.sessionMutationLocks = new Map();
   }
 
   async initialize(): Promise<void> {
@@ -191,6 +194,24 @@ export class ControlPlane {
 
   private async saveProjectedSession(session: Session, latestRun: Run | null): Promise<Session> {
     return this.sessionService.saveSession(applyDerivedSessionStatus(session, latestRun));
+  }
+
+  private sessionMutationLock(sessionId: string): InProcessLock {
+    let existing = this.sessionMutationLocks.get(sessionId);
+
+    if (!existing) {
+      existing = new InProcessLock();
+      this.sessionMutationLocks.set(sessionId, existing);
+    }
+
+    return existing;
+  }
+
+  private async withSessionMutationLock<T>(
+    sessionId: string,
+    operation: () => Promise<T>
+  ): Promise<T> {
+    return this.sessionMutationLock(sessionId).runExclusive(operation);
   }
 
   private async resolveRunStartCheckpointRef(session: Session): Promise<string | null> {
@@ -872,9 +893,13 @@ export class ControlPlane {
     session.status = input.resolution === "abandoned" ? "abandoned" : "completed";
     session.lifecycle_stage = "closure";
     session.state.goal_status = input.resolution === "abandoned" ? "abandoned" : "complete";
+    session.state.blockers = [];
+    session.state.pending_human_decisions = [];
+    session.state.pending_external_inputs = [];
     session.state.next_machine_actions = [];
     session.state.next_human_actions = [];
     session.metrics.last_activity_at = isoNow();
+    session.metadata.pending_inbound_count = 0;
     session.metadata.summary_needs_refresh = true;
     session = await this.saveProjectedSession(session, run);
 
@@ -954,100 +979,104 @@ export class ControlPlane {
       };
     }
 
-    let session = await this.sessionService.requireSession(message.target_session_id);
-    const latestRun = session.active_run_id
-      ? await this.store.readRun(session.session_id, session.active_run_id)
-      : await this.getLatestRun(session.session_id);
-    await this.eventService.record({
-      sessionId: session.session_id,
-      eventType: "message_received",
-      actor: {
-        actor_type: "external",
-        actor_ref: message.source_type
-      },
-      causality: {
-        request_id: message.request_id,
-        external_trigger_id: message.external_trigger_id
-      },
-      payload: {
-        source_thread_key: message.source_thread_key,
-        message_type: message.message_type
-      }
-    });
-    await this.eventService.record({
-      sessionId: session.session_id,
-      eventType: "message_normalized",
-      actor: {
-        actor_type: "system",
-        actor_ref: "connector.normalizer"
-      },
-      causality: {
-        request_id: message.request_id,
-        external_trigger_id: message.external_trigger_id
-      },
-      payload: {
-        request_id: message.request_id
-      }
-    });
+    const result = await this.withSessionMutationLock(message.target_session_id, async () => {
+      let session = await this.sessionService.requireSession(message.target_session_id);
+      const latestRun = session.active_run_id
+        ? await this.store.readRun(session.session_id, session.active_run_id)
+        : await this.getLatestRun(session.session_id);
 
-    const pendingInboundCount = Number(session.metadata.pending_inbound_count ?? 0) + 1;
-    session.metadata.pending_inbound_count = pendingInboundCount;
-    session.state.pending_external_inputs = Array.from(
-      new Set([...session.state.pending_external_inputs, message.request_id])
-    );
-    session.metrics.last_activity_at = message.timestamp;
-    session.metadata.summary_needs_refresh = true;
-    session = await this.sessionService.saveSession(session);
-
-    let run: Run | null = null;
-    let runStarted = false;
-
-    if (canAutoContinueSession(session, latestRun) && !session.active_run_id) {
-      run = await this.startRunForSession(session, {
-        trigger_type: "external_message",
-        trigger_ref: null,
-        request_id: message.request_id,
-        external_trigger_id: message.external_trigger_id
+      await this.eventService.record({
+        sessionId: session.session_id,
+        eventType: "message_received",
+        actor: {
+          actor_type: "external",
+          actor_ref: message.source_type
+        },
+        causality: {
+          request_id: message.request_id,
+          external_trigger_id: message.external_trigger_id
+        },
+        payload: {
+          source_thread_key: message.source_thread_key,
+          message_type: message.message_type
+        }
+      });
+      await this.eventService.record({
+        sessionId: session.session_id,
+        eventType: "message_normalized",
+        actor: {
+          actor_type: "system",
+          actor_ref: "connector.normalizer"
+        },
+        causality: {
+          request_id: message.request_id,
+          external_trigger_id: message.external_trigger_id
+        },
+        payload: {
+          request_id: message.request_id
+        }
       });
 
-      session.active_run_id = run.run_id;
-      session.metrics.run_count += 1;
-      session.metrics.last_activity_at = run.started_at;
-      session.state.pending_external_inputs = session.state.pending_external_inputs.filter(
-        (requestId) => requestId !== message.request_id
+      session.state.pending_external_inputs = Array.from(
+        new Set([...session.state.pending_external_inputs, message.request_id])
       );
-      session.metadata.pending_inbound_count = Math.max(0, pendingInboundCount - 1);
-      session.latest_checkpoint_ref = checkpointRef(run.run_id);
+      session.metadata.pending_inbound_count = session.state.pending_external_inputs.length;
+      session.metrics.last_activity_at = message.timestamp;
+      session.metadata.summary_needs_refresh = true;
       session = await this.sessionService.saveSession(session);
 
-      await this.checkpointService.refreshRecoveryArtifacts(session, run, [
-        `Inbound message accepted from ${message.source_type}.`
-      ]);
-      run = await this.runService.syncCommittedRecoveryRefs(session.session_id, run.run_id, {
-        checkpointRef: checkpointRef(run.run_id),
-        summaryRef: "summary.md",
-        markAsTerminal: false
-      });
+      let run: Run | null = null;
+      let runStarted = false;
 
-      session.latest_summary_ref = "summary.md";
-      session.latest_checkpoint_ref = checkpointRef(run.run_id);
-      session.metadata.summary_needs_refresh = false;
-      session = await this.saveProjectedSession(session, run);
-      runStarted = true;
-    } else {
-      session = await this.saveProjectedSession(session, latestRun);
-    }
+      if (canAutoContinueSession(session, latestRun) && !session.active_run_id) {
+        run = await this.startRunForSession(session, {
+          trigger_type: "external_message",
+          trigger_ref: null,
+          request_id: message.request_id,
+          external_trigger_id: message.external_trigger_id
+        });
+
+        session.active_run_id = run.run_id;
+        session.metrics.run_count += 1;
+        session.metrics.last_activity_at = run.started_at;
+        session.state.pending_external_inputs = session.state.pending_external_inputs.filter(
+          (requestId) => requestId !== message.request_id
+        );
+        session.metadata.pending_inbound_count = session.state.pending_external_inputs.length;
+        session.latest_checkpoint_ref = checkpointRef(run.run_id);
+        session = await this.sessionService.saveSession(session);
+
+        await this.checkpointService.refreshRecoveryArtifacts(session, run, [
+          `Inbound message accepted from ${message.source_type}.`
+        ]);
+        run = await this.runService.syncCommittedRecoveryRefs(session.session_id, run.run_id, {
+          checkpointRef: checkpointRef(run.run_id),
+          summaryRef: "summary.md",
+          markAsTerminal: false
+        });
+
+        session.latest_summary_ref = "summary.md";
+        session.latest_checkpoint_ref = checkpointRef(run.run_id);
+        session.metadata.summary_needs_refresh = false;
+        session = await this.saveProjectedSession(session, run);
+        runStarted = true;
+      } else {
+        session = await this.saveProjectedSession(session, latestRun);
+      }
+
+      return {
+        message,
+        session,
+        run,
+        run_started: runStarted,
+        duplicate: false,
+        queued: !runStarted
+      };
+    });
 
     await this.refreshDerivedViews();
 
-    return {
-      message,
-      session,
-      run,
-      run_started: runStarted,
-      duplicate: false,
-      queued: !runStarted
-    };
+    return result;
   }
 
   static ConnectorBindingConflictError = ConnectorBindingConflictError;

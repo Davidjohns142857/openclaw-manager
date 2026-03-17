@@ -33,6 +33,7 @@ run 的第一职责是隔离单次执行。
 - `waiting_human` 不是标签，而是一次 run 的暂停结束态
 - `blocked` 不是 `failed` 的别名，而是可恢复但当前被阻塞的结束态
 - `failed` 表示这次执行失败，但不自动等价于 session 被 block
+- terminal run 不允许再回退到 open status；新的尝试必须创建新 run
 
 ### 2.1 Status 与 Outcome 的 canonical 映射
 
@@ -49,6 +50,13 @@ run 的第一职责是隔离单次执行。
 | `failed` | `failed` | 失败不等于 blocked |
 | `cancelled` | `null` | 需要 `reason_code` 解释为何取消 |
 | `superseded` | `null` | 需要 `reason_code` 解释为何被替代 |
+
+终态事件约束：
+
+- `completed` -> `run_completed`
+- `failed` -> `run_failed`
+- `cancelled` -> `run_cancelled`
+- `superseded` -> `run_superseded`
 
 额外约束：
 

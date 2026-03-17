@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { createTempManager, pathExists, sessionPaths } from "./helpers.ts";
+import { createTempManager, pathExists, readJsonl, sessionPaths } from "./helpers.ts";
 
 test("waiting_human run settlement keeps recovery authoritative while preserving queued inbound focus", async () => {
   const manager = await createTempManager();
@@ -298,6 +298,20 @@ for (const status of ["cancelled", "superseded"] as const) {
       assert.equal(settled.session.status, "active");
       assert.equal(settled.session.active_run_id, null);
 
+      const paths = sessionPaths(
+        manager.tempRoot,
+        adopted.session.session_id,
+        settled.run.run_id
+      );
+      const runEvents = await readJsonl<{ event_type: string }>(paths.events);
+      assert.equal(
+        runEvents.some(
+          (event) =>
+            event.event_type === (status === "cancelled" ? "run_cancelled" : "run_superseded")
+        ),
+        true
+      );
+
       const detail = await manager.controlPlane.getSessionDetail(adopted.session.session_id);
       assert.ok(detail.checkpoint);
       assert.equal(detail.checkpoint?.phase, `${status}_checkpoint_base`);
@@ -375,6 +389,34 @@ test("settled run rejects invalid status/result_type combinations", async () => 
         /cannot use outcome\.result_type|must set outcome\.reason_code/
       );
     }
+  } finally {
+    await manager.cleanup();
+  }
+});
+
+test("transitionRun rejects illegal terminal-to-running rewinds", async () => {
+  const manager = await createTempManager();
+
+  try {
+    const adopted = await manager.controlPlane.adoptSession({
+      title: "Illegal transition guard",
+      objective: "Completed runs must not transition back into running."
+    });
+
+    const settled = await manager.controlPlane.settleActiveRun(adopted.session.session_id, {
+      status: "completed",
+      summary: "This run is done.",
+      reason_code: "completed_for_guard_test"
+    });
+
+    await assert.rejects(
+      manager.controlPlane.runService.transitionRun(
+        adopted.session.session_id,
+        settled.run.run_id,
+        "running"
+      ),
+      /Illegal run transition: completed -> running/
+    );
   } finally {
     await manager.cleanup();
   }

@@ -63,6 +63,7 @@ export type EventType =
   | "run_completed"
   | "run_failed"
   | "run_cancelled"
+  | "run_superseded"
   | "skill_invoked"
   | "skill_completed"
   | "skill_failed"

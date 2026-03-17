@@ -24,6 +24,17 @@ const recoveryHeadAdvancingStatuses = new Set<RunStatus>([
   "blocked",
   "completed"
 ]);
+const allowedRunTransitions: Record<RunStatus, readonly RunStatus[]> = {
+  accepted: ["queued", "running", "cancelled", "superseded"],
+  queued: ["running", "cancelled", "superseded"],
+  running: ["waiting_human", "blocked", "completed", "failed", "cancelled", "superseded"],
+  waiting_human: [],
+  blocked: [],
+  completed: [],
+  failed: [],
+  cancelled: [],
+  superseded: []
+};
 const settledRunStatuses = new Set<SettledRunStatus>([
   "waiting_human",
   "blocked",
@@ -55,6 +66,16 @@ export function isEndedRunStatus(status: RunStatus): boolean {
 
 export function canAdvanceRecoveryHeadForRunStatus(status: RunStatus): boolean {
   return recoveryHeadAdvancingStatuses.has(status);
+}
+
+export function canTransitionRunStatus(from: RunStatus, to: RunStatus): boolean {
+  return allowedRunTransitions[from].includes(to);
+}
+
+export function assertAllowedRunStatusTransition(from: RunStatus, to: RunStatus): void {
+  if (!canTransitionRunStatus(from, to)) {
+    throw new Error(`Illegal run transition: ${from} -> ${to}.`);
+  }
 }
 
 export function isSettledRunStatus(status: RunStatus): status is SettledRunStatus {

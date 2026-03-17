@@ -288,6 +288,51 @@ test("unbound external inbound without target_session_id returns 404 instead of 
   }
 });
 
+test("binding hot-path reads reuse the cached validated registry", async () => {
+  const sidecar = await startTempSidecar();
+
+  try {
+    const client = new ManagerSidecarClient({ baseUrl: sidecar.baseUrl });
+    const adopted = await client.adopt({
+      title: "Binding cache hot path",
+      objective: "Active binding lookup should not revalidate unchanged registry on every read."
+    });
+
+    await client.bind({
+      session_id: adopted.session.session_id,
+      source_type: "telegram",
+      source_thread_key: "tg-thread-cache-001"
+    });
+
+    const originalValidate = sidecar.store.schemaRegistry.validateOrThrow.bind(
+      sidecar.store.schemaRegistry
+    );
+    let connectorValidationCount = 0;
+    sidecar.store.schemaRegistry.validateOrThrow = async (kind, value) => {
+      if (kind === "connector-binding") {
+        connectorValidationCount += 1;
+      }
+
+      return originalValidate(kind, value);
+    };
+
+    const first = await sidecar.controlPlane.bindingService.findActiveBinding(
+      "telegram",
+      "tg-thread-cache-001"
+    );
+    const second = await sidecar.controlPlane.bindingService.findActiveBinding(
+      "telegram",
+      "tg-thread-cache-001"
+    );
+
+    assert.ok(first);
+    assert.ok(second);
+    assert.equal(connectorValidationCount, 0);
+  } finally {
+    await sidecar.cleanup();
+  }
+});
+
 test("skill command layer exposes bind through the client contract without importing connector internals", async () => {
   const calls: string[] = [];
   const fakeClient: ManagerCommandClient = {

@@ -140,3 +140,55 @@ test("checkpoint restores blocker and pending decision state during resume", asy
     await manager.cleanup();
   }
 });
+
+test("close clears blocker, decision, and queued-inbound noise from the terminal checkpoint", async () => {
+  const manager = await createTempManager();
+
+  try {
+    let session = (
+      await manager.controlPlane.adoptSession({
+        title: "Terminal cleanup",
+        objective: "Closed sessions should not retain open blocker/decision noise."
+      })
+    ).session;
+
+    session = await manager.controlPlane.sessionService.requireSession(session.session_id);
+    session.state.blockers = [
+      {
+        blocker_id: "blk_close_001",
+        type: "external_dependency",
+        summary: "Still waiting on a dependency before close.",
+        detected_at: "2026-03-16T00:00:00Z",
+        severity: "medium"
+      }
+    ];
+    session.state.pending_human_decisions = [
+      {
+        decision_id: "dec_close_001",
+        summary: "Need a final answer before close.",
+        requested_at: "2026-03-16T00:00:00Z",
+        urgency: "medium"
+      }
+    ];
+    session.state.pending_external_inputs = ["req_close_001"];
+    session.metadata.pending_inbound_count = 1;
+    await manager.controlPlane.sessionService.saveSession(session);
+
+    const closed = await manager.controlPlane.closeSession(session.session_id, {
+      outcome_summary: "Closed cleanly after manual review.",
+      resolution: "completed"
+    });
+
+    assert.equal(closed.state.blockers.length, 0);
+    assert.equal(closed.state.pending_human_decisions.length, 0);
+    assert.equal(closed.state.pending_external_inputs.length, 0);
+    assert.equal(closed.metadata.pending_inbound_count, 0);
+
+    const detail = await manager.controlPlane.getSessionDetail(session.session_id);
+    assert.equal(detail.checkpoint?.blockers.length, 0);
+    assert.equal(detail.checkpoint?.pending_human_decisions.length, 0);
+    assert.equal(detail.checkpoint?.pending_external_inputs.length, 0);
+  } finally {
+    await manager.cleanup();
+  }
+});

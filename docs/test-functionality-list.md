@@ -116,6 +116,8 @@
 
 - sequential duplicate `request_id` 幂等
 - concurrent duplicate `request_id` 不会双写事件
+- concurrent distinct inbound 不会丢失 queued request_id / `pending_inbound_count`
+- concurrent distinct inbound 在可 auto-continue 的 session 上只会启动 1 个新 run
 - checkpoint/summary 写入失败时不会留下 torn recovery artifacts
 
 适合继续补的独立测试方向：
@@ -211,12 +213,12 @@
 - `waiting_human` session 收到 inbound 时会 queue，而不是 auto-start run
 - `blocked` session 收到 inbound 时会 queue，而不是 auto-start run
 - checkpoint / resume 会恢复 blocker 与 pending decision 的结构化状态
+- `close` 会清理 blocker / pending decision / queued inbound 噪音，不把它们带进 terminal checkpoint
 
 适合继续补的独立测试方向：
 
 - future resolve / clear API 的事件与状态投影
 - failed-run 导致 blocked 的投影是否需要实体 blocker
-- close / archive 后 decision / blocker 的保留策略
 
 ### 3.9 Reserved API Contracts
 
@@ -272,6 +274,7 @@
 - `/bindings/:binding_id/disable` 会停用 active binding，但保留 durable 记录
 - `/bindings/:binding_id/rebind` 会把 source ownership 受控移动到新 session
 - `GET /bindings` 支持按 `status/session/source_type` 做最小筛选
+- unchanged binding registry 的 hot-path read 会复用已校验缓存，而不是每次全量重新校验
 
 适合继续补的独立测试方向：
 
@@ -333,6 +336,8 @@
 - `completed` run 会推进 recovery head、保持 quiet focus，并在下一次 `resume` 时作为新 run 的 `start_checkpoint_ref`
 - `failed` run 不会推进 recovery head，且与 `blocked` 保持不同语义；重复失败会在 `focus` 中升级为 `blocked`
 - `cancelled` / `superseded` run 不会推进 recovery head，但 `resume` 仍会从最近 committed checkpoint 启动下一次 run
+- `transitionRun` 具备状态转移守卫，不允许 terminal run 被直接改回 `running`
+- `superseded` 会发出专门的 `run_superseded` 事件，而不是混入通用 `run_status_changed`
 - 当更近的 failed run 存在自己的 recovery checkpoint 时，`resume` 仍优先选择最近一次 terminal head，而不是盲目跟随最新 run
 - run 会稳定关联 `events_ref`、`skill_traces_ref`、`spool_ref`、`checkpoint`、`summary`、`artifact_refs`
 

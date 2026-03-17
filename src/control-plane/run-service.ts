@@ -1,5 +1,9 @@
 import { createId } from "../shared/ids.ts";
-import { assertRunOutcomeMatchesStatus, isEndedRunStatus } from "../shared/run-lifecycle.ts";
+import {
+  assertAllowedRunStatusTransition,
+  assertRunOutcomeMatchesStatus,
+  isEndedRunStatus
+} from "../shared/run-lifecycle.ts";
 import { isoNow } from "../shared/time.ts";
 import type { Run, RunOutcome, RunStatus, RunTrigger, Session } from "../shared/types.ts";
 import { FilesystemStore } from "../storage/fs-store.ts";
@@ -89,6 +93,8 @@ export class RunService {
       throw new Error(`Run not found: ${runId}`);
     }
 
+    assertAllowedRunStatusTransition(run.status, status);
+
     const endedAt = isEndedRunStatus(status) ? isoNow() : null;
     const nextRun: Run = {
       ...run,
@@ -120,6 +126,8 @@ export class RunService {
           ? "run_failed"
           : status === "cancelled"
             ? "run_cancelled"
+            : status === "superseded"
+              ? "run_superseded"
             : "run_status_changed";
 
     await this.eventService.record({

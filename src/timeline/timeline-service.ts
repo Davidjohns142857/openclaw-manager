@@ -16,7 +16,8 @@ const statusEventTypes = new Set<string>([
   "run_status_changed",
   "run_completed",
   "run_failed",
-  "run_cancelled"
+  "run_cancelled",
+  "run_superseded"
 ] as const);
 
 const runStatuses = new Set<RunStatus>([
@@ -158,6 +159,8 @@ function deriveStatusFromEvent(event: Event): RunStatus | null {
       return "failed";
     case "run_cancelled":
       return "cancelled";
+    case "run_superseded":
+      return "superseded";
     case "run_status_changed":
       return asRunStatus(event.payload?.status);
     default:

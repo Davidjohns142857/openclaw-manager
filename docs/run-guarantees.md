@@ -17,6 +17,7 @@
 - `status=cancelled | superseded` 时 `outcome.result_type=null`，并且 `reason_code` 必填
 - `partial_progress` 和 `no_op` 只属于 `completed`
 - session 的 `abandoned close` 如果需要结束当前 run，应落成 `completed + no_op`
+- terminal run 不允许再回退到 open status
 
 ## Focus
 
@@ -37,6 +38,7 @@
 - 终态会推进 committed recovery head：`waiting_human`、`blocked`、`completed`
 - 终态不会推进 committed recovery head：`failed`、`cancelled`、`superseded`
 - `end_checkpoint_ref` 是“run 结束时推进了 head”的 authoritative marker
+- `superseded` 会发出专门的 `run_superseded` 事件，不混入一般 `run_status_changed`
 - 新 run 的 `start_checkpoint_ref` 优先指向最近一次推进过 head 的 `end_checkpoint_ref`；只有还没有 terminal head 时，才回退到最近的 `recovery_checkpoint_ref`
 
 ## Resume
