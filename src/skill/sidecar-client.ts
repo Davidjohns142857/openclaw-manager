@@ -1,10 +1,30 @@
+import type { ExternalInboundMessageInput } from "../connectors/base.ts";
+import type { BrowserConnectorMessageInput } from "../connectors/browser.ts";
 import type { SessionActivity } from "../shared/activity.ts";
 import type {
   AdoptSessionInput,
+  BindingListFilters,
+  BindSourceInput,
+  BindSourceResult,
+  ClearBlockerInput,
   CloseSessionInput,
+  DetectBlockerInput,
+  DisableBindingInput,
+  DisableBindingResult,
+  RequestHumanDecisionInput,
+  RebindSourceInput,
+  RebindSourceResult,
+  ReservedContractMutationResult,
+  ResolveHumanDecisionInput,
   ShareSnapshotResult
 } from "../shared/contracts.ts";
-import type { AttentionUnit, Checkpoint, NormalizedInboundMessage, Run, Session } from "../shared/types.ts";
+import type {
+  AttentionUnit,
+  Checkpoint,
+  ConnectorBinding,
+  Run,
+  Session
+} from "../shared/types.ts";
 import type { ManagerCommandClient, ManagerCommandDefinition } from "./commands.ts";
 
 export interface SessionWithActivity extends Session {
@@ -23,6 +43,34 @@ export interface InboundMessageResponse {
   queued: boolean;
   run_started: boolean;
   run: Run | null;
+  session: SessionWithActivity;
+}
+
+export interface BrowserConnectorEnvelope extends InboundMessageResponse {
+  accepted: true;
+  source_type: "browser";
+  source_thread_key: string;
+  message_id: string;
+  request_id: string;
+}
+
+export interface ReservedMutationEnvelope
+  extends Omit<ReservedContractMutationResult, "session"> {
+  session: SessionWithActivity;
+}
+
+export interface BindSourceEnvelope extends Omit<BindSourceResult, "binding" | "session"> {
+  binding: ConnectorBinding;
+  session: SessionWithActivity;
+}
+
+export interface DisableBindingEnvelope extends Omit<DisableBindingResult, "binding" | "session"> {
+  binding: ConnectorBinding;
+  session: SessionWithActivity;
+}
+
+export interface RebindSourceEnvelope extends Omit<RebindSourceResult, "binding" | "session"> {
+  binding: ConnectorBinding;
   session: SessionWithActivity;
 }
 
@@ -82,6 +130,28 @@ export class ManagerSidecarClient implements ManagerCommandClient {
     return this.request("GET", "/sessions");
   }
 
+  async listBindings(filters?: BindingListFilters): Promise<ConnectorBinding[]> {
+    const search = new URLSearchParams();
+    if (filters?.binding_id) {
+      search.set("binding_id", filters.binding_id);
+    }
+    if (filters?.session_id) {
+      search.set("session_id", filters.session_id);
+    }
+    if (filters?.source_type) {
+      search.set("source_type", filters.source_type);
+    }
+    if (filters?.source_thread_key) {
+      search.set("source_thread_key", filters.source_thread_key);
+    }
+    if (filters?.status) {
+      search.set("status", filters.status);
+    }
+
+    const suffix = search.size > 0 ? `?${search.toString()}` : "";
+    return this.request("GET", `/bindings${suffix}`);
+  }
+
   async getSession(sessionId: string): Promise<SessionDetailEnvelope> {
     return this.request("GET", `/sessions/${encodeURIComponent(sessionId)}`);
   }
@@ -96,6 +166,24 @@ export class ManagerSidecarClient implements ManagerCommandClient {
 
   async adopt(input: AdoptSessionInput): Promise<SessionDetailEnvelope> {
     return this.request("POST", "/adopt", input);
+  }
+
+  async bind(input: BindSourceInput): Promise<BindSourceEnvelope> {
+    return this.request("POST", "/bind", input);
+  }
+
+  async disableBinding(
+    bindingId: string,
+    input: DisableBindingInput = {}
+  ): Promise<DisableBindingEnvelope> {
+    return this.request("POST", `/bindings/${encodeURIComponent(bindingId)}/disable`, input);
+  }
+
+  async rebindBinding(
+    bindingId: string,
+    input: RebindSourceInput
+  ): Promise<RebindSourceEnvelope> {
+    return this.request("POST", `/bindings/${encodeURIComponent(bindingId)}/rebind`, input);
   }
 
   async resume(sessionId: string): Promise<SessionDetailEnvelope> {
@@ -114,11 +202,96 @@ export class ManagerSidecarClient implements ManagerCommandClient {
     return this.request("POST", `/sessions/${encodeURIComponent(sessionId)}/close`, input);
   }
 
-  async inboundMessage(message: NormalizedInboundMessage): Promise<InboundMessageResponse> {
+  async inboundMessage(message: ExternalInboundMessageInput): Promise<InboundMessageResponse> {
     return this.request("POST", "/inbound-message", message);
   }
 
+  async captureBrowserMessage(
+    message: BrowserConnectorMessageInput
+  ): Promise<BrowserConnectorEnvelope> {
+    return this.request("POST", "/connectors/browser/messages", message);
+  }
+
+  async requestHumanDecision(
+    sessionId: string,
+    input: RequestHumanDecisionInput
+  ): Promise<ReservedMutationEnvelope> {
+    return this.requestWithAcceptedStatuses(
+      "POST",
+      `/sessions/${encodeURIComponent(sessionId)}/decisions`,
+      [200, 409, 501],
+      input
+    );
+  }
+
+  async resolveHumanDecision(
+    sessionId: string,
+    decisionId: string,
+    input: ResolveHumanDecisionInput
+  ): Promise<ReservedMutationEnvelope> {
+    return this.requestWithAcceptedStatuses(
+      "POST",
+      `/sessions/${encodeURIComponent(sessionId)}/decisions/${encodeURIComponent(decisionId)}/resolve`,
+      [200, 409, 501],
+      input
+    );
+  }
+
+  async detectBlocker(
+    sessionId: string,
+    input: DetectBlockerInput
+  ): Promise<ReservedMutationEnvelope> {
+    return this.requestWithAcceptedStatuses(
+      "POST",
+      `/sessions/${encodeURIComponent(sessionId)}/blockers`,
+      [200, 409, 501],
+      input
+    );
+  }
+
+  async clearBlocker(
+    sessionId: string,
+    blockerId: string,
+    input: ClearBlockerInput
+  ): Promise<ReservedMutationEnvelope> {
+    return this.requestWithAcceptedStatuses(
+      "POST",
+      `/sessions/${encodeURIComponent(sessionId)}/blockers/${encodeURIComponent(blockerId)}/clear`,
+      [200, 409, 501],
+      input
+    );
+  }
+
   private async request<T>(method: string, pathname: string, body?: unknown): Promise<T> {
+    const { response, payload } = await this.send(method, pathname, body);
+
+    if (!response.ok) {
+      throw new ManagerSidecarHttpError(response.status, payload);
+    }
+
+    return payload as T;
+  }
+
+  private async requestWithAcceptedStatuses<T>(
+    method: string,
+    pathname: string,
+    acceptedStatuses: number[],
+    body?: unknown
+  ): Promise<T> {
+    const { response, payload } = await this.send(method, pathname, body);
+
+    if (!response.ok && !acceptedStatuses.includes(response.status)) {
+      throw new ManagerSidecarHttpError(response.status, payload);
+    }
+
+    return payload as T;
+  }
+
+  private async send(
+    method: string,
+    pathname: string,
+    body?: unknown
+  ): Promise<{ response: Response; payload: unknown }> {
     const response = await this.fetchImpl(new URL(stripLeadingSlash(pathname), this.baseUrl), {
       method,
       headers: {
@@ -129,12 +302,10 @@ export class ManagerSidecarClient implements ManagerCommandClient {
       body: body === undefined ? undefined : JSON.stringify(body)
     });
 
-    const payload = await parseResponseBody(response);
-    if (!response.ok) {
-      throw new ManagerSidecarHttpError(response.status, payload);
-    }
-
-    return payload as T;
+    return {
+      response,
+      payload: await parseResponseBody(response)
+    };
   }
 }
 

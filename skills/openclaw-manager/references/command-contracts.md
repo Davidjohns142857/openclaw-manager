@@ -5,6 +5,7 @@
 - OpenClaw host-facing command code must call the local sidecar over HTTP.
 - Host code must not import `control-plane`, `fs-store`, or other durable-state internals directly.
 - Mutation commands should prefer the canonical session-detail envelope returned by the sidecar over reconstructing local state.
+- Reserved decision / blocker HTTP contracts may exist before any direct command surface is added for them.
 
 ## Primary Commands
 
@@ -33,6 +34,21 @@
 
 - Creates a durable session from an existing thread or explicit task intent.
 - Equivalent sidecar API: `POST /adopt`
+
+### `/bind <session_id> <source_type> <source_thread_key>`
+
+- Creates or reuses a durable external-source binding for a session.
+- Equivalent sidecar API: `POST /bind`
+
+### `/unbind <binding_id>`
+
+- Disables an active external-source binding while keeping the durable record.
+- Equivalent sidecar API: `POST /bindings/:binding_id/disable`
+
+### `/rebind <binding_id> <session_id>`
+
+- Moves or reactivates an external-source binding onto a target session.
+- Equivalent sidecar API: `POST /bindings/:binding_id/rebind`
 
 ### `/checkpoint <session_id>`
 

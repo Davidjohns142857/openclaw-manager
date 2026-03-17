@@ -1,4 +1,5 @@
 import { createId } from "../shared/ids.ts";
+import { isEndedRunStatus } from "../shared/run-lifecycle.ts";
 import { isoNow } from "../shared/time.ts";
 import type { Run, RunOutcome, RunStatus, RunTrigger, Session } from "../shared/types.ts";
 import { FilesystemStore } from "../storage/fs-store.ts";
@@ -30,13 +31,18 @@ export class RunService {
         invoked_skills: [],
         invoked_tools: [],
         start_checkpoint_ref: session.latest_checkpoint_ref,
+        recovery_checkpoint_ref: null,
         end_checkpoint_ref: null,
+        events_ref: `runs/${runId}/events.jsonl`,
+        skill_traces_ref: `runs/${runId}/skill_traces.jsonl`,
         artifact_refs: [],
-        spool_ref: `runs/${runId}/spool.jsonl`
+        spool_ref: `runs/${runId}/spool.jsonl`,
+        summary_ref: null
       },
       outcome: {
         result_type: null,
         summary: null,
+        reason_code: null,
         human_takeover: false,
         closure_contribution: null
       },
@@ -77,7 +83,7 @@ export class RunService {
       throw new Error(`Run not found: ${runId}`);
     }
 
-    const endedAt = ["running", "accepted", "queued"].includes(status) ? null : isoNow();
+    const endedAt = isEndedRunStatus(status) ? isoNow() : null;
     const nextRun: Run = {
       ...run,
       status,
@@ -113,10 +119,99 @@ export class RunService {
       payload: {
         status,
         result_type: nextRun.outcome.result_type,
-        summary: nextRun.outcome.summary
+        summary: nextRun.outcome.summary,
+        reason_code: nextRun.outcome.reason_code
       }
     });
 
     return nextRun;
   }
+
+  async appendSpool(sessionId: string, runId: string, payload: unknown): Promise<Run> {
+    await this.store.appendSpoolLine(sessionId, runId, payload);
+    return this.requireRun(sessionId, runId);
+  }
+
+  async recordSkillInvocation(sessionId: string, runId: string, skillName: string): Promise<Run> {
+    return this.updateRun(sessionId, runId, (run) => ({
+      ...run,
+      execution: {
+        ...run.execution,
+        invoked_skills: appendUnique(run.execution.invoked_skills, skillName)
+      },
+      metrics: {
+        ...run.metrics,
+        skill_invocation_count: run.metrics.skill_invocation_count + 1
+      }
+    }));
+  }
+
+  async recordToolCall(sessionId: string, runId: string, toolName: string): Promise<Run> {
+    return this.updateRun(sessionId, runId, (run) => ({
+      ...run,
+      execution: {
+        ...run.execution,
+        invoked_tools: appendUnique(run.execution.invoked_tools, toolName)
+      },
+      metrics: {
+        ...run.metrics,
+        tool_call_count: run.metrics.tool_call_count + 1
+      }
+    }));
+  }
+
+  async recordArtifactRef(sessionId: string, runId: string, artifactRef: string): Promise<Run> {
+    return this.updateRun(sessionId, runId, (run) => ({
+      ...run,
+      execution: {
+        ...run.execution,
+        artifact_refs: appendUnique(run.execution.artifact_refs, artifactRef)
+      }
+    }));
+  }
+
+  async syncCommittedRecoveryRefs(
+    sessionId: string,
+    runId: string,
+    input: {
+      checkpointRef: string;
+      summaryRef: string;
+      markAsTerminal: boolean;
+    }
+  ): Promise<Run> {
+    return this.updateRun(sessionId, runId, (run) => ({
+      ...run,
+      execution: {
+        ...run.execution,
+        recovery_checkpoint_ref: input.checkpointRef,
+        end_checkpoint_ref: input.markAsTerminal ? input.checkpointRef : run.execution.end_checkpoint_ref,
+        summary_ref: input.summaryRef
+      }
+    }));
+  }
+
+  private async requireRun(sessionId: string, runId: string): Promise<Run> {
+    const run = await this.store.readRun(sessionId, runId);
+
+    if (!run) {
+      throw new Error(`Run not found: ${runId}`);
+    }
+
+    return run;
+  }
+
+  private async updateRun(
+    sessionId: string,
+    runId: string,
+    updater: (run: Run) => Run
+  ): Promise<Run> {
+    const run = await this.requireRun(sessionId, runId);
+    const nextRun = updater(run);
+    await this.store.writeRun(sessionId, nextRun);
+    return nextRun;
+  }
+}
+
+function appendUnique(values: string[], nextValue: string): string[] {
+  return values.includes(nextValue) ? values : [...values, nextValue];
 }

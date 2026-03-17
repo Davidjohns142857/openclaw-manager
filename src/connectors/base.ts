@@ -2,17 +2,21 @@ import { createId } from "../shared/ids.ts";
 import { isoNow } from "../shared/time.ts";
 import type { AttachmentRef, NormalizedInboundMessage } from "../shared/types.ts";
 
-export interface NormalizeInboundMessageInput {
+export interface ExternalInboundMessageInput {
   request_id?: string;
   external_trigger_id?: string | null;
   source_type: string;
   source_thread_key: string;
-  target_session_id: string;
+  target_session_id?: string;
   message_type: NormalizedInboundMessage["message_type"];
   content: string;
   attachments?: AttachmentRef[];
   metadata?: Record<string, unknown>;
   timestamp?: string;
+}
+
+export interface NormalizeInboundMessageInput extends ExternalInboundMessageInput {
+  target_session_id: string;
 }
 
 export function normalizeInboundMessage(
@@ -31,4 +35,3 @@ export function normalizeInboundMessage(
     metadata: input.metadata ?? {}
   };
 }
-

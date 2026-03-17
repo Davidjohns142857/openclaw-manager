@@ -42,6 +42,11 @@ OpenClaw Manager owns:
 Current normalized ingress endpoint:
 
 - `POST /inbound-message`
+- `POST /bind`
+- `POST /bindings/:binding_id/disable`
+- `POST /bindings/:binding_id/rebind`
+- `POST /connectors/github/events`
+- `POST /connectors/browser/messages`
 
 Current normalized request shape:
 
@@ -65,6 +70,7 @@ Boundary rules:
 - `source_type` and `source_thread_key` remain connector-owned metadata, not core workflow branches.
 - every inbound update is reduced to one user-facing message unit
 - connector-specific rendering stays outside the manager
+- when `target_session_id` is omitted, the sidecar may resolve it from the durable binding registry
 
 ## Current Response Contract
 
@@ -93,15 +99,28 @@ Current canonical read endpoints:
 - `GET /health`
 - `GET /sessions`
 - `GET /sessions/:session_id`
+- `GET /bindings`
+- `GET /bindings?status=active|disabled&session_id=...&source_type=...`
 - `GET /focus`
 - `GET /digest`
+- `GET /contracts`
 
 Current canonical mutating endpoints that also return the same session-detail envelope:
 
 - `POST /adopt`
+- `POST /bind`
+- `POST /bindings/:binding_id/disable`
+- `POST /bindings/:binding_id/rebind`
 - `POST /sessions/:session_id/resume`
 - `POST /sessions/:session_id/checkpoint`
 - `POST /sessions/:session_id/close`
+
+Reserved mutation contracts for future decision / blocker lifecycle work are published through
+`GET /contracts`. They are intentionally contract-defined before they are behavior-complete.
+
+Binding-specific note:
+
+- disabled bindings stay in durable storage but are ignored by binding-aware inbound resolution
 
 If a future WebSocket layer is added, it should only emit invalidation hints such as:
 
@@ -116,3 +135,4 @@ That push channel should never become the authoritative state path.
 - `request_id` is claimed atomically at the filesystem ingress boundary before events are emitted.
 - Duplicate deliveries for the same `request_id` return the canonical session payload without re-emitting message facts.
 - Connector retries should reuse the same `request_id` rather than inventing a fresh one.
+- A bound external thread may omit `target_session_id`; the binding registry becomes the authoritative source for source-thread to session routing.

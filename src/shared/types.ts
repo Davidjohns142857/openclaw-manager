@@ -69,6 +69,8 @@ export type EventType =
   | "human_decision_requested"
   | "human_decision_resolved"
   | "external_trigger_bound"
+  | "external_trigger_unbound"
+  | "external_trigger_rebound"
   | "session_shared"
   | "session_closed"
   | "session_archived"
@@ -98,6 +100,19 @@ export interface SourceChannel {
   source_ref: string;
   bound_at: string;
   metadata?: Record<string, unknown>;
+}
+
+export type ConnectorBindingStatus = "active" | "disabled";
+
+export interface ConnectorBinding {
+  binding_id: string;
+  source_type: string;
+  source_thread_key: string;
+  session_id: string;
+  status: ConnectorBindingStatus;
+  created_at: string;
+  updated_at: string;
+  metadata: Record<string, unknown>;
 }
 
 export interface Blocker {
@@ -177,14 +192,19 @@ export interface RunExecution {
   invoked_skills: string[];
   invoked_tools: string[];
   start_checkpoint_ref: string | null;
+  recovery_checkpoint_ref: string | null;
   end_checkpoint_ref: string | null;
+  events_ref: string | null;
+  skill_traces_ref: string | null;
   artifact_refs: string[];
   spool_ref: string | null;
+  summary_ref: string | null;
 }
 
 export interface RunOutcome {
   result_type: RunResultType | null;
   summary: string | null;
+  reason_code: string | null;
   human_takeover: boolean;
   closure_contribution: number | null;
 }
@@ -328,6 +348,11 @@ export interface RecoveryHead {
   committed_at: string;
 }
 
+export interface ManagerFeatureFlags {
+  decision_lifecycle_v1: boolean;
+  blocker_lifecycle_v1: boolean;
+}
+
 export interface SessionIndexEntry {
   session_id: string;
   title: string;
@@ -345,4 +370,5 @@ export interface ManagerConfig {
   templatesDir: string;
   schemasDir: string;
   port: number;
+  features: ManagerFeatureFlags;
 }

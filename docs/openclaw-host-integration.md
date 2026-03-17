@@ -51,14 +51,19 @@ OpenClaw 命令进入 Manager 后，应默认走本地 sidecar HTTP API。
 - `GET /commands`
 - `GET /sessions`
 - `GET /sessions/:session_id`
+- `GET /bindings`
 - `GET /focus`
 - `GET /digest`
 - `POST /adopt`
+- `POST /bind`
+- `POST /bindings/:binding_id/disable`
+- `POST /bindings/:binding_id/rebind`
 - `POST /sessions/:session_id/resume`
 - `POST /sessions/:session_id/checkpoint`
 - `POST /sessions/:session_id/share`
 - `POST /sessions/:session_id/close`
 - `POST /inbound-message`
+- `POST /connectors/browser/messages`
 
 这意味着：
 
@@ -90,12 +95,49 @@ OpenClaw 命令进入 Manager 后，应默认走本地 sidecar HTTP API。
 
 - 一个 `ManagerSidecarClient`
 - 一个 `executeManagerCommand(...)`
+- 一层独立于 command surface 的 host message admission
 - 一套稳定的命令到 HTTP endpoint 映射
 
 对应代码：
 
 - Client: [`src/skill/sidecar-client.ts`](/Users/yangshangqing/metaclaw/src/skill/sidecar-client.ts)
 - Command executor: [`src/skill/commands.ts`](/Users/yangshangqing/metaclaw/src/skill/commands.ts)
+- Host admission: [`docs/host-message-admission.md`](/Users/yangshangqing/metaclaw/docs/host-message-admission.md)
+
+当前 host-side client 还额外暴露了 4 个 reserved decision / blocker typed methods：
+
+- `requestHumanDecision(...)`
+- `resolveHumanDecision(...)`
+- `detectBlocker(...)`
+- `clearBlocker(...)`
+
+这些是 HTTP client capability，不等于已经进入 OpenClaw command surface。
+
+当前 host-side client 还额外暴露了一个 browser connector typed method：
+
+- `captureBrowserMessage(...)`
+
+它用于让 OpenClaw 宿主在接到外接浏览器插件消息后，把消息按 connector contract 直接交给 manager sidecar；这仍然不是 command surface。
+
+当前 host-side client 也直接暴露 binding lifecycle methods：
+
+- `listBindings(...)`
+- `disableBinding(...)`
+- `rebindBinding(...)`
+
+它们是 thin host / ops capability，对应 canonical binding lifecycle，不需要宿主自己拼接 durable state。
+
+普通宿主消息的 capture / admission 也不进入 command surface；它是另一层 host adapter，负责：
+
+- 先做规则式判定
+- 再决定 suggestion 或 direct ingress
+- 最终仍只通过 canonical `/adopt` 与 `/inbound-message` 写入 Manager
+
+对 direct ingress，当前要求宿主提供稳定 capture key 组件：
+
+- `source_type`
+- `source_thread_key`
+- `message_id`
 
 默认 base URL 解析规则：
 
@@ -128,6 +170,9 @@ Phase 1 当前接受的启动方式是：
 - `/focus` -> `GET /focus`
 - `/digest` -> `GET /digest`
 - `/adopt` -> `POST /adopt`
+- `/bind` -> `POST /bind`
+- `/unbind` -> `POST /bindings/:binding_id/disable`
+- `/rebind` -> `POST /bindings/:binding_id/rebind`
 - `/resume` -> `POST /sessions/:session_id/resume`
 - `/checkpoint` -> `POST /sessions/:session_id/checkpoint`
 - `/share` -> `POST /sessions/:session_id/share`

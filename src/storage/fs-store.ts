@@ -16,6 +16,7 @@ import type {
   AttentionUnit,
   CapabilityFact,
   Checkpoint,
+  ConnectorBinding,
   Event,
   ManagerConfig,
   NormalizedInboundMessage,
@@ -46,6 +47,7 @@ export class FilesystemStore {
       sessions: path.join(root, "sessions"),
       indexes: path.join(root, "indexes"),
       connectors: path.join(root, "connectors"),
+      bindings: path.join(root, "connectors", "bindings.json"),
       inbox: path.join(root, "connectors", "inbox"),
       snapshots: path.join(root, "snapshots"),
       exports: path.join(root, "exports")
@@ -121,8 +123,7 @@ export class FilesystemStore {
   }
 
   async writeJson(filePath: string, value: unknown): Promise<void> {
-    await mkdir(path.dirname(filePath), { recursive: true });
-    await writeFile(filePath, `${JSON.stringify(value, null, 2)}\n`, "utf8");
+    await this.writeFileAtomically(filePath, `${JSON.stringify(value, null, 2)}\n`);
   }
 
   async readText(filePath: string): Promise<string | null> {
@@ -138,8 +139,23 @@ export class FilesystemStore {
   }
 
   async writeText(filePath: string, value: string): Promise<void> {
+    await this.writeFileAtomically(filePath, value);
+  }
+
+  async writeFileAtomically(filePath: string, value: string): Promise<void> {
     await mkdir(path.dirname(filePath), { recursive: true });
-    await writeFile(filePath, value, "utf8");
+    const tempPath = path.join(
+      path.dirname(filePath),
+      `.${path.basename(filePath)}.${createId("tmp")}.partial`
+    );
+
+    try {
+      await writeFile(tempPath, value, "utf8");
+      await rename(tempPath, filePath);
+    } catch (error) {
+      await this.safeUnlink(tempPath);
+      throw error;
+    }
   }
 
   async appendJsonl(filePath: string, value: unknown): Promise<void> {
@@ -428,6 +444,28 @@ export class FilesystemStore {
 
   async readAttentionQueue(): Promise<AttentionUnit[] | null> {
     return this.readJson<AttentionUnit[]>(path.join(this.paths().indexes, "attention_queue.json"));
+  }
+
+  async readBindings(): Promise<ConnectorBinding[]> {
+    const bindings =
+      (await this.readJson<ConnectorBinding[]>(this.paths().bindings)) ?? [];
+
+    for (const binding of bindings) {
+      await this.schemaRegistry.validateOrThrow("connector-binding", binding);
+    }
+
+    return bindings;
+  }
+
+  async writeBindings(bindings: ConnectorBinding[]): Promise<void> {
+    for (const binding of bindings) {
+      await this.schemaRegistry.validateOrThrow("connector-binding", binding);
+    }
+
+    await this.lock.runExclusive(async () => {
+      await mkdir(this.paths().connectors, { recursive: true });
+      await this.writeJson(this.paths().bindings, bindings);
+    });
   }
 
   async tryClaimInboundMessage(message: NormalizedInboundMessage): Promise<{

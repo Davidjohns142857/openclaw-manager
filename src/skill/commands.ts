@@ -1,4 +1,10 @@
-import type { AdoptSessionInput, CloseSessionInput } from "../shared/contracts.ts";
+import type {
+  AdoptSessionInput,
+  BindSourceInput,
+  CloseSessionInput,
+  DisableBindingInput,
+  RebindSourceInput
+} from "../shared/contracts.ts";
 import type { SourceChannel } from "../shared/types.ts";
 
 export interface ManagerCommandDefinition {
@@ -12,6 +18,9 @@ export interface ManagerCommandClient {
   focus(): Promise<unknown>;
   digest(): Promise<unknown>;
   adopt(input: AdoptSessionInput): Promise<unknown>;
+  bind(input: BindSourceInput): Promise<unknown>;
+  disableBinding(bindingId: string, input: DisableBindingInput): Promise<unknown>;
+  rebindBinding(bindingId: string, input: RebindSourceInput): Promise<unknown>;
   resume(sessionId: string): Promise<unknown>;
   checkpoint(sessionId: string): Promise<unknown>;
   share(sessionId: string): Promise<unknown>;
@@ -58,6 +67,21 @@ export const managerCommands: ManagerCommandDefinition[] = [
     command: "/adopt",
     usage: "/adopt",
     description: "Promote a task conversation into a durable session."
+  },
+  {
+    command: "/bind",
+    usage: "/bind <session_id> <source_type> <source_thread_key>",
+    description: "Bind an external source thread to an existing session."
+  },
+  {
+    command: "/unbind",
+    usage: "/unbind <binding_id>",
+    description: "Disable an active external-source binding without deleting its history."
+  },
+  {
+    command: "/rebind",
+    usage: "/rebind <binding_id> <session_id>",
+    description: "Move or reactivate an external-source binding onto a target session."
   }
 ];
 
@@ -113,6 +137,14 @@ function requireSessionId(payload: Record<string, unknown>): string {
   return payload.session_id;
 }
 
+function requireBindingId(payload: Record<string, unknown>): string {
+  if (typeof payload.binding_id !== "string" || payload.binding_id.trim().length === 0) {
+    throw new Error("binding_id is required for this command.");
+  }
+
+  return payload.binding_id;
+}
+
 export async function executeManagerCommand(
   client: ManagerCommandClient,
   command: string,
@@ -136,6 +168,29 @@ export async function executeManagerCommand(
           typeof payload.scenario_signature === "string" ? payload.scenario_signature : undefined,
         source_channel: asSourceChannel(payload.source_channel),
         next_machine_actions: asStringArray(payload.next_machine_actions),
+        metadata: asRecord(payload.metadata)
+      });
+    case "/bind":
+      return client.bind({
+        session_id: requireSessionId(payload),
+        source_type: String(payload.source_type ?? ""),
+        source_thread_key: String(payload.source_thread_key ?? ""),
+        metadata: asRecord(payload.metadata)
+      });
+    case "/unbind":
+      return client.disableBinding(requireBindingId(payload), {
+        reason: typeof payload.reason === "string" ? payload.reason : undefined,
+        disabled_by_ref:
+          typeof payload.disabled_by_ref === "string" ? payload.disabled_by_ref : undefined,
+        disabled_at: typeof payload.disabled_at === "string" ? payload.disabled_at : undefined,
+        metadata: asRecord(payload.metadata)
+      });
+    case "/rebind":
+      return client.rebindBinding(requireBindingId(payload), {
+        session_id: requireSessionId(payload),
+        rebound_by_ref:
+          typeof payload.rebound_by_ref === "string" ? payload.rebound_by_ref : undefined,
+        rebound_at: typeof payload.rebound_at === "string" ? payload.rebound_at : undefined,
         metadata: asRecord(payload.metadata)
       });
     case "/resume":

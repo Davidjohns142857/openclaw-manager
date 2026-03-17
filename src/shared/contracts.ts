@@ -1,4 +1,17 @@
-import type { Checkpoint, NormalizedInboundMessage, Priority, Run, Session, SourceChannel } from "./types.ts";
+import type {
+  Blocker,
+  Checkpoint,
+  ConnectorBinding,
+  ConnectorBindingStatus,
+  NormalizedInboundMessage,
+  PendingHumanDecision,
+  Priority,
+  Run,
+  RunResultType,
+  RunStatus,
+  Session,
+  SourceChannel
+} from "./types.ts";
 
 export interface AdoptSessionInput {
   title: string;
@@ -25,6 +38,63 @@ export interface CloseSessionInput {
   metadata?: Record<string, unknown>;
 }
 
+export interface BindSourceInput {
+  session_id: string;
+  source_type: string;
+  source_thread_key: string;
+  metadata?: Record<string, unknown>;
+}
+
+export interface BindingListFilters {
+  binding_id?: string;
+  session_id?: string;
+  source_type?: string;
+  source_thread_key?: string;
+  status?: ConnectorBindingStatus;
+}
+
+export interface BindSourceResult {
+  binding: ConnectorBinding;
+  created: boolean;
+  session: Session;
+  run: Run | null;
+  checkpoint: Checkpoint | null;
+  summary: string | null;
+}
+
+export interface DisableBindingInput {
+  reason?: string;
+  disabled_by_ref?: string;
+  disabled_at?: string;
+  metadata?: Record<string, unknown>;
+}
+
+export interface DisableBindingResult {
+  binding: ConnectorBinding;
+  changed: boolean;
+  session: Session;
+  run: Run | null;
+  checkpoint: Checkpoint | null;
+  summary: string | null;
+}
+
+export interface RebindSourceInput {
+  session_id: string;
+  rebound_by_ref?: string;
+  rebound_at?: string;
+  metadata?: Record<string, unknown>;
+}
+
+export interface RebindSourceResult {
+  binding: ConnectorBinding;
+  previous_session_id: string;
+  changed: boolean;
+  session: Session;
+  run: Run | null;
+  checkpoint: Checkpoint | null;
+  summary: string | null;
+}
+
 export interface ShareSnapshotResult {
   session_id: string;
   snapshot_id: string;
@@ -40,4 +110,81 @@ export interface InboundHandlingResult {
   run_started: boolean;
   duplicate: boolean;
   queued: boolean;
+}
+
+export interface SettleRunInput {
+  status: Extract<
+    RunStatus,
+    "waiting_human" | "blocked" | "completed" | "failed" | "cancelled" | "superseded"
+  >;
+  result_type?: RunResultType;
+  summary?: string;
+  reason_code?: string;
+  next_machine_actions?: string[];
+  next_human_actions?: string[];
+  blockers?: Blocker[];
+  pending_human_decisions?: PendingHumanDecision[];
+  checkpoint_notes?: string[];
+}
+
+export interface RunSettlementResult {
+  session: Session;
+  run: Run;
+  checkpoint: Checkpoint | null;
+  summary: string | null;
+  recovery_head_advanced: boolean;
+}
+
+export interface RequestHumanDecisionInput {
+  decision_id?: string;
+  summary: string;
+  urgency?: Priority;
+  requested_by_ref?: string;
+  requested_at?: string;
+  next_human_actions?: string[];
+  metadata?: Record<string, unknown>;
+}
+
+export interface ResolveHumanDecisionInput {
+  resolution_summary: string;
+  resolved_by_ref?: string;
+  resolved_at?: string;
+  next_machine_actions?: string[];
+  next_human_actions?: string[];
+  metadata?: Record<string, unknown>;
+}
+
+export interface DetectBlockerInput {
+  blocker_id?: string;
+  type: string;
+  summary: string;
+  severity?: Priority;
+  detected_by_ref?: string;
+  detected_at?: string;
+  next_human_actions?: string[];
+  metadata?: Record<string, unknown>;
+}
+
+export interface ClearBlockerInput {
+  resolution_summary: string;
+  cleared_by_ref?: string;
+  cleared_at?: string;
+  next_machine_actions?: string[];
+  next_human_actions?: string[];
+  metadata?: Record<string, unknown>;
+}
+
+export type ReservedContractStatus = "accepted" | "not_enabled" | "reserved" | "rejected";
+export type ReservedContractFeatureFlag = "decision_lifecycle_v1" | "blocker_lifecycle_v1";
+
+export interface ReservedContractMutationResult {
+  contract_id: string;
+  feature_flag: ReservedContractFeatureFlag;
+  status: ReservedContractStatus;
+  error_code: string | null;
+  mutation_applied: boolean;
+  session: Session;
+  run: Run | null;
+  checkpoint: Checkpoint | null;
+  summary: string | null;
 }

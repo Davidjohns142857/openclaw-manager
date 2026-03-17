@@ -1,7 +1,7 @@
 name: "openclaw-manager"
 display_name: "OpenClaw Manager"
 kind: "openclaw-native-control-plane"
-phase: "phase-1-mvp"
+phase: "phase-2-foundation"
 skill_entry: "skills/openclaw-manager/SKILL.md"
 sidecar_entry: "src/main.ts"
 state_root: "~/.openclaw/skills/manager"
@@ -14,4 +14,6 @@ commands:
   - "/checkpoint <session_id>"
   - "/close <session_id>"
   - "/adopt"
-
+  - "/bind <session_id> <source_type> <source_thread_key>"
+  - "/unbind <binding_id>"
+  - "/rebind <binding_id> <session_id>"

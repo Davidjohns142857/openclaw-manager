@@ -150,6 +150,7 @@
 - 真实 HTTP `adopt -> tasks -> checkpoint -> resume -> close`
 - host-side command executor 不直接依赖 control-plane internals
 - sidecar client 是 canonical host boundary
+- host-side client 已具备 4 个 reserved decision / blocker typed methods，且不要求同步进入 command surface
 
 适合继续补的独立测试方向：
 
@@ -157,7 +158,30 @@
 - `/commands` 与 client 能力对齐
 - host rendering 对 `session.activity` 的最小使用约束
 
-### 3.6 交互语义合同
+### 3.6 Host Message Admission
+
+文件：
+
+- [`tests/phase1.host-admission.test.ts`](/Users/yangshangqing/metaclaw/tests/phase1.host-admission.test.ts)
+
+当前覆盖：
+
+- hostContext 会聚合关键词、结构信号、active session 数、focus backlog
+- 精确 `source_thread` 匹配可进入 direct manager ingress
+- 精确 `source_thread` 但缺少 `message_id` 时会降级为 suggestion
+- 语义相似但无精确 source-thread 绑定时，只允许 `suggest_adopt`
+- 缺少稳定 source-thread id 时，suggestion 不会偷偷写 Manager
+- 缺少稳定 `message_id` 时，suggestion 也不会偷偷写 Manager
+- `direct_adopt` 会通过 canonical `adopt + inbound-message` 真正导入原始宿主消息
+- 同 source-thread 的 follow-up message 会进入已有 session，而不是重复 adopt
+- 同一条宿主消息 retry 时，如果 `source_type + source_thread_key + message_id` 不变，不会创建第二个 session，也不会重复写入 `message_received`
+
+适合继续补的独立测试方向：
+
+- host message retry 的更强幂等性
+- richer source-type policies
+- admission 对 overloaded focus 的降级策略
+### 3.7 交互语义合同
 
 文件：
 
@@ -175,6 +199,143 @@
 - terminal session 在 focus 中的排除
 - `desynced` 与 active run 的边界
 - `activity.run.phase` 对 terminal run 的语义
+
+### 3.8 Human Decision / Blocker 合同
+
+文件：
+
+- [`tests/phase1.decision-blocker-contract.test.ts`](/Users/yangshangqing/metaclaw/tests/phase1.decision-blocker-contract.test.ts)
+
+当前覆盖：
+
+- `waiting_human` session 收到 inbound 时会 queue，而不是 auto-start run
+- `blocked` session 收到 inbound 时会 queue，而不是 auto-start run
+- checkpoint / resume 会恢复 blocker 与 pending decision 的结构化状态
+
+适合继续补的独立测试方向：
+
+- future resolve / clear API 的事件与状态投影
+- failed-run 导致 blocked 的投影是否需要实体 blocker
+- close / archive 后 decision / blocker 的保留策略
+
+### 3.9 Reserved API Contracts
+
+文件：
+
+- [`tests/phase1.api-contracts.test.ts`](/Users/yangshangqing/metaclaw/tests/phase1.api-contracts.test.ts)
+
+当前覆盖：
+
+- `GET /contracts` 暴露 4 个 reserved decision / blocker mutation contracts
+- 每个 contract 都带 machine-readable method/path/request_fields/response_envelope/invariants/docs
+- contract 文档与 boundary 文档对齐
+
+适合继续补的独立测试方向：
+
+- reserved contract 升级到 implemented 时的兼容性检查
+- `/contracts` 中 implemented 与 reserved contract 的混排策略
+- host/client 对 `/contracts` 的消费方式
+
+### 3.10 Feature-Gated Reserved Mutation Routes
+
+文件：
+
+- [`tests/phase1.reserved-contract-routes.test.ts`](/Users/yangshangqing/metaclaw/tests/phase1.reserved-contract-routes.test.ts)
+
+当前覆盖：
+
+- 4 个 reserved routes 在 flag 关闭时返回 `501/not_enabled` 且保持 canonical envelope
+- `human_decision_requested` 在 flag 打开时只做 event + 轻量 session metadata + focus 重算
+- `blocker_detected` 在 flag 打开时只做 event + 轻量 session metadata + focus 重算
+- 不会自动创建新 run，也不会改写 committed checkpoint
+
+适合继续补的独立测试方向：
+
+- `resolved/cleared` 的最薄 mutation 验收
+- 400 schema validation 分支
+- duplicate decision_id / blocker_id 的 rejected 语义
+
+### 3.11 Connector Binding And External Source Integration
+
+文件：
+
+- [`tests/phase2.connector-binding.test.ts`](/Users/yangshangqing/metaclaw/tests/phase2.connector-binding.test.ts)
+
+当前覆盖：
+
+- `/bind` 会写 durable binding registry，并把 source channel 投影回 session
+- 同 session / same source pair 的重复绑定是幂等的
+- `POST /inbound-message` 在缺少 `target_session_id` 时可通过 active binding 解析 session
+- binding conflict 会拒绝 cross-session 抢占
+- 未绑定 source 在缺少 `target_session_id` 时返回 `404`
+- `/bind` 已进入 command surface，但实现仍然只走 canonical sidecar HTTP
+- `/bindings/:binding_id/disable` 会停用 active binding，但保留 durable 记录
+- `/bindings/:binding_id/rebind` 会把 source ownership 受控移动到新 session
+- `GET /bindings` 支持按 `status/session/source_type` 做最小筛选
+
+适合继续补的独立测试方向：
+
+- connector polling/webhook adapter contract
+- 多 connector 同 session 的 source-channel 管理
+- same-session disabled binding reactivation
+
+### 3.12 GitHub Connector Adapter
+
+文件：
+
+- [`tests/phase2.github-connector.test.ts`](/Users/yangshangqing/metaclaw/tests/phase2.github-connector.test.ts)
+
+当前覆盖：
+
+- GitHub `issue_comment` webhook 可归一化为 canonical inbound 并通过 binding 路由进 session
+- 重复 `X-GitHub-Delivery` 不会重复写 `message_received`
+- `ping` 和不支持的 event/action 会被 `202 ignored`
+- GitHub thread key 与 generic binding registry 可以协同工作
+
+适合继续补的独立测试方向：
+
+- signature verification
+- `issues` / `issue_comment` 以外的 GitHub event 覆盖
+- PR review / discussion thread 归一化
+
+### 3.13 Browser Connector Adapter
+
+文件：
+
+- [`tests/phase2.browser-connector.test.ts`](/Users/yangshangqing/metaclaw/tests/phase2.browser-connector.test.ts)
+
+当前覆盖：
+
+- 浏览器插件消息可以归一化为 canonical inbound 并通过 binding 路由进已有 session
+- 重复 `source_thread_key + message_id` 不会重复写 `message_received`
+- 缺少稳定 `source_thread_key` 的 payload 会被拒绝
+- 未绑定的浏览器 thread 不会隐式创建 session
+
+适合继续补的独立测试方向：
+
+- browser tab rebinding / disable lifecycle
+- richer page-context payload normalization
+- browser-side retry/backoff contract
+
+### 3.14 Run Lifecycle And Evidence
+
+文件：
+
+- [`tests/phase2.run-lifecycle.test.ts`](/Users/yangshangqing/metaclaw/tests/phase2.run-lifecycle.test.ts)
+
+当前覆盖：
+
+- `waiting_human` run 会作为真实 paused-terminal 状态结束，并推进 recovery head
+- `paused` run 在 checkpoint 之后收到新的 inbound backlog 时，`resume` 仍会保留 queue，并在 `focus` 中折叠为 `waiting_human/blocked + desynced + summary_drift`
+- `completed` run 会推进 recovery head、保持 quiet focus，并在下一次 `resume` 时作为新 run 的 `start_checkpoint_ref`
+- `failed` run 不会推进 recovery head，且与 `blocked` 保持不同语义；重复失败会在 `focus` 中升级为 `blocked`
+- `cancelled` / `superseded` run 不会推进 recovery head，但 `resume` 仍会从最近 committed checkpoint 启动下一次 run
+- run 会稳定关联 `events_ref`、`skill_traces_ref`、`spool_ref`、`checkpoint`、`summary`、`artifact_refs`
+
+适合继续补的独立测试方向：
+
+- run-level artifact export / evidence snapshot
+- run trigger 统计与 capability facts 的联动
 
 ## 4. 当前自动化校验总表
 
@@ -198,7 +359,16 @@
 - torn write 防护
 - focus 压缩
 - host HTTP 接入
+- host message admission
+- connector binding registry
+- binding disable / rebind lifecycle
+- binding-aware external inbound resolution
+- first real GitHub connector adapter
+- browser-plugin ingress adapter
+- run lifecycle and evidence refs
 - `session.activity` 与 `focus` 的基础交互语义
+- reserved decision/blocker API registry
+- feature-gated reserved mutation routes
 
 尚适合补强：
 
