@@ -63,6 +63,21 @@ pre-routing hook 应放在：
 
 宿主不要自己复制规则，不要自己重新拼 admission score。
 
+如果宿主希望只接一个最薄 helper，而不是自己拼三段式调用，当前仓库也已经提供：
+
+- [`src/host/prerouting-hook.ts`](/Users/yangshangqing/metaclaw/src/host/prerouting-hook.ts)
+
+宿主可直接调用：
+
+1. `runOpenClawManagerPreRoutingHook(...)`
+2. 根据返回的 `action` 决定继续默认路由、显示 suggestion，或短路到 manager
+
+这个 helper 还会顺带返回：
+
+- `session_console_url`
+
+方便宿主在收编成功后直接把 `/ui` 地址发给用户。
+
 ## 5. 规范化行为
 
 ### 5.1 `do_nothing`

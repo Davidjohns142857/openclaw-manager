@@ -45,6 +45,7 @@ const requiredPaths = [
   "src/control-plane/control-plane.ts",
   "src/host/context.ts",
   "src/host/admission-policy.ts",
+  "src/host/prerouting-hook.ts",
   "src/host/suggest-or-adopt.ts",
   "src/timeline/timeline-service.ts",
   "src/control-plane/reserved-contract-service.ts",

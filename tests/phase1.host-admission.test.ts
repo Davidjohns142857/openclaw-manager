@@ -3,6 +3,7 @@ import { test } from "node:test";
 
 import { RuleBasedHostAdmissionPolicy } from "../src/host/admission-policy.ts";
 import { collectHostContext, type HostCapturedMessage } from "../src/host/context.ts";
+import { runOpenClawManagerPreRoutingHook } from "../src/host/prerouting-hook.ts";
 import { suggestOrAdopt } from "../src/host/suggest-or-adopt.ts";
 import { deriveSessionActivity } from "../src/shared/activity.ts";
 import type { Session } from "../src/shared/types.ts";
@@ -341,6 +342,55 @@ test("host message retry with the same source/thread/message id does not create 
     const paths = sessionPaths(sidecar.tempRoot, first.target_session_id!, runId!);
     const events = await readJsonl<{ event_type: string }>(paths.sessionEvents);
     assert.equal(events.filter((event) => event.event_type === "message_received").length, 1);
+  } finally {
+    await sidecar.cleanup();
+  }
+});
+
+test("pre-routing helper maps suggestion to a host-visible suggestion action and exposes the console url", async () => {
+  const sidecar = await startTempSidecar();
+
+  try {
+    const result = await runOpenClawManagerPreRoutingHook(
+      {
+        text: "请帮我研究这个项目，后续持续跟进外部审批并整理报告。",
+        source_type: "openclaw_plugin"
+      },
+      {
+        sidecar_base_url: sidecar.baseUrl
+      }
+    );
+
+    assert.equal(result.action, "show_adopt_suggestion");
+    assert.equal(result.manager.outcome, "suggested");
+    assert.equal(result.session_console_url, `${sidecar.baseUrl}/ui`);
+    assert.ok(result.manager.suggestion);
+  } finally {
+    await sidecar.cleanup();
+  }
+});
+
+test("pre-routing helper short-circuits to manager when direct admission is safe", async () => {
+  const sidecar = await startTempSidecar();
+
+  try {
+    const result = await runOpenClawManagerPreRoutingHook(
+      {
+        text: "请帮我研究这个项目，后续持续跟进外部审批并整理报告。",
+        source_type: "openclaw_plugin",
+        source_thread_key: "plugin-thread-hook-001",
+        message_id: "msg-hook-001",
+        received_at: "2026-03-17T12:00:00.000Z"
+      },
+      {
+        sidecar_base_url: sidecar.baseUrl
+      }
+    );
+
+    assert.equal(result.action, "short_circuit_to_manager");
+    assert.equal(result.manager.outcome, "adopted_new_session");
+    assert.equal(result.session_console_url, `${sidecar.baseUrl}/ui`);
+    assert.ok(result.manager.target_session_id);
   } finally {
     await sidecar.cleanup();
   }
