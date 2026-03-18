@@ -1,3 +1,4 @@
+import { readBoardConfig, toBoardSyncConfig } from "../src/board/board-config.ts";
 import {
   readLocalChainConfig,
   resolveLocalChainConfigPath
@@ -19,6 +20,19 @@ async function main(): Promise<void> {
     return;
   }
 
+  const persistedBoardConfig = await readBoardConfig(config.sidecar.state_root);
+  const effectiveBoardSync =
+    !config.board_sync.enabled && persistedBoardConfig
+      ? toBoardSyncConfig(persistedBoardConfig, config.board_sync)
+      : {
+          enabled: config.board_sync.enabled,
+          board_token: config.board_sync.token,
+          board_push_url: config.board_sync.push_url,
+          push_interval_ms: config.board_sync.push_interval_ms,
+          push_on_mutation: config.board_sync.push_on_mutation,
+          timeout_ms: config.board_sync.timeout_ms
+        };
+
   console.log(`Manager base URL: ${config.manager_base_url}`);
   console.log(`State root: ${config.sidecar.state_root}`);
   console.log(`Host integration mode: ${config.host_integration.mode}`);
@@ -26,9 +40,12 @@ async function main(): Promise<void> {
   console.log(`Published UI base URL: ${config.ui.public_base_url ?? "not configured"}`);
   console.log(`Published UI proxy port: ${config.ui.publish_port ?? "not configured"}`);
   console.log(`Published UI bind host: ${config.ui.publish_bind_host}`);
-  console.log(`Viewer board URL: ${buildBoardViewerUrlFromPushUrl(config.board_sync.push_url, config.board_sync.token) ?? "not configured"}`);
-  console.log(`Board sync enabled: ${config.board_sync.enabled}`);
-  console.log(`Board push URL: ${config.board_sync.push_url ?? "not configured"}`);
+  console.log(`Viewer board URL: ${buildBoardViewerUrlFromPushUrl(effectiveBoardSync.board_push_url, effectiveBoardSync.board_token) ?? "not configured"}`);
+  console.log(`Board sync enabled: ${effectiveBoardSync.enabled}`);
+  console.log(`Board push URL: ${effectiveBoardSync.board_push_url ?? "not configured"}`);
+  if (persistedBoardConfig) {
+    console.log(`Board config file: present (${config.sidecar.state_root}/board-config.json)`);
+  }
   console.log(`Public facts endpoint: ${config.public_facts.endpoint}`);
   console.log(`Public facts auto submit: ${config.public_facts.auto_submit_enabled ? "enabled" : "disabled"}`);
 
@@ -69,10 +86,10 @@ async function main(): Promise<void> {
     }
   }
 
-  if (config.board_sync.enabled) {
+  if (effectiveBoardSync.enabled) {
     const boardHealthUrl = buildBoardHealthUrlFromPushUrl(
-      config.board_sync.push_url,
-      config.board_sync.token
+      effectiveBoardSync.board_push_url,
+      effectiveBoardSync.board_token
     );
     if (!boardHealthUrl) {
       console.log("Viewer board health: invalid configuration");

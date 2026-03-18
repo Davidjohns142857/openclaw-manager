@@ -4,6 +4,8 @@ import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import os from "node:os";
 
+import { readBoardConfig, toBoardSyncConfig, writeBoardConfig } from "../src/board/board-config.ts";
+import { getOrCreateIdentity, signTimestamp } from "../src/board/identity.ts";
 import {
   createDefaultLocalChainConfig,
   resolveLocalChainConfigPath,
@@ -33,10 +35,22 @@ interface CliOptions {
   boardToken?: string;
   boardPushUrl?: string;
   boardPort?: number;
+  boardRegisterUrl?: string;
   cloudHosted: boolean;
   skipHook: boolean;
   skipService: boolean;
 }
+
+interface BoardRegistrationResult {
+  status: "created" | "existing";
+  token: string;
+  board_url: string;
+  push_url: string;
+  owner_ref: string;
+  created_at: string;
+}
+
+const SIDECAR_VERSION = "0.1.0";
 
 async function main(): Promise<void> {
   const options = parseArgs(process.argv.slice(2));
@@ -74,6 +88,14 @@ async function main(): Promise<void> {
     }
   });
 
+  let persistedBoardConfig = await readBoardConfig(config.sidecar.state_root);
+  if (!config.board_sync.enabled && persistedBoardConfig) {
+    config.board_sync = {
+      ...config.board_sync,
+      ...toBoardSyncConfig(persistedBoardConfig, config.board_sync)
+    };
+  }
+
   if (config.board_sync.enabled && !config.board_sync.push_url && config.board_sync.token) {
     const boardBaseUrl = deriveBoardBaseUrlFromPublicFactsEndpoint(
       config.public_facts.endpoint,
@@ -89,6 +111,29 @@ async function main(): Promise<void> {
     throw new Error(
       "Board sync requires both a board token and a board push URL. Pass --board-token and optionally --board-push-url."
     );
+  }
+
+  if (!options.dryRun && !config.board_sync.enabled) {
+    const registration = await registerBoard(config.sidecar.state_root, config.public_facts.endpoint, {
+      register_url: options.boardRegisterUrl,
+      board_port: options.boardPort
+    });
+    if (registration) {
+      config.board_sync = {
+        ...config.board_sync,
+        enabled: true,
+        token: registration.token,
+        push_url: registration.push_url
+      };
+      persistedBoardConfig = {
+        board_token: registration.token,
+        board_url: registration.board_url,
+        push_url: registration.push_url,
+        owner_ref: registration.owner_ref,
+        registered_at: new Date().toISOString()
+      };
+      await writeBoardConfig(config.sidecar.state_root, persistedBoardConfig);
+    }
   }
 
   const configPath = resolveLocalChainConfigPath();
@@ -130,6 +175,20 @@ async function main(): Promise<void> {
   }
 
   await writeLocalChainConfig(config, configPath);
+  if (config.board_sync.enabled && config.board_sync.token && config.board_sync.push_url) {
+    persistedBoardConfig = {
+      board_token: config.board_sync.token,
+      board_url:
+        buildBoardViewerUrlFromPushUrl(config.board_sync.push_url, config.board_sync.token) ??
+        "",
+      push_url: config.board_sync.push_url,
+      owner_ref: persistedBoardConfig?.owner_ref ?? null,
+      registered_at: persistedBoardConfig?.registered_at ?? new Date().toISOString()
+    };
+    await writeBoardConfig(config.sidecar.state_root, {
+      ...persistedBoardConfig
+    });
+  }
 
   if (!options.skipHook && !options.cloudHosted) {
     try {
@@ -253,6 +312,10 @@ function parseArgs(argv: string[]): CliOptions {
         }
         index += 1;
         break;
+      case "--board-register-url":
+        options.boardRegisterUrl = argv[index + 1];
+        index += 1;
+        break;
       case "--cloud-hosted":
         options.cloudHosted = true;
         break;
@@ -306,6 +369,91 @@ function printDryRun(
     }`
   );
   console.log(`Board push URL: ${config.board_sync.push_url ?? "not configured"}`);
+}
+
+async function registerBoard(
+  stateRoot: string,
+  publicFactsEndpoint: string,
+  options: {
+    register_url?: string;
+    board_port?: number;
+  }
+): Promise<BoardRegistrationResult | null> {
+  const registerUrl =
+    options.register_url?.trim() ||
+    deriveDefaultBoardRegisterUrl(publicFactsEndpoint, options.board_port ?? DEFAULT_VIEWER_BOARD_PORT);
+  if (!registerUrl) {
+    return null;
+  }
+
+  try {
+    const identity = await getOrCreateIdentity(stateRoot);
+    const timestamp = new Date().toISOString();
+    const response = await fetch(registerUrl, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json"
+      },
+      body: JSON.stringify({
+        owner_ref: identity.owner_ref,
+        label: `${identity.node_id.slice(0, 12)} board`,
+        install_proof: {
+          sidecar_version: SIDECAR_VERSION,
+          node_id: identity.node_id,
+          timestamp,
+          signature: signTimestamp(identity.node_secret, timestamp)
+        }
+      }),
+      signal: AbortSignal.timeout(5000)
+    });
+
+    if (!response.ok) {
+      console.warn(`Board registration failed: ${response.status} ${response.statusText}`);
+      return null;
+    }
+
+    const result = (await response.json()) as Partial<BoardRegistrationResult> | null;
+    if (
+      !result ||
+      (result.status !== "created" && result.status !== "existing") ||
+      typeof result.token !== "string" ||
+      typeof result.board_url !== "string" ||
+      typeof result.push_url !== "string" ||
+      typeof result.owner_ref !== "string" ||
+      typeof result.created_at !== "string"
+    ) {
+      console.warn("Board registration returned an invalid payload.");
+      return null;
+    }
+
+    return {
+      status: result.status,
+      token: result.token,
+      board_url: result.board_url,
+      push_url: result.push_url,
+      owner_ref: result.owner_ref,
+      created_at: result.created_at
+    };
+  } catch (error) {
+    console.warn(
+      `Board registration failed; continuing without board sync: ${
+        error instanceof Error ? error.message : String(error)
+      }`
+    );
+    return null;
+  }
+}
+
+function deriveDefaultBoardRegisterUrl(
+  publicFactsEndpoint: string,
+  boardPort: number
+): string | null {
+  const boardBaseUrl = deriveBoardBaseUrlFromPublicFactsEndpoint(publicFactsEndpoint, boardPort);
+  if (!boardBaseUrl) {
+    return null;
+  }
+
+  return new URL("/register", `${boardBaseUrl}/`).toString();
 }
 
 async function installLocalService(

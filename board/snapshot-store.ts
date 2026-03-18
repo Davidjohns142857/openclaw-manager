@@ -20,6 +20,19 @@ export interface BoardSnapshotMeta {
   last_payload_bytes: number;
 }
 
+export function isSnapshotMetaOlderThan(
+  meta: BoardSnapshotMeta | null,
+  thresholdMs: number,
+  now: number = Date.now()
+): boolean {
+  if (!meta?.last_received_at) {
+    return false;
+  }
+
+  const lastReceivedAt = Date.parse(meta.last_received_at);
+  return Number.isFinite(lastReceivedAt) && now - lastReceivedAt > thresholdMs;
+}
+
 function isoNow(): string {
   return new Date().toISOString();
 }

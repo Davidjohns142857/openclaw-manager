@@ -2,7 +2,16 @@ import { createServer, type IncomingMessage, type ServerResponse } from "node:ht
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { buildBoardDigest, BoardSnapshotStore } from "./snapshot-store.ts";
+import {
+  findActiveTokenForOwner,
+  RegistrationRateLimiter,
+  validateRegistrationRequest
+} from "./registration.ts";
+import {
+  buildBoardDigest,
+  BoardSnapshotStore,
+  isSnapshotMetaOlderThan
+} from "./snapshot-store.ts";
 import { FileTokenStore } from "./token-store.ts";
 import { serveBoardUiFile } from "../src/api/ui-assets.ts";
 
@@ -12,6 +21,9 @@ interface BoardConfig {
   dataDir: string;
   adminSecret: string | null;
   staleAfterMs: number;
+  staleTokenAfterMs: number;
+  revokeTokenAfterMs: number;
+  publicOrigin: string | null;
 }
 
 interface JsonBody {
@@ -22,6 +34,7 @@ const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), ".."
 const config = resolveConfig();
 const tokenStore = new FileTokenStore(config.dataDir);
 const snapshotStore = new BoardSnapshotStore(config.dataDir);
+const registrationRateLimiter = new RegistrationRateLimiter();
 
 function resolveConfig(env: NodeJS.ProcessEnv = process.env): BoardConfig {
   return {
@@ -29,7 +42,10 @@ function resolveConfig(env: NodeJS.ProcessEnv = process.env): BoardConfig {
     bindHost: env.BOARD_BIND_HOST?.trim() || "0.0.0.0",
     dataDir: env.BOARD_DATA_DIR?.trim() || "/var/lib/openclaw-board",
     adminSecret: env.BOARD_ADMIN_SECRET?.trim() || null,
-    staleAfterMs: parseInteger(env.BOARD_STALE_AFTER_MS, 45000)
+    staleAfterMs: parseInteger(env.BOARD_STALE_AFTER_MS, 45000),
+    staleTokenAfterMs: parseInteger(env.BOARD_STALE_TOKEN_AFTER_MS, 30 * 24 * 60 * 60 * 1000),
+    revokeTokenAfterMs: parseInteger(env.BOARD_REVOKE_TOKEN_AFTER_MS, 90 * 24 * 60 * 60 * 1000),
+    publicOrigin: env.BOARD_PUBLIC_ORIGIN?.trim() || null
   };
 }
 
@@ -64,6 +80,10 @@ function splitPath(pathname: string): string[] {
 }
 
 function buildRequestOrigin(request: IncomingMessage): string {
+  if (config.publicOrigin) {
+    return config.publicOrigin;
+  }
+
   const protoHeader = request.headers["x-forwarded-proto"];
   const forwardedProto = Array.isArray(protoHeader) ? protoHeader[0] : protoHeader;
   const host = request.headers.host ?? `127.0.0.1:${config.port}`;
@@ -189,6 +209,12 @@ function tokenFromAdminPath(pathname: string): { token: string | null; action: s
   };
 }
 
+function clientIp(request: IncomingMessage): string {
+  const forwarded = request.headers["x-forwarded-for"];
+  const value = Array.isArray(forwarded) ? forwarded[0] : forwarded;
+  return value?.split(",")[0]?.trim() || request.socket.remoteAddress || "unknown";
+}
+
 const server = createServer((request, response) => {
   void route(request, response);
 });
@@ -197,6 +223,11 @@ async function route(request: IncomingMessage, response: ServerResponse): Promis
   try {
     const url = new URL(request.url ?? "/", "http://127.0.0.1");
     const pathname = url.pathname;
+
+    if (pathname === "/register") {
+      await handleRegistrationRoute(request, response);
+      return;
+    }
 
     const adminPath = tokenFromAdminPath(pathname);
     if (adminPath) {
@@ -264,6 +295,81 @@ async function handleBoardUiRoute(
   }
 
   await serveBoardUiFile(repoRoot, response, pathname, mountPath);
+}
+
+async function handleRegistrationRoute(
+  request: IncomingMessage,
+  response: ServerResponse
+): Promise<void> {
+  if (request.method !== "POST") {
+    jsonResponse(response, 405, { status: "error", error: "method_not_allowed" });
+    return;
+  }
+
+  const ip = clientIp(request);
+  if (!registrationRateLimiter.tryConsume(ip)) {
+    jsonResponse(response, 429, { status: "error", error: "ip_rate_limit_exceeded" });
+    return;
+  }
+
+  let body: JsonBody;
+  try {
+    body = await readJsonBody(request);
+  } catch {
+    jsonResponse(response, 400, { status: "error", error: "invalid_json" });
+    return;
+  }
+
+  const ownerRef = typeof body.owner_ref === "string" ? body.owner_ref.trim() : "";
+  const validationError = validateRegistrationRequest(ownerRef, body.install_proof);
+  if (validationError) {
+    jsonResponse(response, 400, { status: "error", error: validationError });
+    return;
+  }
+
+  const existing = await findActiveTokenForOwner(tokenStore, ownerRef);
+  if (existing) {
+    const existingMeta = await snapshotStore.readMeta(existing.token);
+    if (isSnapshotMetaOlderThan(existingMeta, config.revokeTokenAfterMs)) {
+      await tokenStore.revoke(existing.token);
+    } else {
+      jsonResponse(response, 200, {
+        status: "existing",
+        token: existing.token,
+        board_url: buildBoardUrl(request, existing.token),
+        push_url: new URL(`/board-sync/${encodeURIComponent(existing.token)}`, buildRequestOrigin(request)).toString(),
+        owner_ref: existing.owner_ref,
+        created_at: existing.created_at,
+        stale: isSnapshotMetaOlderThan(existingMeta, config.staleTokenAfterMs)
+      });
+      return;
+    }
+  }
+
+  const label =
+    typeof body.label === "string" && body.label.trim().length > 0
+      ? body.label.trim()
+      : "auto-registered";
+  const token = await tokenStore.create(ownerRef, label, null);
+
+  jsonResponse(response, 200, {
+    status: "created",
+    token: token.token,
+    board_url: buildBoardUrl(request, token.token),
+    push_url: new URL(`/board-sync/${encodeURIComponent(token.token)}`, buildRequestOrigin(request)).toString(),
+    owner_ref: token.owner_ref,
+    created_at: token.created_at
+  });
+}
+
+async function buildTokenView(request: IncomingMessage, token: Awaited<ReturnType<typeof tokenStore.list>>[number]) {
+  const meta = await snapshotStore.readMeta(token.token);
+  return {
+    ...token,
+    board_url: buildBoardUrl(request, token.token),
+    stale: isSnapshotMetaOlderThan(meta, config.staleTokenAfterMs),
+    auto_revoked_candidate: isSnapshotMetaOlderThan(meta, config.revokeTokenAfterMs)
+  };
 }
 
 async function handleBoardSyncRoute(
@@ -413,10 +519,7 @@ async function handleAdminRoute(
   if (request.method === "GET" && route.token === null) {
     const tokens = await tokenStore.list();
     jsonResponse(response, 200, {
-      tokens: tokens.map((token) => ({
-        ...token,
-        board_url: buildBoardUrl(request, token.token)
-      }))
+      tokens: await Promise.all(tokens.map((token) => buildTokenView(request, token)))
     });
     return;
   }

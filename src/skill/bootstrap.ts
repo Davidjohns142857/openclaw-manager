@@ -1,3 +1,4 @@
+import { resolveBoardSyncConfigFromStateRoot } from "../board/board-config.ts";
 import { resolveConfig } from "../config.ts";
 import { BoardSyncService } from "../board/board-sync.ts";
 import { ControlPlane } from "../control-plane/control-plane.ts";
@@ -39,6 +40,11 @@ export async function bootstrapManager(
       ...overrides.board_sync
     }
   };
+
+  config.board_sync = await resolveBoardSyncConfigFromStateRoot(
+    config.stateRoot,
+    config.board_sync
+  );
 
   const store = new FilesystemStore(config);
   const controlPlane = new ControlPlane(config, store);
