@@ -154,6 +154,7 @@
 - sidecar client 是 canonical host boundary
 - host-side client 已具备 4 个 reserved decision / blocker typed methods，且不要求同步进入 command surface
 - thin host / sidecar contract 与 pre-routing hook 集成文档边界已经固定，避免把 `allow_implicit_invocation` 误判为普通消息劫持能力
+- same-origin session console UI 地址可以从 `/health -> ui.session_console_url` 稳定发现
 
 适合继续补的独立测试方向：
 
@@ -185,6 +186,18 @@
 - richer source-type policies
 - admission 对 overloaded focus 的降级策略
 - OpenClaw 宿主真正接入 pre-routing hook 之后的端到端 host runtime 验收
+
+### 3.20 Session Console UI Surface
+
+文件：
+
+- [`tests/phase1.static-boundary.test.ts`](/Users/yangshangqing/metaclaw/tests/phase1.static-boundary.test.ts)
+
+当前覆盖：
+
+- `/health` 暴露 `ui.session_console_url`
+- `/ui` 和 `/ui/src/app.js` 可以被 sidecar 直接提供
+- 前端文档已和 timeline/outbox/console URL 的后端边界对齐
 ### 3.7 交互语义合同
 
 文件：

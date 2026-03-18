@@ -77,6 +77,7 @@ Public fact live-ingest defaults to `http://142.171.114.18:56557/v1/ingest`. Ove
 - [`src/host/`](/Users/yangshangqing/metaclaw/src/host): thin host-side message admission and direct-ingress logic
 - [`src/connectors/`](/Users/yangshangqing/metaclaw/src/connectors): normalized external-source adapters, currently including GitHub webhook and browser-plugin ingress adapters
 - [`src/control-plane/binding-service.ts`](/Users/yangshangqing/metaclaw/src/control-plane/binding-service.ts): binding lifecycle, including bind, disable, rebind, and active-routing resolution
+- [`ui/session-console/`](/Users/yangshangqing/metaclaw/ui/session-console): same-origin minimal session/run/outbox console served at `/ui`
 - [`skills/openclaw-manager/SKILL.md`](/Users/yangshangqing/metaclaw/skills/openclaw-manager/SKILL.md): manager skill instructions and command surface
 - [`src/skill/sidecar-client.ts`](/Users/yangshangqing/metaclaw/src/skill/sidecar-client.ts): thin OpenClaw host client for the local sidecar
 
