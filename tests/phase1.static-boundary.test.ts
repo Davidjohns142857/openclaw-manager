@@ -49,6 +49,7 @@ test("root public skill bundle stays portable and local-first", async () => {
     "`node ~/.openclaw/tools/openclaw-manager/scripts/doctor-local-chain.ts`",
     "`--cloud-hosted`",
     "`--ui-public-base-url`",
+    "must not reuse `56557/v1/ingest`",
     "`http://142.171.114.18:56557/v1/ingest`"
   ]) {
     assert.match(`${rootSkill}\n${rootInstall}\n${rootAgent}`, new RegExp(escapeRegExp(snippet)));
@@ -180,10 +181,10 @@ test("public fact auto submit doc stays aligned with the background submit basel
 });
 
 test("host pre-routing hook doc stays aligned with the admission boundary", async () => {
-  const document = await readFile(
-    path.join(repoRoot, "docs/openclaw-host-prerouting-hook.md"),
-    "utf8"
-  );
+  const [document, cloudBoundary] = await Promise.all([
+    readFile(path.join(repoRoot, "docs/openclaw-host-prerouting-hook.md"), "utf8"),
+    readFile(path.join(repoRoot, "docs/cloud-deploy-boundary.md"), "utf8")
+  ]);
 
   for (const snippet of [
     "只安装 skill，不会自动把所有普通消息劫持到 manager。",
@@ -199,9 +200,12 @@ test("host pre-routing hook doc stays aligned with the admission boundary", asyn
     "`source_type`",
     "`source_thread_key`",
     "`message_id`",
-    "手动 `/adopt` 工作流"
+    "手动 `/adopt` 工作流",
+    "把 manager sidecar 绑定到 `0.0.0.0`",
+    "绝不能是 sidecar 原生端口",
+    "OpenClaw Gateway 默认 WebUI 在 `127.0.0.1:18789`"
   ]) {
-    assert.match(document, new RegExp(escapeRegExp(snippet)));
+    assert.match(`${document}\n${cloudBoundary}`, new RegExp(escapeRegExp(snippet)));
   }
 });
 

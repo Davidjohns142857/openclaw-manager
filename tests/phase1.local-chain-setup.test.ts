@@ -9,6 +9,7 @@ import {
   writeLocalChainConfig
 } from "../src/host/local-chain.ts";
 import { buildLocalSidecarServicePlan } from "../src/host/local-service.ts";
+import { validatePublishedUiBaseUrl } from "../src/shared/ui.ts";
 import {
   handleOpenClawManagerPreroutingEvent,
   type OpenClawManagerHookEvent
@@ -113,4 +114,30 @@ test("managed hook resolves manager base url from local-chain config when no exp
     }
     await rm(tempRoot, { recursive: true, force: true });
   }
+});
+
+test("published UI base must not reuse sidecar or ingest surfaces", () => {
+  assert.match(
+    validatePublishedUiBaseUrl("http://142.171.114.18:8791", {
+      manager_base_url: "http://127.0.0.1:8791",
+      public_facts_endpoint: "http://142.171.114.18:56557/v1/ingest"
+    }) ?? "",
+    /must not point at the manager sidecar port/i
+  );
+
+  assert.match(
+    validatePublishedUiBaseUrl("http://142.171.114.18:56557/v1/ingest", {
+      manager_base_url: "http://127.0.0.1:8791",
+      public_facts_endpoint: "http://142.171.114.18:56557/v1/ingest"
+    }) ?? "",
+    /must stay separate from the public ingest/i
+  );
+
+  assert.equal(
+    validatePublishedUiBaseUrl("https://gateway.example.com/openclaw-manager", {
+      manager_base_url: "http://127.0.0.1:8791",
+      public_facts_endpoint: "http://142.171.114.18:56557/v1/ingest"
+    }),
+    null
+  );
 });

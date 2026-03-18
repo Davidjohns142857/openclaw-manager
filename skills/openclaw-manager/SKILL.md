@@ -35,6 +35,7 @@ Use this skill when the user is managing long-running OpenClaw work rather than 
 8. Do not default to SSH, `systemctl`, remote `git pull`, SCP, or VPS deployment unless the user explicitly asks to manage remote infrastructure.
 9. For first-time local setup, prefer `node ~/.openclaw/tools/openclaw-manager/scripts/setup-openclaw-local-chain.ts`.
 10. If hook install is unavailable, explicitly tell the user the system is in manual `/adopt` mode instead of claiming automatic interception.
+11. Never expose the manager sidecar port publicly, and never reuse the public ingest endpoint as a UI origin.
 
 ## References
 
