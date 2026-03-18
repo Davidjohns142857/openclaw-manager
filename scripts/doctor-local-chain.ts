@@ -40,11 +40,22 @@ async function main(): Promise<void> {
   console.log(`Published UI base URL: ${config.ui.public_base_url ?? "not configured"}`);
   console.log(`Published UI proxy port: ${config.ui.publish_port ?? "not configured"}`);
   console.log(`Published UI bind host: ${config.ui.publish_bind_host}`);
-  console.log(`Viewer board URL: ${buildBoardViewerUrlFromPushUrl(effectiveBoardSync.board_push_url, effectiveBoardSync.board_token) ?? "not configured"}`);
+  console.log(
+    `Viewer board URL: ${
+      buildBoardViewerUrlFromPushUrl(
+        effectiveBoardSync.board_push_url,
+        effectiveBoardSync.board_token
+      ) ?? "not configured"
+    }`
+  );
   console.log(`Board sync enabled: ${effectiveBoardSync.enabled}`);
   console.log(`Board push URL: ${effectiveBoardSync.board_push_url ?? "not configured"}`);
   if (persistedBoardConfig) {
     console.log(`Board config file: present (${config.sidecar.state_root}/board-config.json)`);
+  } else {
+    console.log(
+      "Board: not configured (optional feature; rerun setup to enable viewer board)."
+    );
   }
   console.log(`Public facts endpoint: ${config.public_facts.endpoint}`);
   console.log(`Public facts auto submit: ${config.public_facts.auto_submit_enabled ? "enabled" : "disabled"}`);

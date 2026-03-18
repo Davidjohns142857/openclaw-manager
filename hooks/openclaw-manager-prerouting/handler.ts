@@ -1,4 +1,6 @@
-import { readLocalChainConfig } from "../../src/host/local-chain.ts";
+import os from "node:os";
+import path from "node:path";
+import { readFile } from "node:fs/promises";
 
 const DEFAULT_MANAGER_BASE_URL = "http://127.0.0.1:8791";
 const DEFAULT_TIMEOUT_MS = 2500;
@@ -157,11 +159,43 @@ async function resolveManagerBaseUrl(options: HookHandlerOptions): Promise<strin
   }
 
   const config = await readLocalChainConfig();
-  if (config?.manager_base_url) {
+  if (config && typeof config.manager_base_url === "string") {
     return normalizeBaseUrl(config.manager_base_url);
   }
 
   return normalizeBaseUrl(DEFAULT_MANAGER_BASE_URL);
+}
+
+async function readLocalChainConfig(): Promise<{ manager_base_url?: string } | null> {
+  const configPath = resolveLocalChainConfigPath();
+
+  try {
+    const raw = await readFile(configPath, "utf8");
+    const parsed = JSON.parse(raw) as Record<string, unknown> | null;
+    return parsed && typeof parsed === "object" ? parsed : null;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+      return null;
+    }
+
+    console.warn(
+      `[openclaw-manager-prerouting] failed to read local-chain config: ${
+        error instanceof Error ? error.message : String(error)
+      }`
+    );
+    return null;
+  }
+}
+
+function resolveLocalChainConfigPath(env: NodeJS.ProcessEnv = process.env): string {
+  if (
+    typeof env.OPENCLAW_MANAGER_LOCAL_CHAIN_CONFIG === "string" &&
+    env.OPENCLAW_MANAGER_LOCAL_CHAIN_CONFIG.trim()
+  ) {
+    return path.resolve(env.OPENCLAW_MANAGER_LOCAL_CHAIN_CONFIG.trim());
+  }
+
+  return path.join(os.homedir(), ".openclaw", "openclaw-manager", "local-chain.json");
 }
 
 function renderSuggestionMessage(response: HostPreroutingResponse): string {

@@ -101,6 +101,7 @@ export function createDefaultLocalChainConfig(
     public_facts: {
       endpoint:
         overrides.public_facts?.endpoint?.trim() ||
+        process.env.OPENCLAW_MANAGER_PUBLIC_FACTS_ENDPOINT?.trim() ||
         "http://142.171.114.18:56557/v1/ingest",
       timeout_ms: overrides.public_facts?.timeout_ms ?? 10000,
       schema_version: overrides.public_facts?.schema_version ?? "1.0.0",

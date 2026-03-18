@@ -8,6 +8,7 @@ import { readBoardConfig, toBoardSyncConfig, writeBoardConfig } from "../src/boa
 import { getOrCreateIdentity, signTimestamp } from "../src/board/identity.ts";
 import {
   createDefaultLocalChainConfig,
+  readLocalChainConfig,
   resolveLocalChainConfigPath,
   writeLocalChainConfig
 } from "../src/host/local-chain.ts";
@@ -39,6 +40,9 @@ interface CliOptions {
   cloudHosted: boolean;
   skipHook: boolean;
   skipService: boolean;
+  enablePublicFactsSpecified: boolean;
+  cloudHostedSpecified: boolean;
+  skipHookSpecified: boolean;
 }
 
 interface BoardRegistrationResult {
@@ -55,36 +59,61 @@ const SIDECAR_VERSION = "0.1.0";
 async function main(): Promise<void> {
   const options = parseArgs(process.argv.slice(2));
   const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+  const configPath = resolveLocalChainConfigPath();
+  const existingConfig = await readLocalChainConfig(configPath);
   let config = createDefaultLocalChainConfig({
-    manager_base_url: options.managerBaseUrl,
+    manager_base_url: options.managerBaseUrl ?? existingConfig?.manager_base_url,
     sidecar: {
-      port: options.managerPort,
-      state_root: options.stateRoot
+      port: options.managerPort ?? existingConfig?.sidecar.port,
+      state_root: options.stateRoot ?? existingConfig?.sidecar.state_root
     },
     ui: {
-      public_base_url: options.uiPublicBaseUrl,
-      publish_port: options.publishUiPort,
-      publish_bind_host: options.publishUiBindHost
+      public_base_url: options.uiPublicBaseUrl ?? existingConfig?.ui.public_base_url,
+      publish_port: options.publishUiPort ?? existingConfig?.ui.publish_port,
+      publish_bind_host: options.publishUiBindHost ?? existingConfig?.ui.publish_bind_host
     },
     hook: {
-      enabled: !(options.cloudHosted || options.skipHook)
+      enabled:
+        options.cloudHostedSpecified || options.skipHookSpecified
+          ? !(options.cloudHosted || options.skipHook)
+          : (existingConfig?.hook.enabled ?? true)
     },
     host_integration: {
-      mode: options.cloudHosted || options.skipHook ? "manual_adopt" : "managed_hook",
-      reason: options.cloudHosted
-        ? "cloud_gateway_unavailable"
-        : options.skipHook
-          ? "hook_setup_skipped"
-          : null
+      mode:
+        options.cloudHostedSpecified || options.skipHookSpecified
+          ? options.cloudHosted || options.skipHook
+            ? "manual_adopt"
+            : "managed_hook"
+          : existingConfig?.host_integration.mode,
+      reason:
+        options.cloudHostedSpecified || options.skipHookSpecified
+          ? options.cloudHosted
+            ? "cloud_gateway_unavailable"
+            : options.skipHook
+              ? "hook_setup_skipped"
+              : null
+          : existingConfig?.host_integration.reason
     },
     public_facts: {
-      auto_submit_enabled: options.enablePublicFacts,
-      endpoint: options.publicFactsEndpoint
+      auto_submit_enabled: options.enablePublicFactsSpecified
+        ? options.enablePublicFacts
+        : existingConfig?.public_facts.auto_submit_enabled,
+      endpoint: options.publicFactsEndpoint ?? existingConfig?.public_facts.endpoint,
+      timeout_ms: existingConfig?.public_facts.timeout_ms,
+      schema_version: existingConfig?.public_facts.schema_version,
+      auto_submit_interval_ms: existingConfig?.public_facts.auto_submit_interval_ms,
+      auto_submit_startup_delay_ms: existingConfig?.public_facts.auto_submit_startup_delay_ms
     },
     board_sync: {
-      enabled: Boolean(options.boardToken?.trim()),
-      token: options.boardToken,
-      push_url: options.boardPushUrl
+      enabled:
+        options.boardToken !== undefined || options.boardPushUrl !== undefined
+          ? Boolean(options.boardToken?.trim() || existingConfig?.board_sync.token?.trim())
+          : existingConfig?.board_sync.enabled,
+      token: options.boardToken ?? existingConfig?.board_sync.token,
+      push_url: options.boardPushUrl ?? existingConfig?.board_sync.push_url,
+      push_interval_ms: existingConfig?.board_sync.push_interval_ms,
+      push_on_mutation: existingConfig?.board_sync.push_on_mutation,
+      timeout_ms: existingConfig?.board_sync.timeout_ms
     }
   });
 
@@ -139,7 +168,6 @@ async function main(): Promise<void> {
     }
   }
 
-  const configPath = resolveLocalChainConfigPath();
   const uiValidationError = validatePublishedUiBaseUrl(config.ui.public_base_url, {
     manager_base_url: config.manager_base_url,
     public_facts_endpoint: config.public_facts.endpoint
@@ -249,7 +277,10 @@ function parseArgs(argv: string[]): CliOptions {
     enablePublicFacts: false,
     cloudHosted: false,
     skipHook: false,
-    skipService: false
+    skipService: false,
+    enablePublicFactsSpecified: false,
+    cloudHostedSpecified: false,
+    skipHookSpecified: false
   };
 
   for (let index = 0; index < argv.length; index += 1) {
@@ -295,6 +326,7 @@ function parseArgs(argv: string[]): CliOptions {
         break;
       case "--enable-public-facts":
         options.enablePublicFacts = true;
+        options.enablePublicFactsSpecified = true;
         break;
       case "--public-facts-endpoint":
         options.publicFactsEndpoint = argv[index + 1];
@@ -321,9 +353,11 @@ function parseArgs(argv: string[]): CliOptions {
         break;
       case "--cloud-hosted":
         options.cloudHosted = true;
+        options.cloudHostedSpecified = true;
         break;
       case "--skip-hook":
         options.skipHook = true;
+        options.skipHookSpecified = true;
         break;
       case "--skip-service":
         options.skipService = true;
@@ -384,6 +418,7 @@ async function registerBoard(
 ): Promise<BoardRegistrationResult | null> {
   const registerUrl =
     options.register_url?.trim() ||
+    process.env.OPENCLAW_BOARD_REGISTER_URL?.trim() ||
     deriveDefaultBoardRegisterUrl(publicFactsEndpoint, options.board_port ?? DEFAULT_VIEWER_BOARD_PORT);
   if (!registerUrl) {
     return null;
