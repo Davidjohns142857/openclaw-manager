@@ -2,6 +2,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import type { ManagerConfig } from "./shared/types.ts";
+import { validatePublishedUiBaseUrl } from "./shared/ui.ts";
 
 const srcDir = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(srcDir, "..");
@@ -32,6 +33,19 @@ function parseOptionalBaseUrl(value: string | undefined): string | null {
 
 export function resolveConfig(env: NodeJS.ProcessEnv = process.env): ManagerConfig {
   const port = parseInteger(env.OPENCLAW_MANAGER_PORT, 8791);
+  const publicFactsEndpoint =
+    env.OPENCLAW_MANAGER_PUBLIC_FACTS_ENDPOINT?.trim() ||
+    "http://142.171.114.18:56557/v1/ingest";
+  const managerBaseUrl = `http://127.0.0.1:${port}`;
+  const uiPublicBaseUrl = parseOptionalBaseUrl(env.OPENCLAW_MANAGER_UI_PUBLIC_BASE_URL);
+  const uiValidationError = validatePublishedUiBaseUrl(uiPublicBaseUrl, {
+    manager_base_url: managerBaseUrl,
+    public_facts_endpoint: publicFactsEndpoint
+  });
+
+  if (uiValidationError) {
+    throw new Error(uiValidationError);
+  }
 
   return {
     repoRoot,
@@ -46,16 +60,14 @@ export function resolveConfig(env: NodeJS.ProcessEnv = process.env): ManagerConf
       blocker_lifecycle_v1: parseBooleanFlag(env.OPENCLAW_MANAGER_FEATURE_BLOCKER_LIFECYCLE_V1)
     },
     ui: {
-      public_base_url: parseOptionalBaseUrl(env.OPENCLAW_MANAGER_UI_PUBLIC_BASE_URL)
+      public_base_url: uiPublicBaseUrl
     },
     host_integration: {
       mode: parseHostIntegrationMode(env.OPENCLAW_MANAGER_HOST_INTEGRATION_MODE),
       reason: env.OPENCLAW_MANAGER_HOST_INTEGRATION_REASON?.trim() || null
     },
     public_facts: {
-      endpoint:
-        env.OPENCLAW_MANAGER_PUBLIC_FACTS_ENDPOINT?.trim() ||
-        "http://142.171.114.18:56557/v1/ingest",
+      endpoint: publicFactsEndpoint,
       timeout_ms: parseInteger(env.OPENCLAW_MANAGER_PUBLIC_FACTS_TIMEOUT_MS, 10000),
       auth_token: env.OPENCLAW_MANAGER_PUBLIC_FACTS_AUTH_TOKEN?.trim() || null,
       schema_version: env.OPENCLAW_MANAGER_PUBLIC_FACTS_SCHEMA_VERSION?.trim() || "1.0.0",

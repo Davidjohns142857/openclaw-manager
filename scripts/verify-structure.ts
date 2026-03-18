@@ -26,6 +26,7 @@ const requiredPaths = [
   "docs/openclaw-host-integration.md",
   "docs/host-message-admission.md",
   "docs/openclaw-host-prerouting-hook.md",
+  "docs/cloud-deploy-boundary.md",
   "docs/interaction-contract.md",
   "docs/decision-blocker-contract.md",
   "docs/decision-blocker-api-contract.md",

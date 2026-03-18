@@ -9,6 +9,7 @@ import {
   resolveLocalChainConfigPath,
   writeLocalChainConfig
 } from "../src/host/local-chain.ts";
+import { validatePublishedUiBaseUrl } from "../src/shared/ui.ts";
 import { buildLocalSidecarServicePlan } from "../src/host/local-service.ts";
 import { buildOpenClawManagerHostSetupPlan } from "../src/host/setup.ts";
 
@@ -55,6 +56,15 @@ async function main(): Promise<void> {
     }
   });
   const configPath = resolveLocalChainConfigPath();
+  const uiValidationError = validatePublishedUiBaseUrl(config.ui.public_base_url, {
+    manager_base_url: config.manager_base_url,
+    public_facts_endpoint: config.public_facts.endpoint
+  });
+
+  if (uiValidationError) {
+    throw new Error(uiValidationError);
+  }
+
   const hookPlan = buildOpenClawManagerHostSetupPlan({
     repo_root: repoRoot,
     openclaw_bin: options.openclawBin,
@@ -72,6 +82,7 @@ async function main(): Promise<void> {
   console.log(`Host integration mode: ${config.host_integration.mode}`);
   console.log(`Public facts endpoint: ${config.public_facts.endpoint}`);
   console.log(`Public facts auto submit: ${config.public_facts.auto_submit_enabled ? "enabled" : "disabled"}`);
+  console.log("Boundary: never expose the manager sidecar port directly; publish UI only through Gateway WebUI / reverse proxy, and never reuse the public ingest endpoint.");
 
   if (options.dryRun) {
     printDryRun(hookPlan, servicePlan, options);

@@ -34,6 +34,7 @@ This repository now contains a Phase 1 MVP scaffold:
 - an OpenClaw host integration contract under [`docs/openclaw-host-integration.md`](/Users/yangshangqing/metaclaw/docs/openclaw-host-integration.md)
 - a host message capture / admission contract under [`docs/host-message-admission.md`](/Users/yangshangqing/metaclaw/docs/host-message-admission.md)
 - an OpenClaw host pre-routing hook integration contract under [`docs/openclaw-host-prerouting-hook.md`](/Users/yangshangqing/metaclaw/docs/openclaw-host-prerouting-hook.md)
+- a cloud deploy/network boundary under [`docs/cloud-deploy-boundary.md`](/Users/yangshangqing/metaclaw/docs/cloud-deploy-boundary.md)
 - a managed OpenClaw hook pack under [`hooks/openclaw-manager-prerouting/`](/Users/yangshangqing/metaclaw/hooks/openclaw-manager-prerouting)
 - an interaction semantics contract under [`docs/interaction-contract.md`](/Users/yangshangqing/metaclaw/docs/interaction-contract.md)
 - a decision/blocker lifecycle contract under [`docs/decision-blocker-contract.md`](/Users/yangshangqing/metaclaw/docs/decision-blocker-contract.md)
@@ -121,6 +122,8 @@ Verification surfaces:
 - public facts list: `http://142.171.114.18:56557/v1/facts`
 
 By default, `http://127.0.0.1:8791/ui` is not a user-facing mobile URL. Only expose a session console link to end users if you have explicitly published the sidecar behind an external URL.
+
+That external URL must be a Gateway / reverse-proxy URL, not the raw sidecar port and not the public ingest endpoint. See [`docs/cloud-deploy-boundary.md`](/Users/yangshangqing/metaclaw/docs/cloud-deploy-boundary.md).
 
 ## Repository Layout
 

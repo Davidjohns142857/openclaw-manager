@@ -58,6 +58,8 @@ node ~/.openclaw/tools/openclaw-manager/scripts/setup-openclaw-local-chain.ts --
 Published UI flag: `--ui-public-base-url https://your-manager.example.com`
 Short flag form: `--ui-public-base-url`
 
+This published UI URL must be a Gateway / reverse-proxy URL. It must not be the raw sidecar port, and it must not reuse `56557/v1/ingest`.
+
 This setup does three things:
 
 1. writes local runtime config
@@ -84,6 +86,8 @@ Key surfaces:
 - public facts list: `http://142.171.114.18:56557/v1/facts`
 
 `http://127.0.0.1:8791/ui` is only a same-machine admin URL. Do not send it to mobile or remote users unless you have explicitly published the sidecar through an external base URL.
+
+That external base URL must stay separate from public ingest. See [`docs/cloud-deploy-boundary.md`](/Users/yangshangqing/metaclaw/docs/cloud-deploy-boundary.md).
 
 Do not use `http://142.171.114.18:56557/v1/` as the verification target.
 

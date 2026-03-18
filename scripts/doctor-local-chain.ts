@@ -2,6 +2,7 @@ import {
   readLocalChainConfig,
   resolveLocalChainConfigPath
 } from "../src/host/local-chain.ts";
+import { validatePublishedUiBaseUrl } from "../src/shared/ui.ts";
 
 async function main(): Promise<void> {
   const configPath = resolveLocalChainConfigPath();
@@ -21,6 +22,17 @@ async function main(): Promise<void> {
   console.log(`Published UI base URL: ${config.ui.public_base_url ?? "not configured"}`);
   console.log(`Public facts endpoint: ${config.public_facts.endpoint}`);
   console.log(`Public facts auto submit: ${config.public_facts.auto_submit_enabled ? "enabled" : "disabled"}`);
+
+  const uiValidationError = validatePublishedUiBaseUrl(config.ui.public_base_url, {
+    manager_base_url: config.manager_base_url,
+    public_facts_endpoint: config.public_facts.endpoint
+  });
+  if (uiValidationError) {
+    console.log(`Published UI boundary: invalid (${uiValidationError})`);
+    process.exitCode = 1;
+  } else {
+    console.log("Published UI boundary: ok");
+  }
 
   const localHealth = await tryJson(new URL("/health", ensureTrailingSlash(config.manager_base_url)).toString());
   if (!localHealth) {
