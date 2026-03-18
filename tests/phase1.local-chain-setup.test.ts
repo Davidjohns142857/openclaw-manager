@@ -130,7 +130,15 @@ test("published UI base must not reuse sidecar or ingest surfaces", () => {
       manager_base_url: "http://127.0.0.1:8791",
       public_facts_endpoint: "http://142.171.114.18:56557/v1/ingest"
     }) ?? "",
-    /must stay separate from the public ingest/i
+    /must stay on a different public origin or port than the ingest service/i
+  );
+
+  assert.match(
+    validatePublishedUiBaseUrl("http://142.171.114.18:56557/console", {
+      manager_base_url: "http://127.0.0.1:8791",
+      public_facts_endpoint: "http://142.171.114.18:56557/v1/ingest"
+    }) ?? "",
+    /must stay on a different public origin or port than the ingest service/i
   );
 
   assert.equal(

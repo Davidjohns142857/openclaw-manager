@@ -169,7 +169,7 @@
 - 顶部显示 `/health` 的 sidecar 状态
 - 只有 `ui.session_console_url` 非空时，才把它当成可分享的用户入口
 - `ui.local_session_console_url` 只应标记成“本机管理员入口”
-- 快捷 action 按钮（resume、close）
+- 只有 `ui.read_only !== true` 时才显示快捷 action 按钮（resume、close）
 
 ### 4.2 Session 详情页 (`#/sessions/:id`)
 
@@ -323,7 +323,14 @@ Session 列表页每 10 秒自动 poll `/sessions`，详情页每 5 秒 poll ses
 
 - `http://127.0.0.1:8791/ui`
 
-但这只是同机管理面。只有当 sidecar 被显式发布到外部 URL，并且 `/health -> ui.session_console_url` 非空时，前端页面才适合发给手机或远端用户。
+但这只是同机管理面。只有当系统显式发布了外部 UI URL，并且 `/health -> ui.session_console_url` 非空时，前端页面才适合发给手机或远端用户。
+
+当前允许的远程访问形态有两种：
+
+- Gateway / reverse proxy 发布
+- 独立 published read-only UI 代理端口
+
+无论哪种方式，raw sidecar 端口和 ingest 的 `host:port` 都不能直接发给终端用户。
 
 ## 8. 设计方向
 

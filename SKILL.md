@@ -43,7 +43,7 @@ Read `{baseDir}/INSTALL.md` and follow the local-chain setup flow there.
 4. Only discuss remote deploy/update if the user explicitly asks about a remote host or VPS.
 5. Only surface a session console URL to end users when `/health -> ui.session_console_url` is non-null. Do not send `127.0.0.1` URLs to remote or mobile users.
 6. If hook install is unavailable, fall back to manual `/adopt` workflow instead of claiming automatic interception.
-7. Never expose the manager sidecar port to the public internet, and never reuse the public ingest endpoint as a UI origin.
+7. Never expose the manager sidecar port to the public internet. If remote/mobile UI is needed, publish only the dedicated read-only UI proxy or a Gateway/reverse-proxy URL, and never reuse the public ingest host:port as a UI origin.
 8. When checking public facts, verify local sidecar `/health` and the public ingest `/v1/health` / `/v1/facts`, not `/v1/`.
 
 ## References

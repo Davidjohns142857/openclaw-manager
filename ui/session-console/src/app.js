@@ -18,7 +18,8 @@ async function updateHealthIndicator() {
   const el = document.getElementById("sidecar-status");
   try {
     const health = await fetchHealth();
-    el.textContent = `● sidecar:${health.port ?? "?"}  sessions:${health.session_count ?? 0}`;
+    const mode = health.ui?.read_only ? "published-ro" : `sidecar:${health.port ?? "?"}`;
+    el.textContent = `● ${mode}  sessions:${health.session_count ?? 0}`;
     el.className = "nav-status ok";
   } catch {
     el.textContent = "● sidecar offline";

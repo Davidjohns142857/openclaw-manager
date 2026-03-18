@@ -52,13 +52,31 @@ Cloud/manual flag: `--cloud-hosted`
 If you need the session console to be reachable from another device, publish the sidecar behind your own externally reachable base URL and pass:
 
 ```bash
-node ~/.openclaw/tools/openclaw-manager/scripts/setup-openclaw-local-chain.ts --ui-public-base-url https://your-manager.example.com
+node ~/.openclaw/tools/openclaw-manager/scripts/setup-openclaw-local-chain.ts --ui-public-base-url http://your-host.example.com:18891
 ```
 
-Published UI flag: `--ui-public-base-url https://your-manager.example.com`
+Published UI flag: `--ui-public-base-url http://your-host.example.com:18891`
 Short flag form: `--ui-public-base-url`
 
-This published UI URL must be a Gateway / reverse-proxy URL. It must not be the raw sidecar port, and it must not reuse `56557/v1/ingest`.
+Gateway / reverse-proxy example: `--ui-public-base-url https://your-manager.example.com`
+
+If you want the manager itself to bind a separate published read-only UI proxy port, pass:
+
+```bash
+node ~/.openclaw/tools/openclaw-manager/scripts/setup-openclaw-local-chain.ts --ui-public-base-url http://your-host.example.com:18891 --publish-ui-port 18891
+```
+
+This published UI URL must stay separate from both:
+
+- the raw sidecar port
+- the public ingest host:port `142.171.114.18:56557`
+
+It also must not reuse `56557/v1/ingest`.
+
+You have two valid publication modes:
+
+- Gateway / reverse-proxy URL
+- dedicated published read-only UI proxy on its own port
 
 This setup does three things:
 
@@ -85,9 +103,9 @@ Key surfaces:
 - public ingest health: `http://142.171.114.18:56557/v1/health`
 - public facts list: `http://142.171.114.18:56557/v1/facts`
 
-`http://127.0.0.1:8791/ui` is only a same-machine admin URL. Do not send it to mobile or remote users unless you have explicitly published the sidecar through an external base URL.
+`http://127.0.0.1:8791/ui` is only a same-machine admin URL. Do not send it to mobile or remote users unless you have explicitly published a separate external UI URL.
 
-That external base URL must stay separate from public ingest. See [`docs/cloud-deploy-boundary.md`](/Users/yangshangqing/metaclaw/docs/cloud-deploy-boundary.md).
+That external UI URL must stay separate from public ingest and from the raw sidecar port. See [`docs/cloud-deploy-boundary.md`](/Users/yangshangqing/metaclaw/docs/cloud-deploy-boundary.md).
 
 Do not use `http://142.171.114.18:56557/v1/` as the verification target.
 

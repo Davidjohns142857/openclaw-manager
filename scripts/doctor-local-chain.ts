@@ -20,6 +20,8 @@ async function main(): Promise<void> {
   console.log(`Host integration mode: ${config.host_integration.mode}`);
   console.log(`Host integration reason: ${config.host_integration.reason ?? "none"}`);
   console.log(`Published UI base URL: ${config.ui.public_base_url ?? "not configured"}`);
+  console.log(`Published UI proxy port: ${config.ui.publish_port ?? "not configured"}`);
+  console.log(`Published UI bind host: ${config.ui.publish_bind_host}`);
   console.log(`Public facts endpoint: ${config.public_facts.endpoint}`);
   console.log(`Public facts auto submit: ${config.public_facts.auto_submit_enabled ? "enabled" : "disabled"}`);
 
@@ -45,6 +47,19 @@ async function main(): Promise<void> {
   console.log(JSON.stringify(localHealth, null, 2));
   if (config.host_integration.mode === "manual_adopt") {
     console.log("Manual workflow: keep normal conversation and use /adopt when a task should become durable.");
+  }
+
+  if (config.ui.publish_port !== null) {
+    const publishedHealth = await tryJson(
+      `http://127.0.0.1:${config.ui.publish_port}/health`
+    );
+    if (!publishedHealth) {
+      console.log("Published UI proxy health: unreachable");
+      process.exitCode = 1;
+    } else {
+      console.log("Published UI proxy health: ok");
+      console.log(JSON.stringify(publishedHealth, null, 2));
+    }
   }
 
   const publicHealth = await tryJson(rewriteToHealth(config.public_facts.endpoint));

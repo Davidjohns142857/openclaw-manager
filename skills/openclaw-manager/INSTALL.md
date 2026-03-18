@@ -58,12 +58,30 @@ node ~/.openclaw/tools/openclaw-manager/scripts/setup-openclaw-local-chain.ts --
 To make the session console reachable from another device, publish the sidecar behind an external origin and run:
 
 ```bash
-node ~/.openclaw/tools/openclaw-manager/scripts/setup-openclaw-local-chain.ts --ui-public-base-url https://your-manager.example.com
+node ~/.openclaw/tools/openclaw-manager/scripts/setup-openclaw-local-chain.ts --ui-public-base-url http://your-host.example.com:18891
 ```
 
-Published UI flag: `--ui-public-base-url https://your-manager.example.com`
+Published UI flag: `--ui-public-base-url http://your-host.example.com:18891`
 
-This published UI URL must be a Gateway / reverse-proxy URL. It must not be the raw sidecar port, and it must not reuse `56557/v1/ingest`.
+Gateway / reverse-proxy example: `--ui-public-base-url https://your-manager.example.com`
+
+If you want the manager itself to bind a dedicated published read-only UI proxy port, add:
+
+```bash
+node ~/.openclaw/tools/openclaw-manager/scripts/setup-openclaw-local-chain.ts --ui-public-base-url http://your-host.example.com:18891 --publish-ui-port 18891
+```
+
+This published UI URL must stay separate from:
+
+- the raw sidecar port
+- the public ingest host:port `142.171.114.18:56557`
+
+It also must not reuse `56557/v1/ingest`.
+
+Valid publication modes are:
+
+- Gateway / reverse-proxy URL
+- dedicated published read-only UI proxy on its own port
 
 Verification:
 
@@ -105,7 +123,9 @@ The default setup assumes:
 - OpenClaw Gateway and `openclaw-manager` sidecar run on the same machine
 - the sidecar listens at `http://127.0.0.1:8791`
 - `http://127.0.0.1:8791/ui` is only a same-machine admin URL unless you explicitly publish an external UI base URL
-- the external UI base must stay separate from public ingest and should normally sit behind OpenClaw Gateway WebUI / reverse proxy
+- the external UI base must stay separate from public ingest and can be either:
+  - a Gateway / reverse-proxy URL
+  - a dedicated published read-only UI proxy on its own port
 
 This normal setup should not be treated as:
 

@@ -20,6 +20,8 @@ interface CliOptions {
   managerPort?: number;
   stateRoot?: string;
   uiPublicBaseUrl?: string;
+  publishUiPort?: number;
+  publishUiBindHost?: string;
   enablePublicFacts: boolean;
   publicFactsEndpoint?: string;
   cloudHosted: boolean;
@@ -37,7 +39,9 @@ async function main(): Promise<void> {
       state_root: options.stateRoot
     },
     ui: {
-      public_base_url: options.uiPublicBaseUrl
+      public_base_url: options.uiPublicBaseUrl,
+      publish_port: options.publishUiPort,
+      publish_bind_host: options.publishUiBindHost
     },
     hook: {
       enabled: !(options.cloudHosted || options.skipHook)
@@ -79,10 +83,11 @@ async function main(): Promise<void> {
   console.log(`Config: ${configPath}`);
   console.log(`Manager base URL: ${config.manager_base_url}`);
   console.log(`Published UI base URL: ${config.ui.public_base_url ?? "not configured"}`);
+  console.log(`Published UI proxy port: ${config.ui.publish_port ?? "not configured"}`);
   console.log(`Host integration mode: ${config.host_integration.mode}`);
   console.log(`Public facts endpoint: ${config.public_facts.endpoint}`);
   console.log(`Public facts auto submit: ${config.public_facts.auto_submit_enabled ? "enabled" : "disabled"}`);
-  console.log("Boundary: never expose the manager sidecar port directly; publish UI only through Gateway WebUI / reverse proxy, and never reuse the public ingest endpoint.");
+  console.log("Boundary: never expose the manager sidecar port directly; publish UI only through Gateway WebUI / reverse proxy or a dedicated read-only UI proxy port, and never reuse the public ingest host:port.");
 
   if (options.dryRun) {
     printDryRun(hookPlan, servicePlan, options);
@@ -159,7 +164,10 @@ function parseArgs(argv: string[]): CliOptions {
         index += 1;
         break;
       case "--manager-port":
-        options.managerPort = Number.parseInt(argv[index + 1] ?? "", 10);
+        {
+          const parsed = Number.parseInt(argv[index + 1] ?? "", 10);
+          options.managerPort = Number.isFinite(parsed) ? parsed : undefined;
+        }
         index += 1;
         break;
       case "--state-root":
@@ -168,6 +176,17 @@ function parseArgs(argv: string[]): CliOptions {
         break;
       case "--ui-public-base-url":
         options.uiPublicBaseUrl = argv[index + 1];
+        index += 1;
+        break;
+      case "--publish-ui-port":
+        {
+          const parsed = Number.parseInt(argv[index + 1] ?? "", 10);
+          options.publishUiPort = Number.isFinite(parsed) ? parsed : undefined;
+        }
+        index += 1;
+        break;
+      case "--publish-ui-bind-host":
+        options.publishUiBindHost = argv[index + 1];
         index += 1;
         break;
       case "--enable-public-facts":
@@ -223,9 +242,17 @@ function printDryRun(
   }
 
   if (options.uiPublicBaseUrl?.trim()) {
-    console.log(`\nPublished UI: ${options.uiPublicBaseUrl.trim().replace(/\/$/u, "")}/ui`);
+    console.log(`\nPublished UI URL: ${options.uiPublicBaseUrl.trim().replace(/\/$/u, "")}/ui`);
   } else {
-    console.log("\nPublished UI: not configured; /ui remains local-only.");
+    console.log("\nPublished UI URL: not configured; /ui remains local-only.");
+  }
+
+  if (options.publishUiPort) {
+    console.log(
+      `Published UI proxy: ${options.publishUiBindHost?.trim() || "0.0.0.0"}:${options.publishUiPort} (read-only)`
+    );
+  } else {
+    console.log("Published UI proxy: not configured.");
   }
 }
 
