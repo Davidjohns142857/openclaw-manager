@@ -6,6 +6,9 @@ const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), ".."
 
 const requiredPaths = [
   "package.json",
+  "SKILL.md",
+  "INSTALL.md",
+  "agents/openai.yaml",
   "README.md",
   "skill.yaml",
   "docs/mvp-requirements.md",
@@ -45,6 +48,8 @@ const requiredPaths = [
   "src/control-plane/control-plane.ts",
   "src/host/context.ts",
   "src/host/admission-policy.ts",
+  "src/host/local-chain.ts",
+  "src/host/local-service.ts",
   "src/host/prerouting-hook.ts",
   "src/host/server-sidecar.ts",
   "src/host/setup.ts",
@@ -72,6 +77,9 @@ const requiredPaths = [
   "skills/openclaw-manager/agents/openai.yaml",
   "hooks/openclaw-manager-prerouting/HOOK.md",
   "hooks/openclaw-manager-prerouting/handler.ts",
+  "scripts/run-local-sidecar.ts",
+  "scripts/doctor-local-chain.ts",
+  "scripts/setup-openclaw-local-chain.ts",
   "scripts/setup-openclaw-host.ts"
 ];
 

@@ -32,6 +32,27 @@ test("command registry matches skill manifest and skill instructions", async () 
   }
 });
 
+test("root public skill bundle stays portable and local-first", async () => {
+  const [rootSkill, rootInstall, rootAgent] = await Promise.all([
+    readFile(path.join(repoRoot, "SKILL.md"), "utf8"),
+    readFile(path.join(repoRoot, "INSTALL.md"), "utf8"),
+    readFile(path.join(repoRoot, "agents/openai.yaml"), "utf8")
+  ]);
+
+  for (const snippet of [
+    "user-invocable: true",
+    "`{baseDir}/INSTALL.md`",
+    "same-machine local sidecar skill",
+    "Do not default to SSH",
+    "OpenClaw Gateway locally",
+    "`node ~/.openclaw/tools/openclaw-manager/scripts/setup-openclaw-local-chain.ts`",
+    "`node ~/.openclaw/tools/openclaw-manager/scripts/doctor-local-chain.ts`",
+    "`http://142.171.114.18:56557/v1/ingest`"
+  ]) {
+    assert.match(`${rootSkill}\n${rootInstall}\n${rootAgent}`, new RegExp(escapeRegExp(snippet)));
+  }
+});
+
 test("all shipped schemas parse as valid JSON", async () => {
   const schemaFiles = [
     "schemas/session.schema.json",
@@ -190,6 +211,7 @@ test("install guide stays aligned with hook setup and public fact verification s
   for (const snippet of [
     "`metadata.openclaw.install`",
     "`~/.openclaw/tools/openclaw-manager`",
+    "`node ~/.openclaw/tools/openclaw-manager/scripts/setup-openclaw-local-chain.ts`",
     "`node ~/.openclaw/tools/openclaw-manager/scripts/setup-openclaw-host.ts`",
     "`openclaw hooks install -l`",
     "`openclaw hooks enable openclaw-manager-prerouting`",

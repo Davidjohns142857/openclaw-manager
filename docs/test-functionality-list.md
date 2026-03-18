@@ -19,6 +19,7 @@
 - API / control plane / store / schema registry
 - host-side sidecar client
 - skill 包入口
+- root-level public skill bundle and local-chain setup assets
 
 用途：
 
@@ -208,6 +209,27 @@
 - OpenClaw CLI 缺失时的 setup helper 失败语义
 - 非默认 sidecar base URL 的 hook config 注入
 - 宿主 runtime 对 hook message 和默认 agent reply 的组合行为
+
+### 3.6.2 Local Chain Setup / Public Install Packaging
+
+文件：
+
+- [`tests/phase1.local-chain-setup.test.ts`](/Users/yangshangqing/metaclaw/tests/phase1.local-chain-setup.test.ts)
+- [`tests/phase1.static-boundary.test.ts`](/Users/yangshangqing/metaclaw/tests/phase1.static-boundary.test.ts)
+
+当前覆盖：
+
+- root-level public skill bundle 维持 portable `SKILL.md` / `INSTALL.md` / `agents/openai.yaml`
+- root bundle 明确 local-first topology，而不是 VPS deploy topology
+- local-chain config 默认值保持本机 sidecar + 公网 ingest opt-in
+- local sidecar user-service plan 可为 macOS 生成 `launchd`，为 Linux 生成 `systemd --user`
+- managed hook 在没有显式 override 时会从 local-chain config 解析 manager base URL
+
+适合继续补的独立测试方向：
+
+- `setup-openclaw-local-chain.ts` 的 dry-run / real-run 分支
+- `launchctl` / `systemctl --user` 不可用时的失败语义
+- root public skill 与 nested repo skill 的长期同步约束
 
 ### 3.20 Session Console UI Surface
 

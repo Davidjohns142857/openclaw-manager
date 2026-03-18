@@ -154,7 +154,15 @@ Phase 1 当前接受的启动方式是：
 - 宿主命令先做 `/health` 检查
 - sidecar 不可用时，宿主返回明确错误，而不是 silently fallback 到本地逻辑
 
-当前不要求在宿主层内自动拉起 sidecar 进程；这是后续增强项，不是这一阶段的强约束。
+当前 canonical host adapter 仍然不负责在运行时动态拉起 sidecar 进程；但 public install 现在已经提供了一层本机 local-chain wrapper：
+
+- `scripts/setup-openclaw-local-chain.ts`
+- `scripts/run-local-sidecar.ts`
+
+它会在安装后把 sidecar 作为同机 user service 管理起来。也就是说：
+
+- host boundary 仍然保持 thin
+- 但大众安装路径不再要求用户手工盯着 sidecar 进程
 
 错误处理要求：
 

@@ -10,6 +10,9 @@
   "scripts": {
     "start": "node src/main.ts",
     "dev": "node src/main.ts",
+    "local:start": "node scripts/run-local-sidecar.ts",
+    "local:setup": "node scripts/setup-openclaw-local-chain.ts",
+    "local:doctor": "node scripts/doctor-local-chain.ts",
     "smoke": "node scripts/smoke.ts",
     "check:structure": "node scripts/verify-structure.ts",
     "typecheck": "tsc --noEmit",

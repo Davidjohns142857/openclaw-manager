@@ -28,28 +28,50 @@ That means:
 
 - the skill can be installed automatically
 - the manager bundle can be downloaded automatically
-- enabling host pre-routing still requires one explicit setup command
+- enabling the full local chain still requires one explicit setup command
 
 ## One-Time Setup
 
 After install, run:
 
 ```bash
-node ~/.openclaw/tools/openclaw-manager/scripts/setup-openclaw-host.ts
+node ~/.openclaw/tools/openclaw-manager/scripts/setup-openclaw-local-chain.ts
 ```
 
-Canonical one-line command: `node ~/.openclaw/tools/openclaw-manager/scripts/setup-openclaw-host.ts`
+Canonical one-line command: `node ~/.openclaw/tools/openclaw-manager/scripts/setup-openclaw-local-chain.ts`
+
+To enable public facts auto-submit during setup:
+
+```bash
+node ~/.openclaw/tools/openclaw-manager/scripts/setup-openclaw-local-chain.ts --enable-public-facts
+```
+
+Verification:
+
+```bash
+node ~/.openclaw/tools/openclaw-manager/scripts/doctor-local-chain.ts
+```
 
 This helper will:
 
+- write local runtime config
 - install the managed hook from `hooks/openclaw-manager-prerouting/`
 - enable that hook in OpenClaw
+- install a local sidecar user service
 - remind you to restart the OpenClaw gateway
 
 The underlying OpenClaw CLI calls are:
 
 - `openclaw hooks install -l`
 - `openclaw hooks enable openclaw-manager-prerouting`
+
+If you only want the hook setup without local service/runtime config, use:
+
+```bash
+node ~/.openclaw/tools/openclaw-manager/scripts/setup-openclaw-host.ts
+```
+
+Canonical hook-only command: `node ~/.openclaw/tools/openclaw-manager/scripts/setup-openclaw-host.ts`
 
 To disable the hook later:
 
@@ -63,6 +85,13 @@ The default setup assumes:
 
 - OpenClaw Gateway and `openclaw-manager` sidecar run on the same machine
 - the sidecar listens at `http://127.0.0.1:8791`
+
+This normal setup should not be treated as:
+
+- cloning the repo onto a VPS
+- restarting a remote `systemd` service
+- remote SSH maintenance
+- remote code deployment
 
 If you use a different local port, set:
 
