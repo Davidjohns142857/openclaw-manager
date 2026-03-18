@@ -4,6 +4,7 @@ import path from "node:path";
 
 import { bootstrapManager } from "../src/skill/bootstrap.ts";
 import { ManagerServer } from "../src/api/server.ts";
+import { PublishedUiServer } from "../src/api/published-ui-server.ts";
 import type { ManagerConfig } from "../src/shared/types.ts";
 
 export async function createTempManager(overrides: Partial<ManagerConfig> = {}) {
@@ -86,6 +87,42 @@ export async function startTempSidecar(overrides: Partial<ManagerConfig> = {}) {
   };
 }
 
+export async function startTempPublishedUi(overrides: Partial<ManagerConfig> = {}) {
+  const manager = await createTempManager({
+    ...overrides,
+    port: overrides.port ?? 9911,
+    ui: {
+      public_base_url: "https://manager.example.com",
+      publish_port: 0,
+      publish_bind_host: "127.0.0.1",
+      ...overrides.ui
+    }
+  });
+  const server = new PublishedUiServer(
+    manager.controlPlane,
+    manager.config,
+    manager.publicFactAutoSubmitService
+  );
+  await server.start();
+
+  const address = server.server.address();
+  if (!address || typeof address === "string") {
+    await server.stop();
+    await manager.cleanup();
+    throw new Error("Failed to resolve temporary published UI address.");
+  }
+
+  return {
+    ...manager,
+    server,
+    baseUrl: `http://127.0.0.1:${address.port}`,
+    async cleanup() {
+      await server.stop();
+      await manager.cleanup();
+    }
+  };
+}
+
 export async function pathExists(filePath: string): Promise<boolean> {
   try {
     await access(filePath);
@@ -113,11 +150,26 @@ export function sessionPaths(tempRoot: string, sessionId: string, runId: string)
 }
 
 export async function dispatchRoute(
-  server: ManagerServer,
+  server: { route: (request: never, response: never) => Promise<void> },
   method: string,
   url: string,
   body?: unknown
 ): Promise<{ statusCode: number; headers: Record<string, unknown>; body: unknown }> {
+  const result = await dispatchRawRoute(server, method, url, body);
+
+  return {
+    statusCode: result.statusCode,
+    headers: result.headers,
+    body: result.bodyText ? JSON.parse(result.bodyText) : null
+  };
+}
+
+export async function dispatchRawRoute(
+  server: { route: (request: never, response: never) => Promise<void> },
+  method: string,
+  url: string,
+  body?: unknown
+): Promise<{ statusCode: number; headers: Record<string, unknown>; bodyText: string }> {
   const payload = body === undefined ? "" : JSON.stringify(body);
   const request = {
     method,
@@ -148,6 +200,6 @@ export async function dispatchRoute(
   return {
     statusCode,
     headers,
-    body: responseText ? JSON.parse(responseText) : null
+    bodyText: responseText
   };
 }

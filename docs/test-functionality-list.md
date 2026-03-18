@@ -158,6 +158,8 @@
 - 默认情况下 `/health -> ui.session_console_url` 为 `null`，避免把 `127.0.0.1` 误发给远端用户
 - 同机管理面地址通过 `/health -> ui.local_session_console_url` 稳定发现
 - 只有显式配置公开 UI base URL 后，`/health -> ui.session_console_url` 才对外可用
+- published read-only UI 代理与 raw sidecar 分离，公开只读 GET 面，不暴露 mutation
+- published UI 不得复用 ingest 的 `host:port`
 
 适合继续补的独立测试方向：
 
@@ -550,6 +552,7 @@
 - run lifecycle and evidence refs
 - session status derivation
 - run timeline and evidence view
+- published read-only UI proxy
 - local-only distilled node/scenario stats
 - local capability-fact / outbox / submit pipeline
 - `session.activity` 与 `focus` 的基础交互语义

@@ -42,6 +42,8 @@ const requiredPaths = [
   "templates/session-summary.md",
   "src/main.ts",
   "src/api/server.ts",
+  "src/api/published-ui-server.ts",
+  "src/api/ui-assets.ts",
   "src/api/contracts.ts",
   "src/connectors/browser.ts",
   "src/connectors/github.ts",

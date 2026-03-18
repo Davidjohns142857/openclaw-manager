@@ -10,13 +10,14 @@
 - 直接把 `127.0.0.1:8791` 暴露到公网
 - 让终端用户直接访问 sidecar 原生端口
 - 复用 public ingest 端点当作 UI 地址
+- 复用 public ingest 的同一个 `host:port` 当作 UI 地址
 - 复用 `56557/v1/ingest`、`/v1/health`、`/v1/facts` 这组公网 API 做前端页面
 
 Manager sidecar 是本机控制面，不是公网 Web 应用。
 
 ## 2. 允许的形态
 
-允许的边界只有两种：
+允许的边界有三种：
 
 1. 本机管理员模式
 
@@ -31,12 +32,20 @@ Manager sidecar 是本机控制面，不是公网 Web 应用。
 - 云端通常不会直接暴露 `:18789`，而是由外层 reverse proxy 映射成公网 URL
 - 如果要让手机或远端用户看页面，应该发布一个 Gateway / reverse-proxy URL，再把它配置成 `OPENCLAW_MANAGER_UI_PUBLIC_BASE_URL`
 
+3. 独立 published read-only UI 代理
+
+- sidecar 仍然监听 `127.0.0.1:8791`
+- 单独起一个只读 UI 代理进程，绑定到独立端口，例如 `0.0.0.0:18891`
+- 这个代理只暴露 `/ui` 和只读 GET 面，不暴露 sidecar mutation API
+- 公开给手机或远端用户的是这个独立端口，不是 sidecar 原生端口
+
 也就是说，公开页面必须是：
 
 - Gateway 自己的公开 Web surface
 - 或 Gateway 前面的 reverse proxy path
+- 或独立 published read-only UI 代理的独立端口
 
-绝不能是 sidecar 原生端口。
+绝不能是 sidecar 原生端口，也绝不能是 ingest 的 `host:port`。
 
 ## 3. 与 Public Ingest 的关系
 
@@ -77,9 +86,10 @@ Manager sidecar 是本机控制面，不是公网 Web 应用。
 
 1. 挂到 OpenClaw Gateway 已有公开 Web surface 下
 2. 挂到 Gateway 前面的 reverse proxy 路径下
-3. 单独部署只读 dashboard 服务
+3. 使用 manager 自带的独立 published read-only UI 代理端口
+4. 单独部署只读 dashboard 服务
 
 不推荐，也不允许：
 
 - 直接开放 sidecar 端口
-- 直接复用 ingest 机器 / 端点
+- 直接复用 ingest 的 `host:port` / 端点

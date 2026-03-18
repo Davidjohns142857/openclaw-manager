@@ -1,4 +1,5 @@
 import {
+  fetchHealth,
   fetchSessionDetail,
   fetchSessionTimeline,
   resumeSession,
@@ -36,17 +37,19 @@ export function mount({ session_id }) {
 
 async function load(sessionId) {
   try {
-    const [detail, timeline] = await Promise.all([
+    const [health, detail, timeline] = await Promise.all([
+      fetchHealth(),
       fetchSessionDetail(sessionId),
       fetchSessionTimeline(sessionId)
     ]);
-    renderDetail(detail, timeline);
+    renderDetail(health, detail, timeline);
   } catch (err) {
     render(`<div class="empty-state">Failed to load session: ${esc(err.message)}</div>`);
   }
 }
 
-function renderDetail({ session: s, run, checkpoint, summary }, timeline) {
+function renderDetail(health, { session: s, run, checkpoint, summary }, timeline) {
+  const readOnly = health?.ui?.read_only === true;
   const activity = s.activity ?? {};
 
   render(`
@@ -64,11 +67,17 @@ function renderDetail({ session: s, run, checkpoint, summary }, timeline) {
     </div>
 
     <!-- Actions -->
-    <div style="display:flex;gap:var(--space-sm);margin-bottom:var(--space-xl);">
-      <button class="btn btn-primary" data-action="resume">▶ Resume</button>
-      <button class="btn" data-action="checkpoint">⟳ Checkpoint</button>
-      <button class="btn btn-danger" data-action="close">✕ Close</button>
-    </div>
+    ${
+      readOnly
+        ? `<div class="card" style="margin-bottom:var(--space-xl);font-size:13px;color:var(--text-secondary);">
+            Published console is read-only. Use local OpenClaw commands such as <code>/resume</code>, <code>/checkpoint</code>, or <code>/close</code>.
+          </div>`
+        : `<div style="display:flex;gap:var(--space-sm);margin-bottom:var(--space-xl);">
+            <button class="btn btn-primary" data-action="resume">▶ Resume</button>
+            <button class="btn" data-action="checkpoint">⟳ Checkpoint</button>
+            <button class="btn btn-danger" data-action="close">✕ Close</button>
+          </div>`
+    }
 
     <div class="detail-grid">
       <!-- Left: Session State -->

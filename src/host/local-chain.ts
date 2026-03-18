@@ -13,6 +13,8 @@ export interface OpenClawManagerLocalChainConfig {
   };
   ui: {
     public_base_url: string | null;
+    publish_port: number | null;
+    publish_bind_host: string;
   };
   hook: {
     enabled: boolean;
@@ -69,7 +71,13 @@ export function createDefaultLocalChainConfig(
       )
     },
     ui: {
-      public_base_url: normalizeOptionalBaseUrl(overrides.ui?.public_base_url)
+      public_base_url: normalizeOptionalBaseUrl(overrides.ui?.public_base_url),
+      publish_port:
+        typeof overrides.ui?.publish_port === "number" &&
+        Number.isFinite(overrides.ui.publish_port)
+          ? overrides.ui.publish_port
+          : inferPublishedUiPort(normalizeOptionalBaseUrl(overrides.ui?.public_base_url)),
+      publish_bind_host: overrides.ui?.publish_bind_host?.trim() || "0.0.0.0"
     },
     hook: {
       enabled: overrides.hook?.enabled ?? true,
@@ -134,6 +142,12 @@ export function applyLocalChainConfigToEnv(
   } else {
     delete env.OPENCLAW_MANAGER_UI_PUBLIC_BASE_URL;
   }
+  if (config.ui.publish_port !== null) {
+    env.OPENCLAW_MANAGER_UI_PUBLISH_PORT = `${config.ui.publish_port}`;
+  } else {
+    delete env.OPENCLAW_MANAGER_UI_PUBLISH_PORT;
+  }
+  env.OPENCLAW_MANAGER_UI_PUBLISH_BIND_HOST = config.ui.publish_bind_host;
   env.OPENCLAW_MANAGER_HOST_INTEGRATION_MODE = config.host_integration.mode;
   if (config.host_integration.reason) {
     env.OPENCLAW_MANAGER_HOST_INTEGRATION_REASON = config.host_integration.reason;
@@ -186,6 +200,13 @@ function normalizeLocalChainConfig(raw: Record<string, unknown>): OpenClawManage
     ? {
         ...(typeof uiRecord.public_base_url === "string"
           ? { public_base_url: uiRecord.public_base_url }
+          : {}),
+        ...(typeof uiRecord.publish_port === "number" &&
+          Number.isFinite(uiRecord.publish_port)
+          ? { publish_port: uiRecord.publish_port }
+          : {}),
+        ...(typeof uiRecord.publish_bind_host === "string"
+          ? { publish_bind_host: uiRecord.publish_bind_host }
           : {})
       }
     : undefined;
@@ -255,6 +276,24 @@ function normalizeOptionalBaseUrl(baseUrl: string | null | undefined): string | 
   }
 
   return normalizeBaseUrl(baseUrl.trim());
+}
+
+function inferPublishedUiPort(baseUrl: string | null): number | null {
+  if (!baseUrl) {
+    return null;
+  }
+
+  try {
+    const url = new URL(baseUrl);
+    if (url.port) {
+      const parsed = Number.parseInt(url.port, 10);
+      return Number.isFinite(parsed) ? parsed : null;
+    }
+  } catch {
+    return null;
+  }
+
+  return null;
 }
 
 function expandHomePath(value: string): string {

@@ -471,6 +471,8 @@ export interface ManagerFeatureFlags {
 
 export interface ManagerUiConfig {
   public_base_url: string | null;
+  publish_port: number | null;
+  publish_bind_host: string;
 }
 
 export interface HostIntegrationConfig {

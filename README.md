@@ -121,9 +121,14 @@ Verification surfaces:
 - public ingest health: `http://142.171.114.18:56557/v1/health`
 - public facts list: `http://142.171.114.18:56557/v1/facts`
 
-By default, `http://127.0.0.1:8791/ui` is not a user-facing mobile URL. Only expose a session console link to end users if you have explicitly published the sidecar behind an external URL.
+By default, `http://127.0.0.1:8791/ui` is not a user-facing mobile URL. Only expose a session console link to end users if you have explicitly published a separate external UI URL.
 
-That external URL must be a Gateway / reverse-proxy URL, not the raw sidecar port and not the public ingest endpoint. See [`docs/cloud-deploy-boundary.md`](/Users/yangshangqing/metaclaw/docs/cloud-deploy-boundary.md).
+Valid publication modes are:
+
+- a Gateway / reverse-proxy URL
+- a dedicated published read-only UI proxy on its own port
+
+That external UI URL must not be the raw sidecar port and must not reuse the public ingest endpoint or host:port. See [`docs/cloud-deploy-boundary.md`](/Users/yangshangqing/metaclaw/docs/cloud-deploy-boundary.md).
 
 ## Repository Layout
 

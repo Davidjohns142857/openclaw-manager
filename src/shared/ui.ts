@@ -43,10 +43,6 @@ export function validatePublishedUiBaseUrl(
     return "Published UI base URL must not point at localhost; keep local admin access on /health -> ui.local_session_console_url.";
   }
 
-  if (/^\/v1\/(ingest|health|facts)\/?$/u.test(published.pathname)) {
-    return "Published UI base URL must stay separate from the public ingest API surface.";
-  }
-
   try {
     manager = new URL(options.manager_base_url);
   } catch {
@@ -65,12 +61,12 @@ export function validatePublishedUiBaseUrl(
     return "Published UI base URL must not point at the manager sidecar port; publish through Gateway WebUI / reverse proxy instead of exposing sidecar directly.";
   }
 
-  if (
-    ingest &&
-    published.origin === ingest.origin &&
-    (/^\/v1(\/|$)/u.test(published.pathname) || published.pathname === ingest.pathname)
-  ) {
-    return "Published UI base URL must stay separate from the public ingest origin/path; do not reuse /v1/ingest or related API routes.";
+  if (ingest && published.origin === ingest.origin) {
+    return "Published UI base URL must stay on a different public origin or port than the ingest service; do not reuse the ingest host:port for user-facing UI.";
+  }
+
+  if (/^\/v1\/(ingest|health|facts)\/?$/u.test(published.pathname)) {
+    return "Published UI base URL must stay separate from the public ingest API surface.";
   }
 
   return null;

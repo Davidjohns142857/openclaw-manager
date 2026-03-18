@@ -43,7 +43,8 @@ export function mount() {
 function renderOutbox(health, batches) {
   const counts = countByState(batches);
   const autoSubmit = health.public_facts?.auto_submit ?? {};
-  const consoleUrl = health.ui?.session_console_url ?? "/ui";
+  const consoleUrl = health.ui?.session_console_url ?? health.ui?.local_session_console_url ?? "/ui";
+  const readOnly = health.ui?.read_only === true;
 
   render(`
     <div class="section-header">Public Facts Outbox</div>
@@ -55,6 +56,7 @@ function renderOutbox(health, batches) {
         <li class="data-item"><span class="data-key">Sessions</span><span class="data-value">${health.session_count ?? 0}</span></li>
         <li class="data-item"><span class="data-key">Port</span><span class="data-value">${health.port ?? "—"}</span></li>
         <li class="data-item"><span class="data-key">Console</span><span class="data-value"><a href="${esc(consoleUrl)}">${esc(consoleUrl)}</a></span></li>
+        <li class="data-item"><span class="data-key">Mode</span><span class="data-value">${readOnly ? "published read-only" : "local control-plane"}</span></li>
       </ul>
     </div>
 
@@ -67,10 +69,16 @@ function renderOutbox(health, batches) {
         <div class="metric-item"><span>Retryable</span><span class="metric-value">${counts.failed_retryable}</span></div>
         <div class="metric-item"><span>Dead Letter</span><span class="metric-value">${counts.dead_letter}</span></div>
       </div>
-      <div style="margin-top:var(--space-md);display:flex;gap:var(--space-sm);flex-wrap:wrap;">
-        <button class="btn btn-primary" data-submit-mode="http">Submit HTTP</button>
-        <button class="btn" data-submit-mode="dry-run">Dry Run</button>
-      </div>
+      ${
+        readOnly
+          ? `<div style="margin-top:var(--space-md);font-size:13px;color:var(--text-secondary);">
+              Published console is read-only. Use local OpenClaw or the local admin console to submit batches.
+            </div>`
+          : `<div style="margin-top:var(--space-md);display:flex;gap:var(--space-sm);flex-wrap:wrap;">
+              <button class="btn btn-primary" data-submit-mode="http">Submit HTTP</button>
+              <button class="btn" data-submit-mode="dry-run">Dry Run</button>
+            </div>`
+      }
     </div>
 
     <div class="card">
