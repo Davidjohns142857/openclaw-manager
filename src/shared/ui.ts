@@ -1,3 +1,5 @@
+export const DEFAULT_PUBLISHED_UI_PROXY_PORT = 18891;
+
 export function normalizeBaseUrl(baseUrl: string): string {
   return baseUrl.endsWith("/") ? baseUrl : `${baseUrl}/`;
 }
@@ -70,6 +72,27 @@ export function validatePublishedUiBaseUrl(
   }
 
   return null;
+}
+
+export function derivePublishedUiBaseUrlFromPublicFactsEndpoint(
+  publicFactsEndpoint: string,
+  publishPort: number = DEFAULT_PUBLISHED_UI_PROXY_PORT
+): string | null {
+  try {
+    const ingest = new URL(publicFactsEndpoint);
+    if (isLocalhostHost(ingest.hostname) || !Number.isFinite(publishPort)) {
+      return null;
+    }
+
+    const published = new URL(`${ingest.protocol}//${ingest.host}`);
+    published.port = `${publishPort}`;
+    published.pathname = "";
+    published.search = "";
+    published.hash = "";
+    return published.toString().replace(/\/$/u, "");
+  } catch {
+    return null;
+  }
 }
 
 function isLocalhostHost(hostname: string): boolean {

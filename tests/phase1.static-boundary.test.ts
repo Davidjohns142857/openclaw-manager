@@ -306,6 +306,45 @@ test("health exposes a published console url only when explicitly configured", a
   }
 });
 
+test("manual-adopt plus auto-submit derives a published console url from the public facts host", async () => {
+  const manager = await createTempManager({
+    host_integration: {
+      mode: "manual_adopt",
+      reason: "cloud_gateway_unavailable"
+    },
+    public_facts: {
+      auto_submit_enabled: true,
+      endpoint: "http://142.171.114.18:56557/v1/ingest"
+    }
+  });
+
+  try {
+    const server = new ManagerServer(
+      manager.controlPlane,
+      manager.config,
+      manager.publicFactAutoSubmitService
+    );
+    const healthResponse = await dispatchRoute(server, "GET", "/health");
+    assert.equal(healthResponse.statusCode, 200);
+    const health = healthResponse.body as {
+      ui?: {
+        session_console_url?: string | null;
+        access_mode?: string;
+        publish_proxy?: {
+          enabled?: boolean;
+          port?: number | null;
+        };
+      };
+    };
+    assert.equal(health.ui?.session_console_url, "http://142.171.114.18:18891/ui");
+    assert.equal(health.ui?.access_mode, "published_proxy");
+    assert.equal(health.ui?.publish_proxy?.enabled, true);
+    assert.equal(health.ui?.publish_proxy?.port, 18891);
+  } finally {
+    await manager.cleanup();
+  }
+});
+
 test("server route layer exports canonical session activity and command boundary works", async () => {
   const manager = await createTempManager();
 

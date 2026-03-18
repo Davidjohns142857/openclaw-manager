@@ -9,7 +9,11 @@ import {
   writeLocalChainConfig
 } from "../src/host/local-chain.ts";
 import { buildLocalSidecarServicePlan } from "../src/host/local-service.ts";
-import { validatePublishedUiBaseUrl } from "../src/shared/ui.ts";
+import {
+  DEFAULT_PUBLISHED_UI_PROXY_PORT,
+  derivePublishedUiBaseUrlFromPublicFactsEndpoint,
+  validatePublishedUiBaseUrl
+} from "../src/shared/ui.ts";
 import {
   handleOpenClawManagerPreroutingEvent,
   type OpenClawManagerHookEvent
@@ -146,6 +150,24 @@ test("published UI base must not reuse sidecar or ingest surfaces", () => {
       manager_base_url: "http://127.0.0.1:8791",
       public_facts_endpoint: "http://142.171.114.18:56557/v1/ingest"
     }),
+    null
+  );
+});
+
+test("cloud/manual mode can derive a dedicated published UI url from the public facts host", () => {
+  assert.equal(
+    derivePublishedUiBaseUrlFromPublicFactsEndpoint(
+      "http://142.171.114.18:56557/v1/ingest",
+      DEFAULT_PUBLISHED_UI_PROXY_PORT
+    ),
+    "http://142.171.114.18:18891"
+  );
+
+  assert.equal(
+    derivePublishedUiBaseUrlFromPublicFactsEndpoint(
+      "http://127.0.0.1:56557/v1/ingest",
+      DEFAULT_PUBLISHED_UI_PROXY_PORT
+    ),
     null
   );
 });
