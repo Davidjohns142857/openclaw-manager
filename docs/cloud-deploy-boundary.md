@@ -32,18 +32,18 @@ Manager sidecar 是本机控制面，不是公网 Web 应用。
 - 云端通常不会直接暴露 `:18789`，而是由外层 reverse proxy 映射成公网 URL
 - 如果要让手机或远端用户看页面，应该发布一个 Gateway / reverse-proxy URL，再把它配置成 `OPENCLAW_MANAGER_UI_PUBLIC_BASE_URL`
 
-3. 独立 published read-only UI 代理
+3. 独立 Viewer Board 服务
 
 - sidecar 仍然监听 `127.0.0.1:8791`
-- 单独起一个只读 UI 代理进程，绑定到独立端口，例如 `0.0.0.0:18891`
-- 这个代理只暴露 `/ui` 和只读 GET 面，不暴露 sidecar mutation API
-- 公开给手机或远端用户的是这个独立端口，不是 sidecar 原生端口
+- 单独起一个共享只读 board 服务，绑定到独立端口，例如 `0.0.0.0:18991`
+- 本地 sidecar 通过 `POST /board-sync/:token` 推快照
+- 公开给手机或远端用户的是 `http://host:18991/board/<token>/`
 
 也就是说，公开页面必须是：
 
 - Gateway 自己的公开 Web surface
 - 或 Gateway 前面的 reverse proxy path
-- 或独立 published read-only UI 代理的独立端口
+- 或独立 Viewer Board 服务的独立端口
 
 绝不能是 sidecar 原生端口，也绝不能是 ingest 的 `host:port`。
 
@@ -86,7 +86,7 @@ Manager sidecar 是本机控制面，不是公网 Web 应用。
 
 1. 挂到 OpenClaw Gateway 已有公开 Web surface 下
 2. 挂到 Gateway 前面的 reverse proxy 路径下
-3. 使用 manager 自带的独立 published read-only UI 代理端口
+3. 使用独立 Viewer Board 服务端口，例如 `18991`
 4. 单独部署只读 dashboard 服务
 
 不推荐，也不允许：

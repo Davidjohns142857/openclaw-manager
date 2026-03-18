@@ -2,16 +2,16 @@ import { createServer, type IncomingMessage, type ServerResponse } from "node:ht
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { BoardProxy } from "./proxy.ts";
+import { buildBoardDigest, BoardSnapshotStore } from "./snapshot-store.ts";
 import { FileTokenStore } from "./token-store.ts";
 import { serveBoardUiFile } from "../src/api/ui-assets.ts";
 
 interface BoardConfig {
   port: number;
   bindHost: string;
-  sidecarOrigin: string;
   dataDir: string;
   adminSecret: string | null;
+  staleAfterMs: number;
 }
 
 interface JsonBody {
@@ -21,17 +21,15 @@ interface JsonBody {
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const config = resolveConfig();
 const tokenStore = new FileTokenStore(config.dataDir);
-const proxy = new BoardProxy({
-  sidecarOrigin: config.sidecarOrigin
-});
+const snapshotStore = new BoardSnapshotStore(config.dataDir);
 
 function resolveConfig(env: NodeJS.ProcessEnv = process.env): BoardConfig {
   return {
     port: parseInteger(env.BOARD_PORT, 18991),
     bindHost: env.BOARD_BIND_HOST?.trim() || "0.0.0.0",
-    sidecarOrigin: env.BOARD_SIDECAR_ORIGIN?.trim() || "http://127.0.0.1:18891",
     dataDir: env.BOARD_DATA_DIR?.trim() || "/var/lib/openclaw-board",
-    adminSecret: env.BOARD_ADMIN_SECRET?.trim() || null
+    adminSecret: env.BOARD_ADMIN_SECRET?.trim() || null,
+    staleAfterMs: parseInteger(env.BOARD_STALE_AFTER_MS, 45000)
   };
 }
 
@@ -174,6 +172,11 @@ function tokenFromApiPath(pathname: string): { token: string; rest: string[] } |
   };
 }
 
+function tokenFromSyncPath(pathname: string): string | null {
+  const parts = splitPath(pathname);
+  return parts.length === 2 && parts[0] === "board-sync" ? parts[1] ?? null : null;
+}
+
 function tokenFromAdminPath(pathname: string): { token: string | null; action: string | null } | null {
   const parts = splitPath(pathname);
   if (parts[0] !== "admin" || parts[1] !== "tokens") {
@@ -201,6 +204,12 @@ async function route(request: IncomingMessage, response: ServerResponse): Promis
       return;
     }
 
+    const boardSyncToken = tokenFromSyncPath(pathname);
+    if (boardSyncToken) {
+      await handleBoardSyncRoute(request, response, boardSyncToken);
+      return;
+    }
+
     const boardApiPath = tokenFromApiPath(pathname);
     if (boardApiPath) {
       await handleBoardApiRoute(request, response, boardApiPath.token, boardApiPath.rest);
@@ -217,6 +226,7 @@ async function route(request: IncomingMessage, response: ServerResponse): Promis
       jsonResponse(response, 200, {
         status: "ok",
         server_role: "viewer_board",
+        storage_mode: "snapshot",
         now: new Date().toISOString()
       });
       return;
@@ -256,6 +266,44 @@ async function handleBoardUiRoute(
   await serveBoardUiFile(repoRoot, response, pathname, mountPath);
 }
 
+async function handleBoardSyncRoute(
+  request: IncomingMessage,
+  response: ServerResponse,
+  token: string
+): Promise<void> {
+  if (request.method !== "POST") {
+    jsonResponse(response, 405, { error: "Board sync only accepts POST." });
+    return;
+  }
+
+  const resolved = await tokenStore.resolve(token);
+  if (!resolved) {
+    jsonResponse(response, 403, { error: "Invalid board token." });
+    return;
+  }
+
+  const headerToken = request.headers["x-board-token"];
+  const suppliedHeaderToken = Array.isArray(headerToken) ? headerToken[0] : headerToken;
+  if (suppliedHeaderToken && suppliedHeaderToken !== token) {
+    jsonResponse(response, 401, { error: "Board token header does not match path token." });
+    return;
+  }
+
+  const body = await readJsonBody(request);
+  const { snapshot, meta } = await snapshotStore.writeLatest(token, resolved.owner_ref, body);
+
+  jsonResponse(response, 202, {
+    status: "accepted",
+    token,
+    owner_ref: resolved.owner_ref,
+    board_url: buildBoardUrl(request, token),
+    snapshot_at: snapshot.snapshot_at,
+    session_count: snapshot.sessions.length,
+    focus_count: snapshot.focus.length,
+    push_count: meta.push_count
+  });
+}
+
 async function handleBoardApiRoute(
   request: IncomingMessage,
   response: ServerResponse,
@@ -275,14 +323,18 @@ async function handleBoardApiRoute(
 
   const ownerRef = resolved.owner_ref;
   const boardUrl = buildBoardUrl(request, token);
+  const [snapshot, meta] = await Promise.all([
+    snapshotStore.readLatest(token),
+    snapshotStore.readMeta(token)
+  ]);
 
   if (rest.length === 1 && rest[0] === "sessions") {
-    jsonResponse(response, 200, await proxy.listSessions(ownerRef));
+    jsonResponse(response, 200, snapshot?.sessions ?? []);
     return;
   }
 
   if (rest.length === 2 && rest[0] === "sessions") {
-    const detail = await proxy.getSessionDetail(ownerRef, rest[1] ?? "");
+    const detail = snapshot?.session_details[rest[1] ?? ""] ?? null;
     if (!detail) {
       notFound(response);
       return;
@@ -293,7 +345,7 @@ async function handleBoardApiRoute(
   }
 
   if (rest.length === 3 && rest[0] === "sessions" && rest[2] === "timeline") {
-    const timeline = await proxy.getSessionTimeline(ownerRef, rest[1] ?? "");
+    const timeline = snapshot?.session_timelines[rest[1] ?? ""] ?? null;
     if (!timeline) {
       notFound(response);
       return;
@@ -304,17 +356,45 @@ async function handleBoardApiRoute(
   }
 
   if (rest.length === 1 && rest[0] === "focus") {
-    jsonResponse(response, 200, await proxy.getFocus(ownerRef));
+    jsonResponse(response, 200, snapshot?.focus ?? []);
     return;
   }
 
   if (rest.length === 1 && rest[0] === "digest") {
-    jsonResponse(response, 200, await proxy.getDigest(ownerRef));
+    jsonResponse(response, 200, {
+      owner_ref: ownerRef,
+      generated_at: new Date().toISOString(),
+      session_count: snapshot?.sessions.length ?? 0,
+      focus_count: snapshot?.focus.length ?? 0,
+      snapshot_at: snapshot?.snapshot_at ?? null,
+      digest: buildBoardDigest(snapshot, ownerRef)
+    });
     return;
   }
 
   if (rest.length === 1 && rest[0] === "health") {
-    jsonResponse(response, 200, await proxy.getHealth(ownerRef, boardUrl));
+    const lastReceivedAt = meta?.last_received_at ?? null;
+    const online =
+      lastReceivedAt !== null &&
+      Number.isFinite(Date.parse(lastReceivedAt)) &&
+      Date.now() - Date.parse(lastReceivedAt) <= config.staleAfterMs;
+
+    jsonResponse(response, 200, {
+      status: "ok",
+      server_role: "viewer_board",
+      now: new Date().toISOString(),
+      owner_ref: ownerRef,
+      session_count: snapshot?.sessions.length ?? 0,
+      focus_count: snapshot?.focus.length ?? 0,
+      snapshot_at: meta?.last_snapshot_at ?? snapshot?.snapshot_at ?? null,
+      last_received_at: lastReceivedAt,
+      online,
+      ui: {
+        access_mode: "token_board",
+        read_only: true,
+        session_console_url: boardUrl
+      }
+    });
     return;
   }
 
@@ -415,4 +495,4 @@ await new Promise<void>((resolve, reject) => {
 
 console.log(`Viewer board listening on http://${config.bindHost}:${config.port}`);
 console.log(`Viewer board token store: ${path.join(config.dataDir, "tokens.json")}`);
-console.log(`Viewer board sidecar origin: ${config.sidecarOrigin}`);
+console.log(`Viewer board snapshot root: ${path.join(config.dataDir, "snapshots")}`);

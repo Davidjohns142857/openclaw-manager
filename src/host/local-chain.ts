@@ -32,6 +32,14 @@ export interface OpenClawManagerLocalChainConfig {
     auto_submit_interval_ms: number;
     auto_submit_startup_delay_ms: number;
   };
+  board_sync: {
+    enabled: boolean;
+    token: string | null;
+    push_url: string | null;
+    push_interval_ms: number;
+    push_on_mutation: boolean;
+    timeout_ms: number;
+  };
 }
 
 export interface OpenClawManagerLocalChainConfigOverrides {
@@ -41,6 +49,7 @@ export interface OpenClawManagerLocalChainConfigOverrides {
   hook?: Partial<OpenClawManagerLocalChainConfig["hook"]>;
   host_integration?: Partial<OpenClawManagerLocalChainConfig["host_integration"]>;
   public_facts?: Partial<OpenClawManagerLocalChainConfig["public_facts"]>;
+  board_sync?: Partial<OpenClawManagerLocalChainConfig["board_sync"]>;
 }
 
 export function resolveLocalChainConfigPath(env: NodeJS.ProcessEnv = process.env): string {
@@ -99,6 +108,16 @@ export function createDefaultLocalChainConfig(
       auto_submit_interval_ms: overrides.public_facts?.auto_submit_interval_ms ?? 300000,
       auto_submit_startup_delay_ms:
         overrides.public_facts?.auto_submit_startup_delay_ms ?? 15000
+    },
+    board_sync: {
+      enabled:
+        overrides.board_sync?.enabled ??
+        Boolean(overrides.board_sync?.token?.trim() && overrides.board_sync?.push_url?.trim()),
+      token: overrides.board_sync?.token?.trim() || null,
+      push_url: normalizeOptionalBaseUrl(overrides.board_sync?.push_url) ?? null,
+      push_interval_ms: overrides.board_sync?.push_interval_ms ?? 15000,
+      push_on_mutation: overrides.board_sync?.push_on_mutation ?? true,
+      timeout_ms: overrides.board_sync?.timeout_ms ?? 5000
     }
   };
 }
@@ -162,6 +181,20 @@ export function applyLocalChainConfigToEnv(
     : "0";
   env.OPENCLAW_MANAGER_PUBLIC_FACTS_AUTO_SUBMIT_INTERVAL_MS = `${config.public_facts.auto_submit_interval_ms}`;
   env.OPENCLAW_MANAGER_PUBLIC_FACTS_AUTO_SUBMIT_STARTUP_DELAY_MS = `${config.public_facts.auto_submit_startup_delay_ms}`;
+  env.OPENCLAW_BOARD_SYNC_ENABLED = config.board_sync.enabled ? "1" : "0";
+  if (config.board_sync.token) {
+    env.OPENCLAW_BOARD_TOKEN = config.board_sync.token;
+  } else {
+    delete env.OPENCLAW_BOARD_TOKEN;
+  }
+  if (config.board_sync.push_url) {
+    env.OPENCLAW_BOARD_PUSH_URL = config.board_sync.push_url;
+  } else {
+    delete env.OPENCLAW_BOARD_PUSH_URL;
+  }
+  env.OPENCLAW_BOARD_PUSH_INTERVAL_MS = `${config.board_sync.push_interval_ms}`;
+  env.OPENCLAW_BOARD_PUSH_ON_MUTATION = config.board_sync.push_on_mutation ? "1" : "0";
+  env.OPENCLAW_BOARD_PUSH_TIMEOUT_MS = `${config.board_sync.timeout_ms}`;
   env.OPENCLAW_MANAGER_LOCAL_CHAIN_CONFIG = resolveLocalChainConfigPath({
     ...env,
     OPENCLAW_MANAGER_LOCAL_CHAIN_CONFIG: env.OPENCLAW_MANAGER_LOCAL_CHAIN_CONFIG
@@ -175,6 +208,7 @@ function normalizeLocalChainConfig(raw: Record<string, unknown>): OpenClawManage
   const hookRecord = asRecord(raw.hook);
   const hostIntegrationRecord = asRecord(raw.host_integration);
   const publicFactsRecord = asRecord(raw.public_facts);
+  const boardSyncRecord = asRecord(raw.board_sync);
 
   const sidecarOverrides: OpenClawManagerLocalChainConfigOverrides["sidecar"] | undefined =
     sidecarRecord
@@ -250,13 +284,37 @@ function normalizeLocalChainConfig(raw: Record<string, unknown>): OpenClawManage
       }
     : undefined;
 
+  const boardSyncOverrides:
+    | OpenClawManagerLocalChainConfigOverrides["board_sync"]
+    | undefined = boardSyncRecord
+    ? {
+        ...(typeof boardSyncRecord.enabled === "boolean"
+          ? { enabled: boardSyncRecord.enabled }
+          : {}),
+        ...(typeof boardSyncRecord.token === "string" ? { token: boardSyncRecord.token } : {}),
+        ...(typeof boardSyncRecord.push_url === "string"
+          ? { push_url: boardSyncRecord.push_url }
+          : {}),
+        ...(typeof boardSyncRecord.push_interval_ms === "number"
+          ? { push_interval_ms: boardSyncRecord.push_interval_ms }
+          : {}),
+        ...(typeof boardSyncRecord.push_on_mutation === "boolean"
+          ? { push_on_mutation: boardSyncRecord.push_on_mutation }
+          : {}),
+        ...(typeof boardSyncRecord.timeout_ms === "number"
+          ? { timeout_ms: boardSyncRecord.timeout_ms }
+          : {})
+      }
+    : undefined;
+
   return createDefaultLocalChainConfig({
     manager_base_url: typeof raw.manager_base_url === "string" ? raw.manager_base_url : undefined,
     sidecar: sidecarOverrides,
     ui: uiOverrides,
     hook: hookOverrides,
     host_integration: hostIntegrationOverrides,
-    public_facts: publicFactsOverrides
+    public_facts: publicFactsOverrides,
+    board_sync: boardSyncOverrides
   });
 }
 

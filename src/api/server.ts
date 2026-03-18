@@ -20,7 +20,7 @@ import {
 import { buildApiContractIndex } from "./contracts.ts";
 import { handleInboundApi } from "./inbound.ts";
 import { buildHealthPayload } from "./health.ts";
-import { buildPublishedSessionConsoleUrl } from "../shared/ui.ts";
+import { buildUserFacingSessionUrl } from "../shared/ui.ts";
 import { serveUiFile } from "./ui-assets.ts";
 import { managerCommands } from "../skill/commands.ts";
 import type { ManagerConfig } from "../shared/types.ts";
@@ -650,9 +650,11 @@ export class ManagerServer {
             this.controlPlane,
             parseHostCapturedMessage(body),
             {
-              session_console_url: buildPublishedSessionConsoleUrl(
-                this.config.ui.public_base_url
-              )
+              session_console_url: buildUserFacingSessionUrl({
+                public_base_url: this.config.ui.public_base_url,
+                board_push_url: this.config.board_sync.board_push_url,
+                board_token: this.config.board_sync.board_token
+              })
             }
           )
         );

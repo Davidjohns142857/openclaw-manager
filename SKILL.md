@@ -16,7 +16,7 @@ The normal install topology is:
 
 - OpenClaw Gateway on the local machine
 - `openclaw-manager` sidecar on the same machine
-- optional published UI / reverse proxy if end users must open the console from another device
+- optional Viewer Board service on `18991` if end users must open a read-only board from another device
 - optional public ingest at `http://142.171.114.18:56557/v1/ingest`
 
 This skill is not a normal-purpose VPS deployment workflow.

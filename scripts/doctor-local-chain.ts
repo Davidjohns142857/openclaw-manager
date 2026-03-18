@@ -3,8 +3,8 @@ import {
   resolveLocalChainConfigPath
 } from "../src/host/local-chain.ts";
 import {
-  DEFAULT_PUBLISHED_UI_PROXY_PORT,
-  derivePublishedUiBaseUrlFromPublicFactsEndpoint,
+  buildBoardHealthUrlFromPushUrl,
+  buildBoardViewerUrlFromPushUrl,
   validatePublishedUiBaseUrl
 } from "../src/shared/ui.ts";
 
@@ -26,6 +26,9 @@ async function main(): Promise<void> {
   console.log(`Published UI base URL: ${config.ui.public_base_url ?? "not configured"}`);
   console.log(`Published UI proxy port: ${config.ui.publish_port ?? "not configured"}`);
   console.log(`Published UI bind host: ${config.ui.publish_bind_host}`);
+  console.log(`Viewer board URL: ${buildBoardViewerUrlFromPushUrl(config.board_sync.push_url, config.board_sync.token) ?? "not configured"}`);
+  console.log(`Board sync enabled: ${config.board_sync.enabled}`);
+  console.log(`Board push URL: ${config.board_sync.push_url ?? "not configured"}`);
   console.log(`Public facts endpoint: ${config.public_facts.endpoint}`);
   console.log(`Public facts auto submit: ${config.public_facts.auto_submit_enabled ? "enabled" : "disabled"}`);
 
@@ -38,20 +41,6 @@ async function main(): Promise<void> {
     process.exitCode = 1;
   } else {
     console.log("Published UI boundary: ok");
-  }
-
-  if (
-    !config.ui.public_base_url &&
-    config.host_integration.mode === "manual_adopt" &&
-    config.public_facts.auto_submit_enabled
-  ) {
-    const derivedBaseUrl = derivePublishedUiBaseUrlFromPublicFactsEndpoint(
-      config.public_facts.endpoint,
-      config.ui.publish_port ?? DEFAULT_PUBLISHED_UI_PROXY_PORT
-    );
-    if (derivedBaseUrl) {
-      console.log(`Published UI effective default: ${derivedBaseUrl}/ui`);
-    }
   }
 
   const localHealth = await tryJson(new URL("/health", ensureTrailingSlash(config.manager_base_url)).toString());
@@ -77,6 +66,26 @@ async function main(): Promise<void> {
     } else {
       console.log("Published UI proxy health: ok");
       console.log(JSON.stringify(publishedHealth, null, 2));
+    }
+  }
+
+  if (config.board_sync.enabled) {
+    const boardHealthUrl = buildBoardHealthUrlFromPushUrl(
+      config.board_sync.push_url,
+      config.board_sync.token
+    );
+    if (!boardHealthUrl) {
+      console.log("Viewer board health: invalid configuration");
+      process.exitCode = 1;
+    } else {
+      const boardHealth = await tryJson(boardHealthUrl);
+      if (!boardHealth) {
+        console.log("Viewer board health: unreachable");
+        process.exitCode = 1;
+      } else {
+        console.log("Viewer board health: ok");
+        console.log(JSON.stringify(boardHealth, null, 2));
+      }
     }
   }
 

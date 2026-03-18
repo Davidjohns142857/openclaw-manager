@@ -50,36 +50,27 @@ node ~/.openclaw/tools/openclaw-manager/scripts/setup-openclaw-local-chain.ts --
 
 Cloud/manual flag: `--cloud-hosted`
 
-In Cloud/manual mode, if auto-submit is enabled and you do not explicitly pass `--ui-public-base-url`, setup will default the published read-only UI to the public-facts host on port `18891`.
-
-If you need the session console to be reachable from another device, publish the sidecar behind your own externally reachable base URL and pass:
+In Cloud/manual mode, remote/mobile users should use Viewer Board instead of the raw sidecar UI. Configure it with a board token:
 
 ```bash
-node ~/.openclaw/tools/openclaw-manager/scripts/setup-openclaw-local-chain.ts --ui-public-base-url http://your-host.example.com:18891
+node ~/.openclaw/tools/openclaw-manager/scripts/setup-openclaw-local-chain.ts \
+  --cloud-hosted \
+  --enable-public-facts \
+  --board-token bt_xxx
 ```
 
-Published UI flag: `--ui-public-base-url http://your-host.example.com:18891`
-Short flag form: `--ui-public-base-url`
+With a board token, setup derives:
 
-Gateway / reverse-proxy example: `--ui-public-base-url https://your-manager.example.com`
+- board push URL: `http://142.171.114.18:18991/board-sync/bt_xxx`
+- user board URL: `http://142.171.114.18:18991/board/bt_xxx/`
 
-If you want the manager itself to bind a separate published read-only UI proxy port, pass:
+Relevant flags:
 
-```bash
-node ~/.openclaw/tools/openclaw-manager/scripts/setup-openclaw-local-chain.ts --ui-public-base-url http://your-host.example.com:18891 --publish-ui-port 18891
-```
+- `--board-token bt_xxx`
+- `--board-push-url http://your-host.example.com:18991/board-sync/bt_xxx`
+- `--board-port 18991`
 
-This published UI URL must stay separate from both:
-
-- the raw sidecar port
-- the public ingest host:port `142.171.114.18:56557`
-
-It also must not reuse `56557/v1/ingest`.
-
-You have two valid publication modes:
-
-- Gateway / reverse-proxy URL
-- dedicated published read-only UI proxy on its own port
+Do not send `http://127.0.0.1:8791/ui` to remote/mobile users.
 
 This setup does three things:
 
@@ -120,9 +111,9 @@ Key surfaces:
 - public ingest health: `http://142.171.114.18:56557/v1/health`
 - public facts list: `http://142.171.114.18:56557/v1/facts`
 
-`http://127.0.0.1:8791/ui` is only a same-machine admin URL. Do not send it to mobile or remote users unless you have explicitly published a separate external UI URL.
+`http://127.0.0.1:8791/ui` is only a same-machine admin URL. Do not send it to mobile or remote users; use Viewer Board instead.
 
-That external UI URL must stay separate from public ingest and from the raw sidecar port. See [`docs/cloud-deploy-boundary.md`](/Users/yangshangqing/metaclaw/docs/cloud-deploy-boundary.md).
+Viewer Board must stay separate from public ingest and from the raw sidecar port. See [`docs/cloud-deploy-boundary.md`](/Users/yangshangqing/metaclaw/docs/cloud-deploy-boundary.md).
 
 Do not use `http://142.171.114.18:56557/v1/` as the verification target.
 

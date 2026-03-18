@@ -1,4 +1,8 @@
-import { serializeSession, serializeSessionDetail } from "../api/serializers.ts";
+import {
+  serializeSession,
+  serializeSessionDetail,
+  serializeSessionTimeline
+} from "../api/serializers.ts";
 import type { ControlPlane } from "../control-plane/control-plane.ts";
 import type { BoardSyncConfig } from "../shared/types.ts";
 
@@ -7,6 +11,7 @@ export interface BoardSnapshot {
   sessions: Array<Record<string, unknown>>;
   focus: Array<Record<string, unknown>>;
   session_details: Record<string, Record<string, unknown>>;
+  session_timelines: Record<string, Record<string, unknown>>;
 }
 
 export class BoardSyncService {
@@ -108,11 +113,26 @@ export class BoardSyncService {
         }
       })
     );
+    const timelineEntries = await Promise.all(
+      storedSessions.map(async (session) => {
+        try {
+          const timeline = await this.controlPlane.getSessionTimeline(session.session_id);
+          return [session.session_id, serializeSessionTimeline(timeline)] as const;
+        } catch {
+          return null;
+        }
+      })
+    );
 
     const sessionDetails = Object.fromEntries(
       detailEntries
         .filter((entry): entry is NonNullable<(typeof detailEntries)[number]> => entry !== null)
         .map(([sessionId, detail]) => [sessionId, detail])
+    );
+    const sessionTimelines = Object.fromEntries(
+      timelineEntries
+        .filter((entry): entry is NonNullable<(typeof timelineEntries)[number]> => entry !== null)
+        .map(([sessionId, timeline]) => [sessionId, timeline])
     );
 
     const focus = (await this.controlPlane.focus()).map((item) => ({ ...item }));
@@ -121,7 +141,8 @@ export class BoardSyncService {
       snapshot_at: new Date().toISOString(),
       sessions,
       focus,
-      session_details: sessionDetails
+      session_details: sessionDetails,
+      session_timelines: sessionTimelines
     };
   }
 }

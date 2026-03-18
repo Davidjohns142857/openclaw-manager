@@ -148,6 +148,8 @@ If a board link is shown, it should be treated as:
 
 - your own read-only tracking view
 - not the canonical mutation surface
+- typically a Viewer Board URL such as `http://host:18991/board/<token>/`
+- never `http://127.0.0.1:8791/ui` for a remote/mobile user
 
 Mutations still belong to Manager commands such as:
 

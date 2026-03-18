@@ -10,8 +10,10 @@ import {
   writeLocalChainConfig
 } from "../src/host/local-chain.ts";
 import {
-  DEFAULT_PUBLISHED_UI_PROXY_PORT,
-  derivePublishedUiBaseUrlFromPublicFactsEndpoint,
+  DEFAULT_VIEWER_BOARD_PORT,
+  buildBoardPushUrl,
+  buildBoardViewerUrlFromPushUrl,
+  deriveBoardBaseUrlFromPublicFactsEndpoint,
   validatePublishedUiBaseUrl
 } from "../src/shared/ui.ts";
 import { buildLocalSidecarServicePlan } from "../src/host/local-service.ts";
@@ -28,6 +30,9 @@ interface CliOptions {
   publishUiBindHost?: string;
   enablePublicFacts: boolean;
   publicFactsEndpoint?: string;
+  boardToken?: string;
+  boardPushUrl?: string;
+  boardPort?: number;
   cloudHosted: boolean;
   skipHook: boolean;
   skipService: boolean;
@@ -61,20 +66,29 @@ async function main(): Promise<void> {
     public_facts: {
       auto_submit_enabled: options.enablePublicFacts,
       endpoint: options.publicFactsEndpoint
+    },
+    board_sync: {
+      enabled: Boolean(options.boardToken?.trim()),
+      token: options.boardToken,
+      push_url: options.boardPushUrl
     }
   });
 
-  if (options.cloudHosted && config.public_facts.auto_submit_enabled && !config.ui.public_base_url) {
-    const derivedPort = config.ui.publish_port ?? DEFAULT_PUBLISHED_UI_PROXY_PORT;
-    const derivedBaseUrl = derivePublishedUiBaseUrlFromPublicFactsEndpoint(
+  if (config.board_sync.enabled && !config.board_sync.push_url && config.board_sync.token) {
+    const boardBaseUrl = deriveBoardBaseUrlFromPublicFactsEndpoint(
       config.public_facts.endpoint,
-      derivedPort
+      options.boardPort ?? DEFAULT_VIEWER_BOARD_PORT
     );
 
-    if (derivedBaseUrl) {
-      config.ui.public_base_url = derivedBaseUrl;
-      config.ui.publish_port = derivedPort;
+    if (boardBaseUrl) {
+      config.board_sync.push_url = buildBoardPushUrl(boardBaseUrl, config.board_sync.token);
     }
+  }
+
+  if (config.board_sync.enabled && (!config.board_sync.token || !config.board_sync.push_url)) {
+    throw new Error(
+      "Board sync requires both a board token and a board push URL. Pass --board-token and optionally --board-push-url."
+    );
   }
 
   const configPath = resolveLocalChainConfigPath();
@@ -100,12 +114,15 @@ async function main(): Promise<void> {
   console.log("OpenClaw Manager local-chain setup");
   console.log(`Config: ${configPath}`);
   console.log(`Manager base URL: ${config.manager_base_url}`);
-  console.log(`Published UI base URL: ${config.ui.public_base_url ?? "not configured"}`);
-  console.log(`Published UI proxy port: ${config.ui.publish_port ?? "not configured"}`);
   console.log(`Host integration mode: ${config.host_integration.mode}`);
   console.log(`Public facts endpoint: ${config.public_facts.endpoint}`);
   console.log(`Public facts auto submit: ${config.public_facts.auto_submit_enabled ? "enabled" : "disabled"}`);
-  console.log("Boundary: never expose the manager sidecar port directly; publish UI only through Gateway WebUI / reverse proxy or a dedicated read-only UI proxy port, and never reuse the public ingest host:port.");
+  console.log(`Board sync: ${config.board_sync.enabled ? "enabled" : "disabled"}`);
+  console.log(`Board push URL: ${config.board_sync.push_url ?? "not configured"}`);
+  console.log(
+    `Viewer board URL: ${buildBoardViewerUrlFromPushUrl(config.board_sync.push_url, config.board_sync.token) ?? "not configured"}`
+  );
+  console.log("Boundary: never expose the manager sidecar port directly; keep sidecar local-only, keep ingest separate, and use the shared viewer board service for remote/mobile read access.");
 
   if (options.dryRun) {
     printDryRun(hookPlan, servicePlan, options, config);
@@ -152,6 +169,13 @@ async function main(): Promise<void> {
   }
   if (!config.ui.public_base_url) {
     console.log("- Session console stays local-only by default. Do not send http://127.0.0.1:8791/ui to mobile/remote users.");
+  }
+  if (config.board_sync.enabled) {
+    console.log(
+      `- Viewer board for users: ${
+        buildBoardViewerUrlFromPushUrl(config.board_sync.push_url, config.board_sync.token) ?? "not configured"
+      }`
+    );
   }
   console.log(`- Local sidecar will run through ${path.join(repoRoot, "scripts", "run-local-sidecar.ts")}.`);
   console.log(`- Verify with: node ${path.join(repoRoot, "scripts", "doctor-local-chain.ts")}`);
@@ -214,6 +238,21 @@ function parseArgs(argv: string[]): CliOptions {
         options.publicFactsEndpoint = argv[index + 1];
         index += 1;
         break;
+      case "--board-token":
+        options.boardToken = argv[index + 1];
+        index += 1;
+        break;
+      case "--board-push-url":
+        options.boardPushUrl = argv[index + 1];
+        index += 1;
+        break;
+      case "--board-port":
+        {
+          const parsed = Number.parseInt(argv[index + 1] ?? "", 10);
+          options.boardPort = Number.isFinite(parsed) ? parsed : undefined;
+        }
+        index += 1;
+        break;
       case "--cloud-hosted":
         options.cloudHosted = true;
         break;
@@ -260,19 +299,13 @@ function printDryRun(
     }
   }
 
-  if (config.ui.public_base_url?.trim()) {
-    console.log(`\nPublished UI URL: ${config.ui.public_base_url.trim().replace(/\/$/u, "")}/ui`);
-  } else {
-    console.log("\nPublished UI URL: not configured; /ui remains local-only.");
-  }
-
-  if (config.ui.publish_port) {
-    console.log(
-      `Published UI proxy: ${config.ui.publish_bind_host}:${config.ui.publish_port} (read-only)`
-    );
-  } else {
-    console.log("Published UI proxy: not configured.");
-  }
+  console.log(
+    `\nViewer board URL: ${
+      buildBoardViewerUrlFromPushUrl(config.board_sync.push_url, config.board_sync.token) ??
+      "not configured"
+    }`
+  );
+  console.log(`Board push URL: ${config.board_sync.push_url ?? "not configured"}`);
 }
 
 async function installLocalService(
