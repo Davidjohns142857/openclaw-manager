@@ -9,7 +9,11 @@ import {
   resolveLocalChainConfigPath,
   writeLocalChainConfig
 } from "../src/host/local-chain.ts";
-import { validatePublishedUiBaseUrl } from "../src/shared/ui.ts";
+import {
+  DEFAULT_PUBLISHED_UI_PROXY_PORT,
+  derivePublishedUiBaseUrlFromPublicFactsEndpoint,
+  validatePublishedUiBaseUrl
+} from "../src/shared/ui.ts";
 import { buildLocalSidecarServicePlan } from "../src/host/local-service.ts";
 import { buildOpenClawManagerHostSetupPlan } from "../src/host/setup.ts";
 
@@ -59,6 +63,20 @@ async function main(): Promise<void> {
       endpoint: options.publicFactsEndpoint
     }
   });
+
+  if (options.cloudHosted && config.public_facts.auto_submit_enabled && !config.ui.public_base_url) {
+    const derivedPort = config.ui.publish_port ?? DEFAULT_PUBLISHED_UI_PROXY_PORT;
+    const derivedBaseUrl = derivePublishedUiBaseUrlFromPublicFactsEndpoint(
+      config.public_facts.endpoint,
+      derivedPort
+    );
+
+    if (derivedBaseUrl) {
+      config.ui.public_base_url = derivedBaseUrl;
+      config.ui.publish_port = derivedPort;
+    }
+  }
+
   const configPath = resolveLocalChainConfigPath();
   const uiValidationError = validatePublishedUiBaseUrl(config.ui.public_base_url, {
     manager_base_url: config.manager_base_url,
@@ -90,7 +108,7 @@ async function main(): Promise<void> {
   console.log("Boundary: never expose the manager sidecar port directly; publish UI only through Gateway WebUI / reverse proxy or a dedicated read-only UI proxy port, and never reuse the public ingest host:port.");
 
   if (options.dryRun) {
-    printDryRun(hookPlan, servicePlan, options);
+    printDryRun(hookPlan, servicePlan, options, config);
     return;
   }
 
@@ -216,7 +234,8 @@ function parseArgs(argv: string[]): CliOptions {
 function printDryRun(
   hookPlan: ReturnType<typeof buildOpenClawManagerHostSetupPlan>,
   servicePlan: ReturnType<typeof buildLocalSidecarServicePlan>,
-  options: CliOptions
+  options: CliOptions,
+  config: ReturnType<typeof createDefaultLocalChainConfig>
 ): void {
   console.log("\nDry run");
 
@@ -241,15 +260,15 @@ function printDryRun(
     }
   }
 
-  if (options.uiPublicBaseUrl?.trim()) {
-    console.log(`\nPublished UI URL: ${options.uiPublicBaseUrl.trim().replace(/\/$/u, "")}/ui`);
+  if (config.ui.public_base_url?.trim()) {
+    console.log(`\nPublished UI URL: ${config.ui.public_base_url.trim().replace(/\/$/u, "")}/ui`);
   } else {
     console.log("\nPublished UI URL: not configured; /ui remains local-only.");
   }
 
-  if (options.publishUiPort) {
+  if (config.ui.publish_port) {
     console.log(
-      `Published UI proxy: ${options.publishUiBindHost?.trim() || "0.0.0.0"}:${options.publishUiPort} (read-only)`
+      `Published UI proxy: ${config.ui.publish_bind_host}:${config.ui.publish_port} (read-only)`
     );
   } else {
     console.log("Published UI proxy: not configured.");

@@ -2,7 +2,11 @@ import {
   readLocalChainConfig,
   resolveLocalChainConfigPath
 } from "../src/host/local-chain.ts";
-import { validatePublishedUiBaseUrl } from "../src/shared/ui.ts";
+import {
+  DEFAULT_PUBLISHED_UI_PROXY_PORT,
+  derivePublishedUiBaseUrlFromPublicFactsEndpoint,
+  validatePublishedUiBaseUrl
+} from "../src/shared/ui.ts";
 
 async function main(): Promise<void> {
   const configPath = resolveLocalChainConfigPath();
@@ -34,6 +38,20 @@ async function main(): Promise<void> {
     process.exitCode = 1;
   } else {
     console.log("Published UI boundary: ok");
+  }
+
+  if (
+    !config.ui.public_base_url &&
+    config.host_integration.mode === "manual_adopt" &&
+    config.public_facts.auto_submit_enabled
+  ) {
+    const derivedBaseUrl = derivePublishedUiBaseUrlFromPublicFactsEndpoint(
+      config.public_facts.endpoint,
+      config.ui.publish_port ?? DEFAULT_PUBLISHED_UI_PROXY_PORT
+    );
+    if (derivedBaseUrl) {
+      console.log(`Published UI effective default: ${derivedBaseUrl}/ui`);
+    }
   }
 
   const localHealth = await tryJson(new URL("/health", ensureTrailingSlash(config.manager_base_url)).toString());

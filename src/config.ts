@@ -2,7 +2,11 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import type { ManagerConfig } from "./shared/types.ts";
-import { validatePublishedUiBaseUrl } from "./shared/ui.ts";
+import {
+  DEFAULT_PUBLISHED_UI_PROXY_PORT,
+  derivePublishedUiBaseUrlFromPublicFactsEndpoint,
+  validatePublishedUiBaseUrl
+} from "./shared/ui.ts";
 
 const srcDir = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(srcDir, "..");
@@ -42,14 +46,35 @@ function parseOptionalBaseUrl(value: string | undefined): string | null {
 
 export function resolveConfig(env: NodeJS.ProcessEnv = process.env): ManagerConfig {
   const port = parseInteger(env.OPENCLAW_MANAGER_PORT, 8791);
+  const hostIntegrationMode = parseHostIntegrationMode(
+    env.OPENCLAW_MANAGER_HOST_INTEGRATION_MODE
+  );
   const publicFactsEndpoint =
     env.OPENCLAW_MANAGER_PUBLIC_FACTS_ENDPOINT?.trim() ||
     "http://142.171.114.18:56557/v1/ingest";
+  const publicFactsAutoSubmitEnabled = parseBooleanFlag(
+    env.OPENCLAW_MANAGER_PUBLIC_FACTS_AUTO_SUBMIT_ENABLED
+  );
   const managerBaseUrl = `http://127.0.0.1:${port}`;
-  const uiPublicBaseUrl = parseOptionalBaseUrl(env.OPENCLAW_MANAGER_UI_PUBLIC_BASE_URL);
+  const configuredUiPublicBaseUrl = parseOptionalBaseUrl(
+    env.OPENCLAW_MANAGER_UI_PUBLIC_BASE_URL
+  );
+  const configuredUiPublishPort = parseOptionalInteger(env.OPENCLAW_MANAGER_UI_PUBLISH_PORT);
+  const derivedUiPublishPort =
+    hostIntegrationMode === "manual_adopt" && publicFactsAutoSubmitEnabled
+      ? DEFAULT_PUBLISHED_UI_PROXY_PORT
+      : null;
   const uiPublishPort =
-    parseOptionalInteger(env.OPENCLAW_MANAGER_UI_PUBLISH_PORT) ??
-    inferPortFromAbsoluteUrl(uiPublicBaseUrl);
+    configuredUiPublishPort ??
+    inferPortFromAbsoluteUrl(configuredUiPublicBaseUrl) ??
+    derivedUiPublishPort;
+  const uiPublicBaseUrl =
+    configuredUiPublicBaseUrl ??
+    (hostIntegrationMode === "manual_adopt" &&
+    publicFactsAutoSubmitEnabled &&
+    uiPublishPort !== null
+      ? derivePublishedUiBaseUrlFromPublicFactsEndpoint(publicFactsEndpoint, uiPublishPort)
+      : null);
   const uiValidationError = validatePublishedUiBaseUrl(uiPublicBaseUrl, {
     manager_base_url: managerBaseUrl,
     public_facts_endpoint: publicFactsEndpoint
@@ -83,7 +108,7 @@ export function resolveConfig(env: NodeJS.ProcessEnv = process.env): ManagerConf
       publish_bind_host: env.OPENCLAW_MANAGER_UI_PUBLISH_BIND_HOST?.trim() || "0.0.0.0"
     },
     host_integration: {
-      mode: parseHostIntegrationMode(env.OPENCLAW_MANAGER_HOST_INTEGRATION_MODE),
+      mode: hostIntegrationMode,
       reason: env.OPENCLAW_MANAGER_HOST_INTEGRATION_REASON?.trim() || null
     },
     public_facts: {
@@ -91,9 +116,7 @@ export function resolveConfig(env: NodeJS.ProcessEnv = process.env): ManagerConf
       timeout_ms: parseInteger(env.OPENCLAW_MANAGER_PUBLIC_FACTS_TIMEOUT_MS, 10000),
       auth_token: env.OPENCLAW_MANAGER_PUBLIC_FACTS_AUTH_TOKEN?.trim() || null,
       schema_version: env.OPENCLAW_MANAGER_PUBLIC_FACTS_SCHEMA_VERSION?.trim() || "1.0.0",
-      auto_submit_enabled: parseBooleanFlag(
-        env.OPENCLAW_MANAGER_PUBLIC_FACTS_AUTO_SUBMIT_ENABLED
-      ),
+      auto_submit_enabled: publicFactsAutoSubmitEnabled,
       auto_submit_interval_ms: parseInteger(
         env.OPENCLAW_MANAGER_PUBLIC_FACTS_AUTO_SUBMIT_INTERVAL_MS,
         300000

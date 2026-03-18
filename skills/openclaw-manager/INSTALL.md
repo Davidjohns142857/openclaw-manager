@@ -49,6 +49,8 @@ node ~/.openclaw/tools/openclaw-manager/scripts/setup-openclaw-local-chain.ts --
 Canonical Cloud/manual command: `node ~/.openclaw/tools/openclaw-manager/scripts/setup-openclaw-local-chain.ts --cloud-hosted`
 Cloud/manual flag: `--cloud-hosted`
 
+In Cloud/manual mode, if auto-submit is enabled and you do not explicitly pass `--ui-public-base-url`, setup will default the published read-only UI to the public-facts host on port `18891`.
+
 To enable public facts auto-submit during setup:
 
 ```bash

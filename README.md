@@ -98,6 +98,8 @@ node ~/.openclaw/tools/openclaw-manager/scripts/setup-openclaw-local-chain.ts --
 
 That keeps sidecar setup and public-fact auto-submit available, but intentionally falls back to manual `/adopt` instead of pretending automatic interception is active.
 
+If Cloud/manual mode also has public-facts auto-submit enabled, manager now defaults the published read-only UI to the same public host on port `18891` unless you explicitly override `--ui-public-base-url`.
+
 Local verification helper:
 
 ```bash
