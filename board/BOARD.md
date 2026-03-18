@@ -14,6 +14,7 @@ Primary entrypoints:
 - `GET /board/:token/`
 - `GET /board-api/:token/*`
 - `POST /board-sync/:token`
+- `POST /register`
 - `POST /admin/tokens`
 
 Primary environment variables:

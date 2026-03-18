@@ -56,20 +56,20 @@ To enable public facts auto-submit during setup:
 node ~/.openclaw/tools/openclaw-manager/scripts/setup-openclaw-local-chain.ts --enable-public-facts
 ```
 
-To make the session board reachable from another device, configure Viewer Board with a token:
+To make the session board reachable from another device, setup now auto-registers Viewer Board by default:
 
 ```bash
 node ~/.openclaw/tools/openclaw-manager/scripts/setup-openclaw-local-chain.ts \
   --cloud-hosted \
-  --enable-public-facts \
-  --board-token bt_xxx
+  --enable-public-facts
 ```
 
 Relevant flags:
 
-- `--board-token bt_xxx`
+- `--board-token bt_xxx` to force a known token
 - `--board-push-url http://your-host.example.com:18991/board-sync/bt_xxx`
 - `--board-port 18991`
+- `--board-register-url http://your-host.example.com:18991/register`
 
 Do not send `http://127.0.0.1:8791/ui` to remote/mobile users.
 

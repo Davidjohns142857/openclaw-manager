@@ -24,7 +24,27 @@ You need all of these before the board can work:
 - the local OpenClaw Manager sidecar is installed
 - public facts endpoint is still `http://142.171.114.18:56557/v1/ingest`
 
-## 2. Create a Board Token on the VPS
+## 2. Normal Path: Automatic Self-Registration
+
+For a normal user install, the preferred path is now:
+
+```bash
+node ~/.openclaw/tools/openclaw-manager/scripts/setup-openclaw-local-chain.ts \
+  --cloud-hosted \
+  --enable-public-facts
+```
+
+That setup flow will:
+
+- generate `board-identity.json`
+- call `POST /register`
+- receive or reuse a token
+- write `board-config.json`
+- let future sidecar launches auto-load that file and begin pushing
+
+If you are manually administering a board, the next section is still available.
+
+## 3. Manual Path: Create a Board Token on the VPS
 
 Run this on the VPS itself, or through SSH:
 
@@ -47,7 +67,7 @@ Expected response:
 
 Save the `token`. That is the only value you need for local setup.
 
-## 3. Configure the Local OpenClaw Sidecar
+## 4. Configure the Local OpenClaw Sidecar
 
 On the same machine where OpenClaw and the sidecar run, execute:
 
@@ -79,7 +99,7 @@ node ~/.openclaw/tools/openclaw-manager/scripts/setup-openclaw-local-chain.ts \
   --board-push-url http://142.171.114.18:18991/board-sync/bt_xxx
 ```
 
-## 4. Verify Local Configuration
+## 5. Verify Local Configuration
 
 Run:
 
@@ -108,7 +128,7 @@ Expected fields:
 
 If `ui.session_console_url` is still `null`, local setup did not pick up the token.
 
-## 5. Force a First Snapshot
+## 6. Force a First Snapshot
 
 The board stays empty until the local sidecar pushes a snapshot.
 
@@ -122,7 +142,7 @@ The simplest way to force this is:
 
 Mutation paths trigger an extra push immediately, and there is also a background push every 15 seconds.
 
-## 6. Verify the Remote Board
+## 7. Verify the Remote Board
 
 Open the user-facing board:
 
@@ -141,7 +161,7 @@ Expected:
 - `health.session_count > 0` after you adopt at least one task
 - `sessions` contains the same durable sessions that `/tasks` shows in chat
 
-## 7. If `/tasks` Works but the Board Is Still Empty
+## 8. If `/tasks` Works but the Board Is Still Empty
 
 This is the most common failure mode.
 
@@ -166,7 +186,7 @@ Check in this order:
    - compare `board-api/<token>/health`
    - check `snapshot_at` and `session_count`
 
-## 8. If the Board Page Is Blank White
+## 9. If the Board Page Is Blank White
 
 Check:
 
@@ -190,7 +210,7 @@ Interpretation:
 - board API is unreachable
   - board service on `18991` is not running or not reachable
 
-## 9. What to Give the User
+## 10. What to Give the User
 
 Once the above is green, the correct user-facing link is:
 

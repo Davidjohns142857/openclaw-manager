@@ -50,25 +50,32 @@ node ~/.openclaw/tools/openclaw-manager/scripts/setup-openclaw-local-chain.ts --
 
 Cloud/manual flag: `--cloud-hosted`
 
-In Cloud/manual mode, remote/mobile users should use Viewer Board instead of the raw sidecar UI. Configure it with a board token:
+In Cloud/manual mode, remote/mobile users should use Viewer Board instead of the raw sidecar UI. Setup now auto-registers a board token by default:
 
 ```bash
 node ~/.openclaw/tools/openclaw-manager/scripts/setup-openclaw-local-chain.ts \
   --cloud-hosted \
-  --enable-public-facts \
-  --board-token bt_xxx
+  --enable-public-facts
 ```
 
-With a board token, setup derives:
+During setup, manager will:
+
+- generate a local board identity
+- call `http://142.171.114.18:18991/register`
+- write `board-config.json`
+- start sidecar push automatically on future launches
+
+If registration succeeds, setup derives:
 
 - board push URL: `http://142.171.114.18:18991/board-sync/bt_xxx`
 - user board URL: `http://142.171.114.18:18991/board/bt_xxx/`
 
 Relevant flags:
 
-- `--board-token bt_xxx`
+- `--board-token bt_xxx` to force a known token
 - `--board-push-url http://your-host.example.com:18991/board-sync/bt_xxx`
 - `--board-port 18991`
+- `--board-register-url http://your-host.example.com:18991/register`
 
 Do not send `http://127.0.0.1:8791/ui` to remote/mobile users.
 
