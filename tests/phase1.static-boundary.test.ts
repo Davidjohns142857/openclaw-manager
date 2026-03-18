@@ -138,6 +138,49 @@ test("capability fact and outbox docs stay aligned with the submission baseline"
   }
 });
 
+test("public fact auto submit doc stays aligned with the background submit baseline", async () => {
+  const document = await readFile(path.join(repoRoot, "docs/public-fact-auto-submit.md"), "utf8");
+
+  for (const snippet of [
+    "Auto submit is a sidecar background task.",
+    "It only uses `mode=http`.",
+    "It periodically runs `distill -> submitPublicFacts(mode=http)`.",
+    "`auto_submit_enabled`",
+    "`auto_submit_interval_ms`",
+    "`GET /health` exposes:",
+    "`public_facts.auto_submit.enabled`",
+    "`public_facts.auto_submit.last_result`",
+    "tests/phase3.public-fact-auto-submit.test.ts"
+  ]) {
+    assert.match(document, new RegExp(escapeRegExp(snippet)));
+  }
+});
+
+test("host pre-routing hook doc stays aligned with the admission boundary", async () => {
+  const document = await readFile(
+    path.join(repoRoot, "docs/openclaw-host-prerouting-hook.md"),
+    "utf8"
+  );
+
+  for (const snippet of [
+    "只安装 skill，不会自动把所有普通消息劫持到 manager。",
+    "`allow_implicit_invocation` 也不等于 pre-routing hook。",
+    "如果不是显式命令，再执行 manager pre-routing hook",
+    "`collectHostContext(...)`",
+    "`shouldSuggestAdopt(...)`",
+    "`suggestOrAdopt(...)`",
+    "`do_nothing`：继续走原来的默认 skill / router",
+    "`suggest_adopt`：向用户提示 `/adopt`",
+    "直接走 manager canonical ingress，并短路默认 skill 路由",
+    "`OPENCLAW_MANAGER_BASE_URL=http://127.0.0.1:8791`",
+    "`source_type`",
+    "`source_thread_key`",
+    "`message_id`"
+  ]) {
+    assert.match(document, new RegExp(escapeRegExp(snippet)));
+  }
+});
+
 test("server route layer exports canonical session activity and command boundary works", async () => {
   const manager = await createTempManager();
 

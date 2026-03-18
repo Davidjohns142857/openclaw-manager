@@ -33,10 +33,32 @@ export function resolveConfig(env: NodeJS.ProcessEnv = process.env): ManagerConf
     public_facts: {
       endpoint:
         env.OPENCLAW_MANAGER_PUBLIC_FACTS_ENDPOINT?.trim() ||
-        "http://142.171.114.18/v1/ingest",
+        "http://142.171.114.18:56557/v1/ingest",
       timeout_ms: parseInteger(env.OPENCLAW_MANAGER_PUBLIC_FACTS_TIMEOUT_MS, 10000),
       auth_token: env.OPENCLAW_MANAGER_PUBLIC_FACTS_AUTH_TOKEN?.trim() || null,
-      schema_version: env.OPENCLAW_MANAGER_PUBLIC_FACTS_SCHEMA_VERSION?.trim() || "1.0.0"
+      schema_version: env.OPENCLAW_MANAGER_PUBLIC_FACTS_SCHEMA_VERSION?.trim() || "1.0.0",
+      auto_submit_enabled: parseBooleanFlag(
+        env.OPENCLAW_MANAGER_PUBLIC_FACTS_AUTO_SUBMIT_ENABLED
+      ),
+      auto_submit_interval_ms: parseInteger(
+        env.OPENCLAW_MANAGER_PUBLIC_FACTS_AUTO_SUBMIT_INTERVAL_MS,
+        300000
+      ),
+      auto_submit_startup_delay_ms: parseInteger(
+        env.OPENCLAW_MANAGER_PUBLIC_FACTS_AUTO_SUBMIT_STARTUP_DELAY_MS,
+        15000
+      ),
+      auto_submit_max_batch_size: parseInteger(
+        env.OPENCLAW_MANAGER_PUBLIC_FACTS_AUTO_SUBMIT_MAX_BATCH_SIZE,
+        50
+      ),
+      auto_submit_max_batches: parseInteger(
+        env.OPENCLAW_MANAGER_PUBLIC_FACTS_AUTO_SUBMIT_MAX_BATCHES,
+        10
+      ),
+      auto_submit_retry_failed_retryable: parseBooleanFlag(
+        env.OPENCLAW_MANAGER_PUBLIC_FACTS_AUTO_SUBMIT_RETRY_FAILED_RETRYABLE ?? "1"
+      )
     }
   };
 }

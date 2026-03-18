@@ -153,6 +153,7 @@
 - host-side command executor 不直接依赖 control-plane internals
 - sidecar client 是 canonical host boundary
 - host-side client 已具备 4 个 reserved decision / blocker typed methods，且不要求同步进入 command surface
+- thin host / sidecar contract 与 pre-routing hook 集成文档边界已经固定，避免把 `allow_implicit_invocation` 误判为普通消息劫持能力
 
 适合继续补的独立测试方向：
 
@@ -183,6 +184,7 @@
 - host message retry 的更强幂等性
 - richer source-type policies
 - admission 对 overloaded focus 的降级策略
+- OpenClaw 宿主真正接入 pre-routing hook 之后的端到端 host runtime 验收
 ### 3.7 交互语义合同
 
 文件：
@@ -435,6 +437,26 @@
 - batch compaction / merge policy
 - richer transport metadata and auth envelope
 - selective export policy by subject_type / metric family
+
+### 3.19 Public Fact Auto Submit
+
+文件：
+
+- [`tests/phase3.public-fact-auto-submit.test.ts`](/Users/yangshangqing/metaclaw/tests/phase3.public-fact-auto-submit.test.ts)
+- [`docs/public-fact-auto-submit.md`](/Users/yangshangqing/metaclaw/docs/public-fact-auto-submit.md)
+
+当前覆盖：
+
+- sidecar background interval 会自动执行 `distill -> submitPublicFacts(mode=http)`
+- background auto submit 仍然复用同一套 outbox / receipt 状态机
+- `failed_retryable` batch 会在后续 timer tick 中自动重试
+- `GET /health` 会暴露当前 auto submit 配置和最近运行状态
+
+适合继续补的独立测试方向：
+
+- adaptive backoff / jitter
+- rate-aware scheduling
+- manual trigger 与 background trigger 的协调规则
 
 ## 4. 当前自动化校验总表
 

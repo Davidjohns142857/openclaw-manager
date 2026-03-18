@@ -473,6 +473,30 @@ export interface PublicFactsTransportConfig {
   timeout_ms: number;
   auth_token: string | null;
   schema_version: string;
+  auto_submit_enabled: boolean;
+  auto_submit_interval_ms: number;
+  auto_submit_startup_delay_ms: number;
+  auto_submit_max_batch_size: number;
+  auto_submit_max_batches: number;
+  auto_submit_retry_failed_retryable: boolean;
+}
+
+export interface PublicFactsAutoSubmitStatus {
+  enabled: boolean;
+  mode: "http";
+  interval_ms: number;
+  startup_delay_ms: number;
+  in_flight: boolean;
+  total_ticks: number;
+  last_tick_at: string | null;
+  last_success_at: string | null;
+  last_result: {
+    selected_fact_count: number;
+    created_batch_count: number;
+    submitted_batch_count: number;
+    receipt_results: Array<string | null>;
+  } | null;
+  last_error: string | null;
 }
 
 export interface SessionIndexEntry {
