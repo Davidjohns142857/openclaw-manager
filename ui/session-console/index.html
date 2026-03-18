@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>OpenClaw Session Console</title>
+  <link rel="stylesheet" href="/ui/src/style.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+</head>
+<body>
+  <nav id="nav">
+    <div class="nav-brand">
+      <span class="nav-logo">◈</span>
+      <span class="nav-title">OpenClaw</span>
+    </div>
+    <div class="nav-links">
+      <a href="#/" class="nav-link" data-route="/">Sessions</a>
+      <a href="#/outbox" class="nav-link" data-route="/outbox">Outbox</a>
+    </div>
+    <div class="nav-status" id="sidecar-status"></div>
+  </nav>
+
+  <main id="app"></main>
+
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <script type="module" src="/ui/src/app.js"></script>
+</body>
+</html>

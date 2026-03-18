@@ -5,7 +5,7 @@ import { test } from "node:test";
 
 import { ManagerServer } from "../src/api/server.ts";
 import { managerCommands } from "../src/skill/commands.ts";
-import { createTempManager, dispatchRoute } from "./helpers.ts";
+import { createTempManager, dispatchRoute, startTempSidecar } from "./helpers.ts";
 
 const repoRoot = "/Users/yangshangqing/metaclaw";
 
@@ -178,6 +178,47 @@ test("host pre-routing hook doc stays aligned with the admission boundary", asyn
     "`message_id`"
   ]) {
     assert.match(document, new RegExp(escapeRegExp(snippet)));
+  }
+});
+
+test("session console frontend doc stays aligned with timeline and outbox surfaces", async () => {
+  const document = await readFile(path.join(repoRoot, "ui/session-console/FRONTEND.md"), "utf8");
+
+  for (const snippet of [
+    "`ui.session_console_url`",
+    "`GET /sessions/:id/timeline`",
+    "\"result_type\": \"completed | partial_progress | waiting_human | failed | null\"",
+    "`GET /public-facts/outbox`",
+    "`POST /public-facts/submit`",
+    "当前页面应直接消费 `GET /sessions/:id/timeline`"
+  ]) {
+    assert.match(document, new RegExp(escapeRegExp(snippet)));
+  }
+});
+
+test("sidecar exposes the same-origin session console and advertises its url", async () => {
+  const manager = await startTempSidecar();
+
+  try {
+    const healthResponse = await fetch(`${manager.baseUrl}/health`);
+    assert.equal(healthResponse.status, 200);
+    const health = (await healthResponse.json()) as {
+      ui?: { session_console_url?: string };
+      port?: number;
+    };
+    assert.equal(health.ui?.session_console_url, `${manager.baseUrl}/ui`);
+
+    const uiResponse = await fetch(`${manager.baseUrl}/ui`);
+    assert.equal(uiResponse.status, 200);
+    assert.match(uiResponse.headers.get("content-type") ?? "", /text\/html/);
+    assert.match(await uiResponse.text(), /OpenClaw Session Console/);
+
+    const appResponse = await fetch(`${manager.baseUrl}/ui/src/app.js`);
+    assert.equal(appResponse.status, 200);
+    assert.match(appResponse.headers.get("content-type") ?? "", /application\/javascript/);
+    assert.match(await appResponse.text(), /router\.on/);
+  } finally {
+    await manager.cleanup();
   }
 });
 

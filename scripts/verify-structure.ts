@@ -57,6 +57,13 @@ const requiredPaths = [
   "src/skill/sidecar-client.ts",
   "src/shared/session-status.ts",
   "src/shared/reserved-contracts.ts",
+  "ui/session-console/index.html",
+  "ui/session-console/FRONTEND.md",
+  "ui/session-console/src/app.js",
+  "ui/session-console/src/pages/sessions.js",
+  "ui/session-console/src/pages/session-detail.js",
+  "ui/session-console/src/pages/run-detail.js",
+  "ui/session-console/src/pages/outbox.js",
   "skills/openclaw-manager/SKILL.md",
   "skills/openclaw-manager/agents/openai.yaml"
 ];

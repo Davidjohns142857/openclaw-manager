@@ -28,6 +28,7 @@ Use this skill when the user is managing long-running OpenClaw work rather than 
 3. Keep connector semantics out of the core control plane; all external input should pass through the normalized inbound-message contract.
 4. Use append-only writes for event, trace, and capability-fact streams.
 5. Treat the local sidecar HTTP API as the canonical skill boundary; do not bypass it by importing control-plane internals into host-facing command code.
+6. When reporting session/task/focus/adopt/resume/checkpoint/close results to the user, proactively include the local session console URL when available. Prefer `GET /health -> ui.session_console_url`; otherwise fall back to `http://127.0.0.1:<port>/ui`.
 
 ## References
 

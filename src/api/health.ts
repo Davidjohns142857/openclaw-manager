@@ -4,14 +4,18 @@ import type { ManagerConfig, PublicFactsAutoSubmitStatus } from "../shared/types
 export function buildHealthPayload(
   config: ManagerConfig,
   sessionCount: number,
-  publicFactAutoSubmit?: PublicFactsAutoSubmitStatus
+  publicFactAutoSubmit?: PublicFactsAutoSubmitStatus,
+  effectivePort: number = config.port
 ): Record<string, unknown> {
   return {
     status: "ok",
     now: isoNow(),
     state_root: config.stateRoot,
-    port: config.port,
+    port: effectivePort,
     session_count: sessionCount,
+    ui: {
+      session_console_url: `http://127.0.0.1:${effectivePort}/ui`
+    },
     public_facts: {
       endpoint: config.public_facts.endpoint,
       schema_version: config.public_facts.schema_version,
