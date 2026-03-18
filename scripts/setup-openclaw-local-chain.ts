@@ -113,7 +113,10 @@ async function main(): Promise<void> {
     );
   }
 
-  if (!options.dryRun && !config.board_sync.enabled) {
+  const hasExplicitBoardOverride =
+    Boolean(options.boardToken?.trim()) || Boolean(options.boardPushUrl?.trim());
+
+  if (!options.dryRun && !hasExplicitBoardOverride) {
     const registration = await registerBoard(config.sidecar.state_root, config.public_facts.endpoint, {
       register_url: options.boardRegisterUrl,
       board_port: options.boardPort
