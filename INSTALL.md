@@ -72,6 +72,10 @@ Relevant flags:
 
 Do not send `http://127.0.0.1:8791/ui` to remote/mobile users.
 
+If you are enabling the shared Viewer Board, follow:
+
+- [`docs/viewer-board-setup-checklist.md`](/Users/yangshangqing/metaclaw/docs/viewer-board-setup-checklist.md)
+
 This setup does three things:
 
 1. writes local runtime config

@@ -102,6 +102,8 @@ That keeps sidecar setup and public-fact auto-submit available, but intentionall
 
 After setup, the correct end-user onboarding flow is in [`FIRST_RUN.md`](/Users/yangshangqing/metaclaw/FIRST_RUN.md). That document explains when to use `/adopt`, how `/tasks` differs from `/focus`, and what Cloud/manual mode means in practice.
 
+If you are wiring remote/mobile board access, use the admin runbook in [`docs/viewer-board-setup-checklist.md`](/Users/yangshangqing/metaclaw/docs/viewer-board-setup-checklist.md).
+
 If Cloud/manual mode also has public-facts auto-submit enabled, do not treat `127.0.0.1:8791/ui` as a user-facing URL. Remote/mobile users should use the shared Viewer Board service on `18991`, for example `http://142.171.114.18:18991/board/<token>/`, after board sync has been configured.
 
 Local verification helper:

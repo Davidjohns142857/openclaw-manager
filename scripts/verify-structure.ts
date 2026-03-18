@@ -22,6 +22,7 @@ const requiredPaths = [
   "docs/public-facts-outbox.md",
   "docs/public-fact-auto-submit.md",
   "docs/viewer-board-token-design.md",
+  "docs/viewer-board-setup-checklist.md",
   "docs/session-status-derivation.md",
   "docs/browser-connector.md",
   "docs/github-connector.md",

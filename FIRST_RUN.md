@@ -151,6 +151,10 @@ If a board link is shown, it should be treated as:
 - typically a Viewer Board URL such as `http://host:18991/board/<token>/`
 - never `http://127.0.0.1:8791/ui` for a remote/mobile user
 
+If an administrator is wiring or debugging that board link, the setup runbook is:
+
+- [`docs/viewer-board-setup-checklist.md`](/Users/yangshangqing/metaclaw/docs/viewer-board-setup-checklist.md)
+
 Mutations still belong to Manager commands such as:
 
 - `/adopt`
