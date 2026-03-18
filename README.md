@@ -2,6 +2,21 @@
 
 OpenClaw Manager is a filesystem-first control plane for OpenClaw. It turns linear chat threads into recoverable `session` objects, tracks execution as `run` objects, and derives high-density human attention from normalized `event` streams.
 
+This repository now also ships a public-facing root skill bundle:
+
+- root skill manifest: [SKILL.md](/Users/yangshangqing/metaclaw/SKILL.md)
+- root install guide: [INSTALL.md](/Users/yangshangqing/metaclaw/INSTALL.md)
+- root agent metadata: [agents/openai.yaml](/Users/yangshangqing/metaclaw/agents/openai.yaml)
+
+The intended normal topology is local-first:
+
+- OpenClaw Gateway locally
+- `openclaw-manager` sidecar locally
+- managed pre-routing hook locally
+- optional public ingest remotely
+
+Normal install/setup should not be treated as a VPS deploy/update flow.
+
 This repository now contains a Phase 1 MVP scaffold:
 
 - a Node 24 + TypeScript sidecar skeleton under [`src/`](/Users/yangshangqing/metaclaw/src)
@@ -58,15 +73,27 @@ Out of scope for this scaffold:
 2. Start the sidecar locally: `npm run start`
 3. Run the local smoke flow: `npm run smoke`
 
+Local same-machine helpers:
+
+- `npm run local:setup`
+- `npm run local:start`
+- `npm run local:doctor`
+
 By default, runtime state is written to `.openclaw-manager-state/` in this repository. Override with `OPENCLAW_MANAGER_HOME=/path/to/state`.
 
 If you want ordinary OpenClaw inbound messages to hit manager admission automatically, run the one-time setup helper after installing the bundle:
 
 ```bash
-node ~/.openclaw/tools/openclaw-manager/scripts/setup-openclaw-host.ts
+node ~/.openclaw/tools/openclaw-manager/scripts/setup-openclaw-local-chain.ts
 ```
 
-This installs and enables the managed hook at [`hooks/openclaw-manager-prerouting/`](/Users/yangshangqing/metaclaw/hooks/openclaw-manager-prerouting), then asks you to restart the Gateway.
+This writes local runtime config, installs/enables the managed hook at [`hooks/openclaw-manager-prerouting/`](/Users/yangshangqing/metaclaw/hooks/openclaw-manager-prerouting), and installs a local sidecar user service before asking you to restart the Gateway.
+
+Local verification helper:
+
+```bash
+node ~/.openclaw/tools/openclaw-manager/scripts/doctor-local-chain.ts
+```
 
 Public fact live-ingest defaults to `http://142.171.114.18:56557/v1/ingest`. Override with:
 

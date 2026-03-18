@@ -18,6 +18,8 @@
 - 可安装的 managed hook：
   - [`hooks/openclaw-manager-prerouting/HOOK.md`](/Users/yangshangqing/metaclaw/hooks/openclaw-manager-prerouting/HOOK.md)
   - [`hooks/openclaw-manager-prerouting/handler.ts`](/Users/yangshangqing/metaclaw/hooks/openclaw-manager-prerouting/handler.ts)
+- 本机 local-chain setup helper：
+  - [`scripts/setup-openclaw-local-chain.ts`](/Users/yangshangqing/metaclaw/scripts/setup-openclaw-local-chain.ts)
 - 一次性宿主 setup helper：
   - [`scripts/setup-openclaw-host.ts`](/Users/yangshangqing/metaclaw/scripts/setup-openclaw-host.ts)
 
@@ -38,13 +40,15 @@
 你还需要完成一次 setup：
 
 ```bash
-node ~/.openclaw/tools/openclaw-manager/scripts/setup-openclaw-host.ts
+node ~/.openclaw/tools/openclaw-manager/scripts/setup-openclaw-local-chain.ts
 ```
 
 这个 helper 会自动执行：
 
-1. `openclaw hooks install -l <repo>/hooks/openclaw-manager-prerouting`
-2. `openclaw hooks enable openclaw-manager-prerouting`
+1. 写本机 local-chain config
+2. `openclaw hooks install -l <repo>/hooks/openclaw-manager-prerouting`
+3. `openclaw hooks enable openclaw-manager-prerouting`
+4. 安装本机 sidecar user service
 
 然后要求你重启 Gateway。
 

@@ -1,0 +1,7 @@
+interface:
+  display_name: "OpenClaw Manager"
+  short_description: "Local durable task control plane"
+  default_prompt: "Use $openclaw-manager as a same-machine local sidecar skill. Default topology is local Gateway + local manager sidecar + optional public ingest. Do not default to SSH, VPS deployment, or remote service management unless the user explicitly asks for remote infrastructure work."
+
+policy:
+  allow_implicit_invocation: true

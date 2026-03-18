@@ -31,6 +31,9 @@ Use this skill when the user is managing long-running OpenClaw work rather than 
 4. Use append-only writes for event, trace, and capability-fact streams.
 5. Treat the local sidecar HTTP API as the canonical skill boundary; do not bypass it by importing control-plane internals into host-facing command code.
 6. When reporting session/task/focus/adopt/resume/checkpoint/close results to the user, proactively include the local session console URL when available. Prefer `GET /health -> ui.session_console_url`; otherwise fall back to `http://127.0.0.1:<port>/ui`.
+7. Normal install/setup means local same-machine chain first: local OpenClaw Gateway, local manager sidecar, local pre-routing hook, optional public ingest.
+8. Do not default to SSH, `systemctl`, remote `git pull`, SCP, or VPS deployment unless the user explicitly asks to manage remote infrastructure.
+9. For first-time local setup, prefer `node ~/.openclaw/tools/openclaw-manager/scripts/setup-openclaw-local-chain.ts`.
 
 ## References
 

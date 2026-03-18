@@ -1,7 +1,7 @@
 interface:
   display_name: "OpenClaw Manager"
   short_description: "Control sessions, runs, checkpoints, and focus"
-  default_prompt: "Use $openclaw-manager to inspect sessions, resume a stalled task, or export a share snapshot. When relevant, surface the local session console URL at /ui."
+  default_prompt: "Use $openclaw-manager to inspect sessions, resume a stalled task, or export a share snapshot. Default to the same-machine local chain: local OpenClaw Gateway + local manager sidecar + optional public ingest. Do not default to SSH, VPS deployment, or remote service management unless the user explicitly asks for remote infrastructure work. When relevant, surface the local session console URL at /ui."
 
 policy:
   allow_implicit_invocation: true

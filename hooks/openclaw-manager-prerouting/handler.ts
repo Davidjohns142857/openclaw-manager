@@ -1,3 +1,5 @@
+import { readLocalChainConfig } from "../../src/host/local-chain.ts";
+
 const DEFAULT_MANAGER_BASE_URL = "http://127.0.0.1:8791";
 const DEFAULT_TIMEOUT_MS = 2500;
 
@@ -61,9 +63,7 @@ export async function handleOpenClawManagerPreroutingEvent(
 
   const response = await callManagerPrerouting(event, {
     fetchImpl: options.fetchImpl ?? fetch,
-    managerBaseUrl: normalizeBaseUrl(
-      options.managerBaseUrl ?? process.env.OPENCLAW_MANAGER_BASE_URL ?? DEFAULT_MANAGER_BASE_URL
-    ),
+    managerBaseUrl: await resolveManagerBaseUrl(options),
     timeoutMs: options.timeoutMs ?? DEFAULT_TIMEOUT_MS
   });
 
@@ -145,6 +145,23 @@ async function callManagerPrerouting(
   } finally {
     clearTimeout(timeout);
   }
+}
+
+async function resolveManagerBaseUrl(options: HookHandlerOptions): Promise<string> {
+  if (options.managerBaseUrl?.trim()) {
+    return normalizeBaseUrl(options.managerBaseUrl);
+  }
+
+  if (process.env.OPENCLAW_MANAGER_BASE_URL?.trim()) {
+    return normalizeBaseUrl(process.env.OPENCLAW_MANAGER_BASE_URL);
+  }
+
+  const config = await readLocalChainConfig();
+  if (config?.manager_base_url) {
+    return normalizeBaseUrl(config.manager_base_url);
+  }
+
+  return normalizeBaseUrl(DEFAULT_MANAGER_BASE_URL);
 }
 
 function renderSuggestionMessage(response: HostPreroutingResponse): string {
