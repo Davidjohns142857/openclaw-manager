@@ -7,6 +7,7 @@ This repository now contains a Phase 1 MVP scaffold:
 - a Node 24 + TypeScript sidecar skeleton under [`src/`](/Users/yangshangqing/metaclaw/src)
 - formal JSON schemas under [`schemas/`](/Users/yangshangqing/metaclaw/schemas)
 - a manager skill package under [`skills/openclaw-manager/`](/Users/yangshangqing/metaclaw/skills/openclaw-manager)
+- a skill install/setup guide under [`skills/openclaw-manager/INSTALL.md`](/Users/yangshangqing/metaclaw/skills/openclaw-manager/INSTALL.md)
 - markdown/html templates under [`templates/`](/Users/yangshangqing/metaclaw/templates)
 - a requirement mapping from the source concept docs under [`docs/mvp-requirements.md`](/Users/yangshangqing/metaclaw/docs/mvp-requirements.md)
 - explicit transport rules under [`docs/http-protocol-boundary.md`](/Users/yangshangqing/metaclaw/docs/http-protocol-boundary.md)
@@ -18,6 +19,7 @@ This repository now contains a Phase 1 MVP scaffold:
 - an OpenClaw host integration contract under [`docs/openclaw-host-integration.md`](/Users/yangshangqing/metaclaw/docs/openclaw-host-integration.md)
 - a host message capture / admission contract under [`docs/host-message-admission.md`](/Users/yangshangqing/metaclaw/docs/host-message-admission.md)
 - an OpenClaw host pre-routing hook integration contract under [`docs/openclaw-host-prerouting-hook.md`](/Users/yangshangqing/metaclaw/docs/openclaw-host-prerouting-hook.md)
+- a managed OpenClaw hook pack under [`hooks/openclaw-manager-prerouting/`](/Users/yangshangqing/metaclaw/hooks/openclaw-manager-prerouting)
 - an interaction semantics contract under [`docs/interaction-contract.md`](/Users/yangshangqing/metaclaw/docs/interaction-contract.md)
 - a decision/blocker lifecycle contract under [`docs/decision-blocker-contract.md`](/Users/yangshangqing/metaclaw/docs/decision-blocker-contract.md)
 - a reserved decision/blocker API contract under [`docs/decision-blocker-api-contract.md`](/Users/yangshangqing/metaclaw/docs/decision-blocker-api-contract.md)
@@ -58,6 +60,14 @@ Out of scope for this scaffold:
 
 By default, runtime state is written to `.openclaw-manager-state/` in this repository. Override with `OPENCLAW_MANAGER_HOME=/path/to/state`.
 
+If you want ordinary OpenClaw inbound messages to hit manager admission automatically, run the one-time setup helper after installing the bundle:
+
+```bash
+node ~/.openclaw/tools/openclaw-manager/scripts/setup-openclaw-host.ts
+```
+
+This installs and enables the managed hook at [`hooks/openclaw-manager-prerouting/`](/Users/yangshangqing/metaclaw/hooks/openclaw-manager-prerouting), then asks you to restart the Gateway.
+
 Public fact live-ingest defaults to `http://142.171.114.18:56557/v1/ingest`. Override with:
 
 - `OPENCLAW_MANAGER_PUBLIC_FACTS_ENDPOINT`
@@ -67,6 +77,13 @@ Public fact live-ingest defaults to `http://142.171.114.18:56557/v1/ingest`. Ove
 - `OPENCLAW_MANAGER_PUBLIC_FACTS_AUTO_SUBMIT_ENABLED`
 - `OPENCLAW_MANAGER_PUBLIC_FACTS_AUTO_SUBMIT_INTERVAL_MS`
 - `OPENCLAW_MANAGER_PUBLIC_FACTS_AUTO_SUBMIT_STARTUP_DELAY_MS`
+
+Verification surfaces:
+
+- local sidecar health: `http://127.0.0.1:8791/health`
+- local session console: `http://127.0.0.1:8791/ui`
+- public ingest health: `http://142.171.114.18:56557/v1/health`
+- public facts list: `http://142.171.114.18:56557/v1/facts`
 
 ## Repository Layout
 

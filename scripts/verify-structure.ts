@@ -46,6 +46,8 @@ const requiredPaths = [
   "src/host/context.ts",
   "src/host/admission-policy.ts",
   "src/host/prerouting-hook.ts",
+  "src/host/server-sidecar.ts",
+  "src/host/setup.ts",
   "src/host/suggest-or-adopt.ts",
   "src/timeline/timeline-service.ts",
   "src/control-plane/reserved-contract-service.ts",
@@ -66,7 +68,11 @@ const requiredPaths = [
   "ui/session-console/src/pages/run-detail.js",
   "ui/session-console/src/pages/outbox.js",
   "skills/openclaw-manager/SKILL.md",
-  "skills/openclaw-manager/agents/openai.yaml"
+  "skills/openclaw-manager/INSTALL.md",
+  "skills/openclaw-manager/agents/openai.yaml",
+  "hooks/openclaw-manager-prerouting/HOOK.md",
+  "hooks/openclaw-manager-prerouting/handler.ts",
+  "scripts/setup-openclaw-host.ts"
 ];
 
 for (const relativePath of requiredPaths) {

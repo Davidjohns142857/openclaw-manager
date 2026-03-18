@@ -55,6 +55,13 @@ Current default endpoint is `http://142.171.114.18:56557/v1/ingest`.
 - `public_facts.auto_submit.last_result`
 - `public_facts.auto_submit.last_error`
 
+For the current public ingest endpoint, the useful external verification surfaces are:
+
+- `http://142.171.114.18:56557/v1/health`
+- `http://142.171.114.18:56557/v1/facts`
+
+Do not use `http://142.171.114.18:56557/v1/` as the verification target; submissions are posted to `/v1/ingest`.
+
 ## Stability Rules
 
 - Auto submit is a derived/background surface; it must not affect Phase 1 session/run/event guarantees.

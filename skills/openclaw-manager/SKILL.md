@@ -1,6 +1,8 @@
 ---
 name: openclaw-manager
 description: Manage OpenClaw task sessions, run recovery, attention queues, checkpoints, and share snapshots through a filesystem-first control plane. Use when the user needs to adopt a chat into a durable session, resume a stalled task, inspect multi-task state, or export a task snapshot.
+homepage: https://github.com/Davidjohns142857/openclaw-manager
+metadata: {"openclaw":{"homepage":"https://github.com/Davidjohns142857/openclaw-manager","requires":{"bins":["node"]},"install":[{"id":"manager-bundle","kind":"download","url":"https://github.com/Davidjohns142857/openclaw-manager/archive/refs/heads/codex/ysq-host-boundary-contracts.tar.gz","archive":"tar.gz","extract":true,"stripComponents":1,"targetDir":"~/.openclaw/tools/openclaw-manager","label":"Download OpenClaw Manager bundle"}]}}
 ---
 
 # OpenClaw Manager
@@ -34,3 +36,4 @@ Use this skill when the user is managing long-running OpenClaw work rather than 
 
 - Command and API contracts: [references/command-contracts.md](/Users/yangshangqing/metaclaw/skills/openclaw-manager/references/command-contracts.md)
 - Phase 1 operating boundaries: [references/operating-boundaries.md](/Users/yangshangqing/metaclaw/skills/openclaw-manager/references/operating-boundaries.md)
+- Install and host setup flow: [INSTALL.md](/Users/yangshangqing/metaclaw/skills/openclaw-manager/INSTALL.md)
