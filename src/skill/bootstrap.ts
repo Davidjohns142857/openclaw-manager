@@ -1,4 +1,5 @@
 import { resolveConfig } from "../config.ts";
+import { BoardSyncService } from "../board/board-sync.ts";
 import { ControlPlane } from "../control-plane/control-plane.ts";
 import { FilesystemStore } from "../storage/fs-store.ts";
 import type { ManagerConfig } from "../shared/types.ts";
@@ -15,6 +16,7 @@ export async function bootstrapManager(
   store: FilesystemStore;
   controlPlane: ControlPlane;
   publicFactAutoSubmitService: PublicFactAutoSubmitService;
+  boardSyncService: BoardSyncService;
 }> {
   const resolved = resolveConfig();
   const config = {
@@ -35,6 +37,10 @@ export async function bootstrapManager(
     public_facts: {
       ...resolved.public_facts,
       ...overrides.public_facts
+    },
+    board_sync: {
+      ...resolved.board_sync,
+      ...overrides.board_sync
     }
   };
 
@@ -58,9 +64,12 @@ export async function bootstrapManager(
   const store = new FilesystemStore(config);
   const controlPlane = new ControlPlane(config, store);
   const publicFactAutoSubmitService = new PublicFactAutoSubmitService(config, controlPlane);
+  const boardSyncService = new BoardSyncService(config.board_sync, controlPlane);
 
   await controlPlane.initialize();
   publicFactAutoSubmitService.start();
+  controlPlane.setBoardSyncService(boardSyncService);
+  boardSyncService.start();
 
-  return { config, store, controlPlane, publicFactAutoSubmitService };
+  return { config, store, controlPlane, publicFactAutoSubmitService, boardSyncService };
 }

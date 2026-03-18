@@ -493,6 +493,15 @@ export interface PublicFactsTransportConfig {
   auto_submit_retry_failed_retryable: boolean;
 }
 
+export interface BoardSyncConfig {
+  enabled: boolean;
+  board_push_url: string | null;
+  board_token: string | null;
+  push_interval_ms: number;
+  push_on_mutation: boolean;
+  timeout_ms: number;
+}
+
 export interface PublicFactsAutoSubmitStatus {
   enabled: boolean;
   mode: "http";
@@ -532,6 +541,7 @@ export interface ManagerConfig {
   ui: ManagerUiConfig;
   host_integration: HostIntegrationConfig;
   public_facts: PublicFactsTransportConfig;
+  board_sync: BoardSyncConfig;
 }
 
 export interface PublicCapabilityFact {

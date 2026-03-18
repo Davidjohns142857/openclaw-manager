@@ -1,6 +1,7 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 
+import type { BoardSyncService } from "../board/board-sync.ts";
 import type {
   AdoptSessionInput,
   BindingListFilters,
@@ -98,6 +99,7 @@ export class ControlPlane {
   publicFactSubmitter: PublicFactSubmitter;
   reservedContractService: ReservedContractService;
   timelineService: TimelineService;
+  boardSyncService: BoardSyncService | null;
   sessionMutationLocks: Map<string, InProcessLock>;
 
   constructor(config: ManagerConfig, store: FilesystemStore) {
@@ -120,6 +122,7 @@ export class ControlPlane {
       this.eventService
     );
     this.timelineService = new TimelineService(store);
+    this.boardSyncService = null;
     this.sessionMutationLocks = new Map();
   }
 
@@ -127,6 +130,10 @@ export class ControlPlane {
     await this.store.ensureLayout();
     await this.refreshDerivedViews();
     await this.localDistillationService.refresh();
+  }
+
+  setBoardSyncService(boardSyncService: BoardSyncService | null): void {
+    this.boardSyncService = boardSyncService;
   }
 
   async listTasks(): Promise<Session[]> {
@@ -256,6 +263,14 @@ export class ControlPlane {
     return this.sessionMutationLock(sessionId).runExclusive(operation);
   }
 
+  private notifyBoardSyncMutation(): void {
+    if (!this.boardSyncService || !this.config.board_sync.enabled || !this.config.board_sync.push_on_mutation) {
+      return;
+    }
+
+    void this.boardSyncService.pushNow();
+  }
+
   private async resolveRunStartCheckpointRef(session: Session): Promise<string | null> {
     const recoverySourceRun = await this.resolveRecoverySourceRun(session.session_id);
 
@@ -307,6 +322,7 @@ export class ControlPlane {
     session = await this.saveProjectedSession(session, run);
 
     await this.refreshDerivedViews();
+    this.notifyBoardSyncMutation();
     return { session, run };
   }
 
@@ -417,6 +433,7 @@ export class ControlPlane {
       session = await this.saveProjectedSession(session, run);
 
       await this.refreshDerivedViews();
+      this.notifyBoardSyncMutation();
       return {
         session,
         run,
@@ -426,6 +443,7 @@ export class ControlPlane {
     }
 
     session = await this.saveProjectedSession(session, run ?? latestRun);
+    this.notifyBoardSyncMutation();
     return { session, run: run ?? latestRun, checkpoint, summary };
   }
 
@@ -496,6 +514,7 @@ export class ControlPlane {
     session = await this.saveProjectedSession(session, run);
 
     await this.refreshDerivedViews();
+    this.notifyBoardSyncMutation();
 
     return {
       session,
@@ -578,6 +597,7 @@ export class ControlPlane {
     }
 
     await this.refreshDerivedViews();
+    this.notifyBoardSyncMutation();
 
     return {
       session,
@@ -604,6 +624,7 @@ export class ControlPlane {
     const bound = await this.bindingService.bindSource(session, run, input);
 
     await this.refreshDerivedViews();
+    this.notifyBoardSyncMutation();
 
     const detail = await this.getSessionDetail(bound.session.session_id);
     return {
@@ -623,6 +644,7 @@ export class ControlPlane {
     const disabled = await this.bindingService.disableBinding(bindingId, input);
 
     await this.refreshDerivedViews();
+    this.notifyBoardSyncMutation();
 
     const detail = await this.getSessionDetail(disabled.session.session_id);
     return {
@@ -643,6 +665,7 @@ export class ControlPlane {
     const rebound = await this.bindingService.rebindBinding(bindingId, targetSession, input);
 
     await this.refreshDerivedViews();
+    this.notifyBoardSyncMutation();
 
     const detail = await this.getSessionDetail(rebound.session.session_id);
     return {
@@ -719,6 +742,7 @@ export class ControlPlane {
     const outcome = await this.reservedContractService.requestHumanDecision(session, run, input);
 
     await this.refreshDerivedViews();
+    this.notifyBoardSyncMutation();
 
     return this.buildReservedContractResult(sessionId, {
       contract_id: "session_decision_request_v1",
@@ -756,6 +780,7 @@ export class ControlPlane {
     );
 
     await this.refreshDerivedViews();
+    this.notifyBoardSyncMutation();
 
     return this.buildReservedContractResult(sessionId, {
       contract_id: "session_decision_resolve_v1",
@@ -787,6 +812,7 @@ export class ControlPlane {
     const outcome = await this.reservedContractService.detectBlocker(session, run, input);
 
     await this.refreshDerivedViews();
+    this.notifyBoardSyncMutation();
 
     return this.buildReservedContractResult(sessionId, {
       contract_id: "session_blocker_detect_v1",
@@ -824,6 +850,7 @@ export class ControlPlane {
     );
 
     await this.refreshDerivedViews();
+    this.notifyBoardSyncMutation();
 
     return this.buildReservedContractResult(sessionId, {
       contract_id: "session_blocker_clear_v1",
@@ -908,6 +935,7 @@ export class ControlPlane {
     });
 
     await this.refreshDerivedViews();
+    this.notifyBoardSyncMutation();
     return snapshot;
   }
 
@@ -993,6 +1021,7 @@ export class ControlPlane {
 
     await this.localDistillationService.refresh();
     await this.refreshDerivedViews();
+    this.notifyBoardSyncMutation();
     return session;
   }
 
@@ -1118,6 +1147,7 @@ export class ControlPlane {
     });
 
     await this.refreshDerivedViews();
+    this.notifyBoardSyncMutation();
 
     return result;
   }

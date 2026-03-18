@@ -90,6 +90,15 @@ export function resolveConfig(env: NodeJS.ProcessEnv = process.env): ManagerConf
     );
   }
 
+  if (
+    parseBooleanFlag(env.OPENCLAW_BOARD_SYNC_ENABLED) &&
+    (!env.OPENCLAW_BOARD_PUSH_URL?.trim() || !env.OPENCLAW_BOARD_TOKEN?.trim())
+  ) {
+    throw new Error(
+      "Board sync requires both OPENCLAW_BOARD_PUSH_URL and OPENCLAW_BOARD_TOKEN when enabled."
+    );
+  }
+
   return {
     repoRoot,
     stateRoot: env.OPENCLAW_MANAGER_HOME ?? path.join(repoRoot, ".openclaw-manager-state"),
@@ -136,6 +145,14 @@ export function resolveConfig(env: NodeJS.ProcessEnv = process.env): ManagerConf
       auto_submit_retry_failed_retryable: parseBooleanFlag(
         env.OPENCLAW_MANAGER_PUBLIC_FACTS_AUTO_SUBMIT_RETRY_FAILED_RETRYABLE ?? "1"
       )
+    },
+    board_sync: {
+      enabled: parseBooleanFlag(env.OPENCLAW_BOARD_SYNC_ENABLED),
+      board_push_url: env.OPENCLAW_BOARD_PUSH_URL?.trim() || null,
+      board_token: env.OPENCLAW_BOARD_TOKEN?.trim() || null,
+      push_interval_ms: parseInteger(env.OPENCLAW_BOARD_PUSH_INTERVAL_MS, 15000),
+      push_on_mutation: parseBooleanFlag(env.OPENCLAW_BOARD_PUSH_ON_MUTATION ?? "1"),
+      timeout_ms: parseInteger(env.OPENCLAW_BOARD_PUSH_TIMEOUT_MS, 5000)
     }
   };
 }

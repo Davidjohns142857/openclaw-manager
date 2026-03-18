@@ -58,6 +58,7 @@ const requiredPaths = [
   "schemas/fact-outbox-receipt.schema.json",
   "templates/session-summary.md",
   "src/main.ts",
+  "src/board/board-sync.ts",
   "src/api/server.ts",
   "src/api/published-ui-server.ts",
   "src/api/ui-assets.ts",
