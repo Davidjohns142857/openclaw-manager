@@ -2,11 +2,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import type { ManagerConfig } from "./shared/types.ts";
-import {
-  DEFAULT_PUBLISHED_UI_PROXY_PORT,
-  derivePublishedUiBaseUrlFromPublicFactsEndpoint,
-  validatePublishedUiBaseUrl
-} from "./shared/ui.ts";
+import { validatePublishedUiBaseUrl } from "./shared/ui.ts";
 
 const srcDir = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(srcDir, "..");
@@ -60,21 +56,9 @@ export function resolveConfig(env: NodeJS.ProcessEnv = process.env): ManagerConf
     env.OPENCLAW_MANAGER_UI_PUBLIC_BASE_URL
   );
   const configuredUiPublishPort = parseOptionalInteger(env.OPENCLAW_MANAGER_UI_PUBLISH_PORT);
-  const derivedUiPublishPort =
-    hostIntegrationMode === "manual_adopt" && publicFactsAutoSubmitEnabled
-      ? DEFAULT_PUBLISHED_UI_PROXY_PORT
-      : null;
   const uiPublishPort =
-    configuredUiPublishPort ??
-    inferPortFromAbsoluteUrl(configuredUiPublicBaseUrl) ??
-    derivedUiPublishPort;
-  const uiPublicBaseUrl =
-    configuredUiPublicBaseUrl ??
-    (hostIntegrationMode === "manual_adopt" &&
-    publicFactsAutoSubmitEnabled &&
-    uiPublishPort !== null
-      ? derivePublishedUiBaseUrlFromPublicFactsEndpoint(publicFactsEndpoint, uiPublishPort)
-      : null);
+    configuredUiPublishPort ?? inferPortFromAbsoluteUrl(configuredUiPublicBaseUrl);
+  const uiPublicBaseUrl = configuredUiPublicBaseUrl;
   const uiValidationError = validatePublishedUiBaseUrl(uiPublicBaseUrl, {
     manager_base_url: managerBaseUrl,
     public_facts_endpoint: publicFactsEndpoint
@@ -87,6 +71,15 @@ export function resolveConfig(env: NodeJS.ProcessEnv = process.env): ManagerConf
   if (uiPublishPort !== null && uiPublishPort === port) {
     throw new Error(
       "Published UI proxy port must stay separate from the manager sidecar port."
+    );
+  }
+
+  if (
+    parseBooleanFlag(env.OPENCLAW_BOARD_SYNC_ENABLED) &&
+    (!env.OPENCLAW_BOARD_PUSH_URL?.trim() || !env.OPENCLAW_BOARD_TOKEN?.trim())
+  ) {
+    throw new Error(
+      "Board sync requires both OPENCLAW_BOARD_PUSH_URL and OPENCLAW_BOARD_TOKEN when enabled."
     );
   }
 
@@ -136,6 +129,14 @@ export function resolveConfig(env: NodeJS.ProcessEnv = process.env): ManagerConf
       auto_submit_retry_failed_retryable: parseBooleanFlag(
         env.OPENCLAW_MANAGER_PUBLIC_FACTS_AUTO_SUBMIT_RETRY_FAILED_RETRYABLE ?? "1"
       )
+    },
+    board_sync: {
+      enabled: parseBooleanFlag(env.OPENCLAW_BOARD_SYNC_ENABLED),
+      board_push_url: env.OPENCLAW_BOARD_PUSH_URL?.trim() || null,
+      board_token: env.OPENCLAW_BOARD_TOKEN?.trim() || null,
+      push_interval_ms: parseInteger(env.OPENCLAW_BOARD_PUSH_INTERVAL_MS, 15000),
+      push_on_mutation: parseBooleanFlag(env.OPENCLAW_BOARD_PUSH_ON_MUTATION ?? "1"),
+      timeout_ms: parseInteger(env.OPENCLAW_BOARD_PUSH_TIMEOUT_MS, 5000)
     }
   };
 }

@@ -1,8 +1,9 @@
 import { isoNow } from "../shared/time.ts";
 import type { ManagerConfig, PublicFactsAutoSubmitStatus } from "../shared/types.ts";
 import {
+  buildBoardViewerUrlFromPushUrl,
   buildLocalSessionConsoleUrl,
-  buildPublishedSessionConsoleUrl
+  buildUserFacingSessionUrl
 } from "../shared/ui.ts";
 
 export function buildHealthPayload(
@@ -14,7 +15,15 @@ export function buildHealthPayload(
     ui_read_only?: boolean;
   } = {}
 ): Record<string, unknown> {
-  const publishedSessionConsoleUrl = buildPublishedSessionConsoleUrl(config.ui.public_base_url);
+  const viewerBoardUrl = buildBoardViewerUrlFromPushUrl(
+    config.board_sync.board_push_url,
+    config.board_sync.board_token
+  );
+  const publishedSessionConsoleUrl = buildUserFacingSessionUrl({
+    public_base_url: config.ui.public_base_url,
+    board_push_url: config.board_sync.board_push_url,
+    board_token: config.board_sync.board_token
+  });
 
   return {
     status: "ok",
@@ -24,18 +33,24 @@ export function buildHealthPayload(
     session_count: sessionCount,
     ui: {
       access_mode:
-        config.ui.publish_port !== null
+        viewerBoardUrl
+          ? "token_board"
+          : config.ui.publish_port !== null
           ? "published_proxy"
           : publishedSessionConsoleUrl
             ? "external"
             : "local_only",
-      read_only: options.ui_read_only ?? false,
+      read_only: viewerBoardUrl ? true : options.ui_read_only ?? false,
       session_console_url: publishedSessionConsoleUrl,
       local_session_console_url: buildLocalSessionConsoleUrl(effectivePort),
+      viewer_board_url: viewerBoardUrl,
       publish_proxy: {
         enabled: config.ui.publish_port !== null,
         bind_host: config.ui.publish_bind_host,
         port: config.ui.publish_port
+      },
+      board_sync: {
+        enabled: config.board_sync.enabled
       }
     },
     host_integration: {

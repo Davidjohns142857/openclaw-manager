@@ -102,7 +102,7 @@ That keeps sidecar setup and public-fact auto-submit available, but intentionall
 
 After setup, the correct end-user onboarding flow is in [`FIRST_RUN.md`](/Users/yangshangqing/metaclaw/FIRST_RUN.md). That document explains when to use `/adopt`, how `/tasks` differs from `/focus`, and what Cloud/manual mode means in practice.
 
-If Cloud/manual mode also has public-facts auto-submit enabled, manager now defaults the published read-only UI to the same public host on port `18891` unless you explicitly override `--ui-public-base-url`.
+If Cloud/manual mode also has public-facts auto-submit enabled, do not treat `127.0.0.1:8791/ui` as a user-facing URL. Remote/mobile users should use the shared Viewer Board service on `18991`, for example `http://142.171.114.18:18991/board/<token>/`, after board sync has been configured.
 
 Local verification helper:
 
@@ -127,12 +127,12 @@ Verification surfaces:
 - public ingest health: `http://142.171.114.18:56557/v1/health`
 - public facts list: `http://142.171.114.18:56557/v1/facts`
 
-By default, `http://127.0.0.1:8791/ui` is not a user-facing mobile URL. Only expose a session console link to end users if you have explicitly published a separate external UI URL.
+By default, `http://127.0.0.1:8791/ui` is not a user-facing mobile URL. Remote/mobile users should use Viewer Board, not the raw sidecar UI.
 
-Valid publication modes are:
+Valid remote/mobile viewing modes are:
 
-- a Gateway / reverse-proxy URL
-- a dedicated published read-only UI proxy on its own port
+- a Gateway / reverse-proxy URL that serves a read-only board
+- the dedicated Viewer Board service on its own port, such as `18991`
 
 That external UI URL must not be the raw sidecar port and must not reuse the public ingest endpoint or host:port. See [`docs/cloud-deploy-boundary.md`](/Users/yangshangqing/metaclaw/docs/cloud-deploy-boundary.md).
 

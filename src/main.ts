@@ -2,8 +2,27 @@ import { ManagerServer } from "./api/server.ts";
 import { PublishedUiServer } from "./api/published-ui-server.ts";
 import { bootstrapManager } from "./skill/bootstrap.ts";
 
+function maskBoardPushUrl(url: string | null): string {
+  if (!url) {
+    return "unconfigured";
+  }
+
+  try {
+    const parsed = new URL(url);
+    const segments = parsed.pathname.split("/").filter(Boolean);
+    if (segments.length > 0) {
+      segments[segments.length - 1] = "<token>";
+      parsed.pathname = `/${segments.join("/")}`;
+    }
+    return parsed.toString();
+  } catch {
+    return "<invalid-url>";
+  }
+}
+
 try {
-  const { controlPlane, config, publicFactAutoSubmitService } = await bootstrapManager();
+  const { controlPlane, config, publicFactAutoSubmitService, boardSyncService } =
+    await bootstrapManager();
   const server = new ManagerServer(controlPlane, config, publicFactAutoSubmitService);
   const publishedUiServer =
     config.ui.publish_port !== null
@@ -16,6 +35,7 @@ try {
   }
 
   const shutdown = async () => {
+    boardSyncService.stop();
     publicFactAutoSubmitService.stop();
     if (publishedUiServer) {
       await publishedUiServer.stop();
@@ -45,6 +65,13 @@ try {
     `Public facts auto submit: ${
       config.public_facts.auto_submit_enabled
         ? `enabled every ${config.public_facts.auto_submit_interval_ms}ms`
+        : "disabled"
+    }`
+  );
+  console.log(
+    `Board sync: ${
+      config.board_sync.enabled
+        ? `enabled -> ${maskBoardPushUrl(config.board_sync.board_push_url)} every ${config.board_sync.push_interval_ms}ms`
         : "disabled"
     }`
   );

@@ -50,41 +50,28 @@ node ~/.openclaw/tools/openclaw-manager/scripts/setup-openclaw-local-chain.ts --
 Canonical Cloud/manual command: `node ~/.openclaw/tools/openclaw-manager/scripts/setup-openclaw-local-chain.ts --cloud-hosted`
 Cloud/manual flag: `--cloud-hosted`
 
-In Cloud/manual mode, if auto-submit is enabled and you do not explicitly pass `--ui-public-base-url`, setup will default the published read-only UI to the public-facts host on port `18891`.
-
 To enable public facts auto-submit during setup:
 
 ```bash
 node ~/.openclaw/tools/openclaw-manager/scripts/setup-openclaw-local-chain.ts --enable-public-facts
 ```
 
-To make the session console reachable from another device, publish the sidecar behind an external origin and run:
+To make the session board reachable from another device, configure Viewer Board with a token:
 
 ```bash
-node ~/.openclaw/tools/openclaw-manager/scripts/setup-openclaw-local-chain.ts --ui-public-base-url http://your-host.example.com:18891
+node ~/.openclaw/tools/openclaw-manager/scripts/setup-openclaw-local-chain.ts \
+  --cloud-hosted \
+  --enable-public-facts \
+  --board-token bt_xxx
 ```
 
-Published UI flag: `--ui-public-base-url http://your-host.example.com:18891`
+Relevant flags:
 
-Gateway / reverse-proxy example: `--ui-public-base-url https://your-manager.example.com`
+- `--board-token bt_xxx`
+- `--board-push-url http://your-host.example.com:18991/board-sync/bt_xxx`
+- `--board-port 18991`
 
-If you want the manager itself to bind a dedicated published read-only UI proxy port, add:
-
-```bash
-node ~/.openclaw/tools/openclaw-manager/scripts/setup-openclaw-local-chain.ts --ui-public-base-url http://your-host.example.com:18891 --publish-ui-port 18891
-```
-
-This published UI URL must stay separate from:
-
-- the raw sidecar port
-- the public ingest host:port `142.171.114.18:56557`
-
-It also must not reuse `56557/v1/ingest`.
-
-Valid publication modes are:
-
-- Gateway / reverse-proxy URL
-- dedicated published read-only UI proxy on its own port
+Do not send `http://127.0.0.1:8791/ui` to remote/mobile users.
 
 Verification:
 
@@ -135,10 +122,8 @@ The default setup assumes:
 
 - OpenClaw Gateway and `openclaw-manager` sidecar run on the same machine
 - the sidecar listens at `http://127.0.0.1:8791`
-- `http://127.0.0.1:8791/ui` is only a same-machine admin URL unless you explicitly publish an external UI base URL
-- the external UI base must stay separate from public ingest and can be either:
-  - a Gateway / reverse-proxy URL
-  - a dedicated published read-only UI proxy on its own port
+- `http://127.0.0.1:8791/ui` is only a same-machine admin URL
+- remote/mobile users should use a Viewer Board URL such as `http://host:18991/board/<token>/`
 
 This normal setup should not be treated as:
 
@@ -176,3 +161,4 @@ Verification:
 - public facts list: `http://142.171.114.18:56557/v1/facts`
 
 Do not use `http://142.171.114.18:56557/v1/` as the verification target; the ingest endpoint is `/v1/ingest`, and read surfaces are `/v1/health` plus `/v1/facts`.
+Do not send `http://127.0.0.1:8791/ui` to remote/mobile users; use Viewer Board instead.

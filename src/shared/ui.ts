@@ -1,4 +1,5 @@
 export const DEFAULT_PUBLISHED_UI_PROXY_PORT = 18891;
+export const DEFAULT_VIEWER_BOARD_PORT = 18991;
 
 export function normalizeBaseUrl(baseUrl: string): string {
   return baseUrl.endsWith("/") ? baseUrl : `${baseUrl}/`;
@@ -14,6 +15,65 @@ export function buildPublishedSessionConsoleUrl(publicBaseUrl: string | null): s
   }
 
   return new URL("ui", normalizeBaseUrl(publicBaseUrl.trim())).toString();
+}
+
+export function buildBoardViewerUrlFromPushUrl(
+  boardPushUrl: string | null,
+  boardToken: string | null
+): string | null {
+  if (!boardPushUrl?.trim() || !boardToken?.trim()) {
+    return null;
+  }
+
+  try {
+    const pushUrl = new URL(boardPushUrl);
+    const viewerUrl = new URL(`${pushUrl.protocol}//${pushUrl.host}`);
+    viewerUrl.pathname = `/board/${encodeURIComponent(boardToken.trim())}/`;
+    viewerUrl.search = "";
+    viewerUrl.hash = "";
+    return viewerUrl.toString();
+  } catch {
+    return null;
+  }
+}
+
+export function buildBoardHealthUrlFromPushUrl(
+  boardPushUrl: string | null,
+  boardToken: string | null
+): string | null {
+  if (!boardPushUrl?.trim() || !boardToken?.trim()) {
+    return null;
+  }
+
+  try {
+    const pushUrl = new URL(boardPushUrl);
+    const healthUrl = new URL(`${pushUrl.protocol}//${pushUrl.host}`);
+    healthUrl.pathname = `/board-api/${encodeURIComponent(boardToken.trim())}/health`;
+    healthUrl.search = "";
+    healthUrl.hash = "";
+    return healthUrl.toString();
+  } catch {
+    return null;
+  }
+}
+
+export function buildBoardPushUrl(boardBaseUrl: string, boardToken: string): string {
+  const baseUrl = new URL(normalizeBaseUrl(boardBaseUrl.trim()));
+  baseUrl.pathname = `/board-sync/${encodeURIComponent(boardToken.trim())}`;
+  baseUrl.search = "";
+  baseUrl.hash = "";
+  return baseUrl.toString();
+}
+
+export function buildUserFacingSessionUrl(options: {
+  public_base_url: string | null;
+  board_push_url: string | null;
+  board_token: string | null;
+}): string | null {
+  return (
+    buildBoardViewerUrlFromPushUrl(options.board_push_url, options.board_token) ??
+    buildPublishedSessionConsoleUrl(options.public_base_url)
+  );
 }
 
 export function validatePublishedUiBaseUrl(
@@ -90,6 +150,27 @@ export function derivePublishedUiBaseUrlFromPublicFactsEndpoint(
     published.search = "";
     published.hash = "";
     return published.toString().replace(/\/$/u, "");
+  } catch {
+    return null;
+  }
+}
+
+export function deriveBoardBaseUrlFromPublicFactsEndpoint(
+  publicFactsEndpoint: string,
+  boardPort: number = DEFAULT_VIEWER_BOARD_PORT
+): string | null {
+  try {
+    const ingest = new URL(publicFactsEndpoint);
+    if (isLocalhostHost(ingest.hostname) || !Number.isFinite(boardPort)) {
+      return null;
+    }
+
+    const boardUrl = new URL(`${ingest.protocol}//${ingest.host}`);
+    boardUrl.port = `${boardPort}`;
+    boardUrl.pathname = "";
+    boardUrl.search = "";
+    boardUrl.hash = "";
+    return boardUrl.toString().replace(/\/$/u, "");
   } catch {
     return null;
   }
