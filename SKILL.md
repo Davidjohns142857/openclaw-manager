@@ -35,6 +35,8 @@ When the user says “install”, “configure”, or “enable” this skill, a
 
 Read `{baseDir}/INSTALL.md` and follow the local-chain setup flow there.
 
+After install/setup questions are settled, read `{baseDir}/FIRST_RUN.md` before explaining how end users should actually use Manager in chat.
+
 ## Working Rules
 
 1. Treat `session`, `run`, and `event` as the primary truth, not raw chat replay.
@@ -49,5 +51,6 @@ Read `{baseDir}/INSTALL.md` and follow the local-chain setup flow there.
 ## References
 
 - Install flow: `{baseDir}/INSTALL.md`
+- First-run onboarding: `{baseDir}/FIRST_RUN.md`
 - Manager skill bundle: `{baseDir}/skills/openclaw-manager/SKILL.md`
 - Host pre-routing contract: `{baseDir}/docs/openclaw-host-prerouting-hook.md`

@@ -18,4 +18,4 @@
 - Avoid framework-heavy code in Phase 1.
 - Keep connector implementations behind normalized inbound-message contracts.
 - When adding new commands, update both [`skills/openclaw-manager/SKILL.md`](/Users/yangshangqing/metaclaw/skills/openclaw-manager/SKILL.md) and [`src/skill/commands.ts`](/Users/yangshangqing/metaclaw/src/skill/commands.ts).
-
+- When updating install, onboarding, or user-facing product guidance, keep [`FIRST_RUN.md`](/Users/yangshangqing/metaclaw/FIRST_RUN.md) aligned and treat it as the canonical end-user onboarding document.

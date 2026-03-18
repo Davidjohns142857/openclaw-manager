@@ -85,3 +85,4 @@
 - Only surface a session console URL to end users when `GET /health -> ui.session_console_url` is non-null. Do not fall back to `127.0.0.1` for remote or mobile users; that address is only a same-machine admin surface.
 - Avoid replaying raw logs unless the user explicitly asks for evidence.
 - Treat `session.activity` as the only supported high-level lifecycle contract for host rendering.
+- For first-run user education, prefer the workflow in [`FIRST_RUN.md`](/Users/yangshangqing/metaclaw/FIRST_RUN.md): normal chat first, `/adopt` only for durable work, `/tasks` for the full list, `/focus` for the next actions.
