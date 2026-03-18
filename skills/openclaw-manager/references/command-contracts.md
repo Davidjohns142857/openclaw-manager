@@ -6,6 +6,7 @@
 - Host code must not import `control-plane`, `fs-store`, or other durable-state internals directly.
 - Mutation commands should prefer the canonical session-detail envelope returned by the sidecar over reconstructing local state.
 - Reserved decision / blocker HTTP contracts may exist before any direct command surface is added for them.
+- Exact manager slash commands are imperative. If the user sends `/adopt`, `/tasks`, `/focus`, `/digest`, `/resume`, `/checkpoint`, `/close`, `/share`, `/bind`, `/unbind`, `/rebind`, `/distill`, or `/submit-public-facts`, the host/skill should execute the corresponding command instead of answering with an explanation of the command.
 
 ## Primary Commands
 
@@ -85,3 +86,4 @@
 - Only surface a session console URL to end users when `GET /health -> ui.session_console_url` is non-null. Do not fall back to `127.0.0.1` for remote or mobile users; that address is only a same-machine admin surface.
 - Avoid replaying raw logs unless the user explicitly asks for evidence.
 - Treat `session.activity` as the only supported high-level lifecycle contract for host rendering.
+- For first-run user education, prefer the workflow in [`FIRST_RUN.md`](/Users/yangshangqing/metaclaw/FIRST_RUN.md): normal chat first, `/adopt` only for durable work, `/tasks` for the full list, `/focus` for the next actions.

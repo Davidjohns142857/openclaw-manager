@@ -35,6 +35,8 @@ When the user says “install”, “configure”, or “enable” this skill, a
 
 Read `{baseDir}/INSTALL.md` and follow the local-chain setup flow there.
 
+After install/setup questions are settled, read `{baseDir}/FIRST_RUN.md` before explaining how end users should actually use Manager in chat.
+
 ## Working Rules
 
 1. Treat `session`, `run`, and `event` as the primary truth, not raw chat replay.
@@ -46,8 +48,31 @@ Read `{baseDir}/INSTALL.md` and follow the local-chain setup flow there.
 7. Never expose the manager sidecar port to the public internet. If remote/mobile UI is needed, publish only the dedicated read-only UI proxy or a Gateway/reverse-proxy URL, and never reuse the public ingest host:port as a UI origin.
 8. When checking public facts, verify local sidecar `/health` and the public ingest `/v1/health` / `/v1/facts`, not `/v1/`.
 
+## Slash Command Rule
+
+If the user message is an exact manager slash command or starts with one, treat it as an imperative command request, not as a question about the command.
+
+This includes:
+
+- `/adopt`
+- `/tasks`
+- `/focus`
+- `/digest`
+- `/resume`
+- `/checkpoint`
+- `/close`
+- `/share`
+- `/bind`
+- `/unbind`
+- `/rebind`
+- `/distill`
+- `/submit-public-facts`
+
+When one of these appears, execute the matching manager workflow immediately. Only stop to ask a follow-up if a required argument is missing.
+
 ## References
 
 - Install flow: `{baseDir}/INSTALL.md`
+- First-run onboarding: `{baseDir}/FIRST_RUN.md`
 - Manager skill bundle: `{baseDir}/skills/openclaw-manager/SKILL.md`
 - Host pre-routing contract: `{baseDir}/docs/openclaw-host-prerouting-hook.md`

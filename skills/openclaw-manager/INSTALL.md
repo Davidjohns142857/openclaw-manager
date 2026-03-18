@@ -19,6 +19,7 @@ This is the bundle that contains:
 - `ui/session-console/`
 - `hooks/openclaw-manager-prerouting/`
 - `scripts/setup-openclaw-host.ts`
+- `FIRST_RUN.md`
 
 ## Important Limitation
 
@@ -98,6 +99,16 @@ This helper will:
 - otherwise fall back to manual `/adopt` mode without blocking the rest of setup
 - install a local sidecar user service
 - remind you to restart the OpenClaw gateway
+
+After setup, the canonical user onboarding document is:
+
+- [`FIRST_RUN.md`](/Users/yangshangqing/metaclaw/FIRST_RUN.md)
+
+That document should be summarized for users before long explanations about ports, health checks, or public ingest.
+
+Exact manager slash commands such as `/adopt`, `/tasks`, `/focus`, `/digest`, `/resume`, `/checkpoint`, and `/close` should execute directly after setup.
+
+They should not be handled as a request to explain what the command does.
 
 The underlying OpenClaw CLI calls are:
 

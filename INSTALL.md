@@ -24,6 +24,7 @@ That bundle contains:
 - `scripts/doctor-local-chain.ts`
 - `hooks/openclaw-manager-prerouting/`
 - the full sidecar source and UI
+- `FIRST_RUN.md`
 
 ## One-Time Local Setup
 
@@ -87,6 +88,20 @@ This setup does three things:
 3. installs a local sidecar user service
    macOS: `launchd`
    Linux: `systemd --user`
+
+After setup, the canonical user onboarding document is:
+
+- [`FIRST_RUN.md`](/Users/yangshangqing/metaclaw/FIRST_RUN.md)
+
+That is the document that should be summarized to end users when they ask:
+
+- “How do I actually use this?”
+- “When should I `/adopt`?”
+- “What do `/tasks` and `/focus` do?”
+
+After setup, exact manager slash commands such as `/adopt`, `/tasks`, `/focus`, `/digest`, `/resume`, `/checkpoint`, and `/close` should execute as commands.
+
+They should not be treated as a prompt to explain the command.
 
 ## Verification
 

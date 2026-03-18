@@ -6,6 +6,7 @@ This repository now also ships a public-facing root skill bundle:
 
 - root skill manifest: [SKILL.md](/Users/yangshangqing/metaclaw/SKILL.md)
 - root install guide: [INSTALL.md](/Users/yangshangqing/metaclaw/INSTALL.md)
+- root first-run guide: [FIRST_RUN.md](/Users/yangshangqing/metaclaw/FIRST_RUN.md)
 - root agent metadata: [agents/openai.yaml](/Users/yangshangqing/metaclaw/agents/openai.yaml)
 
 The intended normal topology is local-first:
@@ -46,6 +47,7 @@ This repository now contains a Phase 1 MVP scaffold:
 - a background auto-submit contract under [`docs/public-fact-auto-submit.md`](/Users/yangshangqing/metaclaw/docs/public-fact-auto-submit.md)
 - a current test coverage map under [`docs/test-functionality-list.md`](/Users/yangshangqing/metaclaw/docs/test-functionality-list.md)
 - a guarded parallel-development handoff under [`docs/phase1-guarded-expansion-collaboration.md`](/Users/yangshangqing/metaclaw/docs/phase1-guarded-expansion-collaboration.md)
+- a user-specific remote board design under [`docs/viewer-board-token-design.md`](/Users/yangshangqing/metaclaw/docs/viewer-board-token-design.md)
 
 ## Current Scope
 
@@ -97,6 +99,8 @@ node ~/.openclaw/tools/openclaw-manager/scripts/setup-openclaw-local-chain.ts --
 ```
 
 That keeps sidecar setup and public-fact auto-submit available, but intentionally falls back to manual `/adopt` instead of pretending automatic interception is active.
+
+After setup, the correct end-user onboarding flow is in [`FIRST_RUN.md`](/Users/yangshangqing/metaclaw/FIRST_RUN.md). That document explains when to use `/adopt`, how `/tasks` differs from `/focus`, and what Cloud/manual mode means in practice.
 
 If Cloud/manual mode also has public-facts auto-submit enabled, manager now defaults the published read-only UI to the same public host on port `18891` unless you explicitly override `--ui-public-base-url`.
 

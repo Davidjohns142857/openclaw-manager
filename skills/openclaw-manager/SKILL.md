@@ -36,9 +36,13 @@ Use this skill when the user is managing long-running OpenClaw work rather than 
 9. For first-time local setup, prefer `node ~/.openclaw/tools/openclaw-manager/scripts/setup-openclaw-local-chain.ts`.
 10. If hook install is unavailable, explicitly tell the user the system is in manual `/adopt` mode instead of claiming automatic interception.
 11. Never expose the manager sidecar port publicly. If remote/mobile UI is needed, use only a dedicated read-only UI proxy or Gateway/reverse-proxy URL, and never reuse the public ingest host:port as a UI origin.
+12. When a user asks “how do I start using this?” or “what should I do after install?”, summarize [`FIRST_RUN.md`](/Users/yangshangqing/metaclaw/FIRST_RUN.md) before diving into deployment details.
+13. Exact manager slash commands are imperative, not explanatory. If the user sends `/adopt`, `/tasks`, `/focus`, `/digest`, `/resume`, `/checkpoint`, `/close`, `/share`, `/bind`, `/unbind`, `/rebind`, `/distill`, or `/submit-public-facts`, execute that command instead of explaining it.
+14. `/adopt` with no extra arguments still means “adopt the current thread now”; infer a reasonable title/objective from the active conversation if nothing better is provided.
 
 ## References
 
 - Command and API contracts: [references/command-contracts.md](/Users/yangshangqing/metaclaw/skills/openclaw-manager/references/command-contracts.md)
 - Phase 1 operating boundaries: [references/operating-boundaries.md](/Users/yangshangqing/metaclaw/skills/openclaw-manager/references/operating-boundaries.md)
 - Install and host setup flow: [INSTALL.md](/Users/yangshangqing/metaclaw/skills/openclaw-manager/INSTALL.md)
+- First-run onboarding: [FIRST_RUN.md](/Users/yangshangqing/metaclaw/FIRST_RUN.md)
