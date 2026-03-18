@@ -15,6 +15,21 @@ function parseInteger(value: string | undefined, fallback: number): number {
   return Number.isFinite(parsed) ? parsed : fallback;
 }
 
+function parseHostIntegrationMode(
+  value: string | undefined
+): "managed_hook" | "manual_adopt" {
+  return value === "manual_adopt" ? "manual_adopt" : "managed_hook";
+}
+
+function parseOptionalBaseUrl(value: string | undefined): string | null {
+  const trimmed = value?.trim();
+  if (!trimmed) {
+    return null;
+  }
+
+  return trimmed.endsWith("/") ? trimmed.slice(0, -1) : trimmed;
+}
+
 export function resolveConfig(env: NodeJS.ProcessEnv = process.env): ManagerConfig {
   const port = parseInteger(env.OPENCLAW_MANAGER_PORT, 8791);
 
@@ -29,6 +44,13 @@ export function resolveConfig(env: NodeJS.ProcessEnv = process.env): ManagerConf
         env.OPENCLAW_MANAGER_FEATURE_DECISION_LIFECYCLE_V1
       ),
       blocker_lifecycle_v1: parseBooleanFlag(env.OPENCLAW_MANAGER_FEATURE_BLOCKER_LIFECYCLE_V1)
+    },
+    ui: {
+      public_base_url: parseOptionalBaseUrl(env.OPENCLAW_MANAGER_UI_PUBLIC_BASE_URL)
+    },
+    host_integration: {
+      mode: parseHostIntegrationMode(env.OPENCLAW_MANAGER_HOST_INTEGRATION_MODE),
+      reason: env.OPENCLAW_MANAGER_HOST_INTEGRATION_REASON?.trim() || null
     },
     public_facts: {
       endpoint:

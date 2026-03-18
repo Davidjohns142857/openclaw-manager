@@ -82,6 +82,6 @@
 
 - Prefer concise, state-dense output.
 - Surface blockers, pending human decisions, active runs, and next actions.
-- When OpenClaw and manager sidecar are same-machine, proactively surface the local session console URL to the user. Prefer `GET /health -> ui.session_console_url`; otherwise fall back to `http://127.0.0.1:<port>/ui`.
+- Only surface a session console URL to end users when `GET /health -> ui.session_console_url` is non-null. Do not fall back to `127.0.0.1` for remote or mobile users; that address is only a same-machine admin surface.
 - Avoid replaying raw logs unless the user explicitly asks for evidence.
 - Treat `session.activity` as the only supported high-level lifecycle contract for host rendering.

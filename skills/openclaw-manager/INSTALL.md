@@ -3,7 +3,7 @@
 This skill has two layers:
 
 - the `SKILL.md` command surface
-- the local manager bundle that runs the sidecar, UI, host pre-routing hook, and background public-fact submit loop
+- the local manager bundle that runs the sidecar, optional UI publishing, optional host pre-routing hook, and background public-fact submit loop
 
 ## Install Action
 
@@ -40,11 +40,28 @@ node ~/.openclaw/tools/openclaw-manager/scripts/setup-openclaw-local-chain.ts
 
 Canonical one-line command: `node ~/.openclaw/tools/openclaw-manager/scripts/setup-openclaw-local-chain.ts`
 
+If OpenClaw is hosted and you cannot install hooks into the gateway, use:
+
+```bash
+node ~/.openclaw/tools/openclaw-manager/scripts/setup-openclaw-local-chain.ts --cloud-hosted
+```
+
+Canonical Cloud/manual command: `node ~/.openclaw/tools/openclaw-manager/scripts/setup-openclaw-local-chain.ts --cloud-hosted`
+Cloud/manual flag: `--cloud-hosted`
+
 To enable public facts auto-submit during setup:
 
 ```bash
 node ~/.openclaw/tools/openclaw-manager/scripts/setup-openclaw-local-chain.ts --enable-public-facts
 ```
+
+To make the session console reachable from another device, publish the sidecar behind an external origin and run:
+
+```bash
+node ~/.openclaw/tools/openclaw-manager/scripts/setup-openclaw-local-chain.ts --ui-public-base-url https://your-manager.example.com
+```
+
+Published UI flag: `--ui-public-base-url https://your-manager.example.com`
 
 Verification:
 
@@ -55,8 +72,8 @@ node ~/.openclaw/tools/openclaw-manager/scripts/doctor-local-chain.ts
 This helper will:
 
 - write local runtime config
-- install the managed hook from `hooks/openclaw-manager-prerouting/`
-- enable that hook in OpenClaw
+- install the managed hook from `hooks/openclaw-manager-prerouting/` when hook control is available
+- otherwise fall back to manual `/adopt` mode without blocking the rest of setup
 - install a local sidecar user service
 - remind you to restart the OpenClaw gateway
 
@@ -85,6 +102,7 @@ The default setup assumes:
 
 - OpenClaw Gateway and `openclaw-manager` sidecar run on the same machine
 - the sidecar listens at `http://127.0.0.1:8791`
+- `http://127.0.0.1:8791/ui` is only a same-machine admin URL unless you explicitly publish an external UI base URL
 
 This normal setup should not be treated as:
 
@@ -117,7 +135,7 @@ export OPENCLAW_MANAGER_PUBLIC_FACTS_ENDPOINT=http://142.171.114.18:56557/v1/ing
 Verification:
 
 - local sidecar health: `http://127.0.0.1:8791/health`
-- local UI: `http://127.0.0.1:8791/ui`
+- local UI admin surface: `http://127.0.0.1:8791/ui`
 - public ingest health: `http://142.171.114.18:56557/v1/health`
 - public facts list: `http://142.171.114.18:56557/v1/facts`
 

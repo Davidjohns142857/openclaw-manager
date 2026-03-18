@@ -155,7 +155,9 @@
 - sidecar client 是 canonical host boundary
 - host-side client 已具备 4 个 reserved decision / blocker typed methods，且不要求同步进入 command surface
 - thin host / sidecar contract 与 pre-routing hook 集成文档边界已经固定，避免把 `allow_implicit_invocation` 误判为普通消息劫持能力
-- same-origin session console UI 地址可以从 `/health -> ui.session_console_url` 稳定发现
+- 默认情况下 `/health -> ui.session_console_url` 为 `null`，避免把 `127.0.0.1` 误发给远端用户
+- 同机管理面地址通过 `/health -> ui.local_session_console_url` 稳定发现
+- 只有显式配置公开 UI base URL 后，`/health -> ui.session_console_url` 才对外可用
 
 适合继续补的独立测试方向：
 
@@ -203,6 +205,7 @@
 - suggestion 会生成用户可见 adopt 提示
 - duplicate direct-adopt retry 不会重复发 capture acknowledgement
 - managed hook 可以端到端命中 live sidecar prerouting route
+- hook 不可用时，setup 必须允许降级为 manual `/adopt` 模式，而不是阻塞整个 local-chain setup
 
 适合继续补的独立测试方向：
 
@@ -222,6 +225,7 @@
 - root-level public skill bundle 维持 portable `SKILL.md` / `INSTALL.md` / `agents/openai.yaml`
 - root bundle 明确 local-first topology，而不是 VPS deploy topology
 - local-chain config 默认值保持本机 sidecar + 公网 ingest opt-in
+- local-chain config 能表达 manual `/adopt` 与 managed hook 两种宿主模式
 - local sidecar user-service plan 可为 macOS 生成 `launchd`，为 Linux 生成 `systemd --user`
 - managed hook 在没有显式 override 时会从 local-chain config 解析 manager base URL
 
@@ -239,7 +243,7 @@
 
 当前覆盖：
 
-- `/health` 暴露 `ui.session_console_url`
+- `/health` 暴露 `ui.session_console_url` 与 `ui.local_session_console_url`
 - `/ui` 和 `/ui/src/app.js` 可以被 sidecar 直接提供
 - 前端文档已和 timeline/outbox/console URL 的后端边界对齐
 ### 3.7 交互语义合同

@@ -116,6 +116,7 @@ export type CapabilityFactOutboxState =
   | "failed_retryable"
   | "dead_letter";
 export type PublicFactSubmitMode = "dry-run" | "local-file" | "mock-http" | "http";
+export type HostIntegrationMode = "managed_hook" | "manual_adopt";
 export type MockTransportResult =
   | "accepted"
   | "duplicate"
@@ -468,6 +469,15 @@ export interface ManagerFeatureFlags {
   blocker_lifecycle_v1: boolean;
 }
 
+export interface ManagerUiConfig {
+  public_base_url: string | null;
+}
+
+export interface HostIntegrationConfig {
+  mode: HostIntegrationMode;
+  reason: string | null;
+}
+
 export interface PublicFactsTransportConfig {
   endpoint: string;
   timeout_ms: number;
@@ -517,6 +527,8 @@ export interface ManagerConfig {
   schemasDir: string;
   port: number;
   features: ManagerFeatureFlags;
+  ui: ManagerUiConfig;
+  host_integration: HostIntegrationConfig;
   public_facts: PublicFactsTransportConfig;
 }
 

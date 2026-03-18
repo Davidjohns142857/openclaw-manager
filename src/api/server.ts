@@ -22,6 +22,7 @@ import {
 import { buildApiContractIndex } from "./contracts.ts";
 import { handleInboundApi } from "./inbound.ts";
 import { buildHealthPayload } from "./health.ts";
+import { buildPublishedSessionConsoleUrl } from "../shared/ui.ts";
 import { managerCommands } from "../skill/commands.ts";
 import type { ManagerConfig } from "../shared/types.ts";
 import { normalizeBrowserConnectorMessage } from "../connectors/browser.ts";
@@ -408,10 +409,6 @@ export class ManagerServer {
     return address && typeof address !== "string" ? address.port : this.config.port;
   }
 
-  private sidecarBaseUrl(): string {
-    return `http://127.0.0.1:${this.effectivePort()}`;
-  }
-
   async route(request: IncomingMessage, response: ServerResponse): Promise<void> {
     try {
       const url = new URL(request.url ?? "/", "http://127.0.0.1");
@@ -654,7 +651,9 @@ export class ManagerServer {
             this.controlPlane,
             parseHostCapturedMessage(body),
             {
-              sidecar_base_url: this.sidecarBaseUrl()
+              session_console_url: buildPublishedSessionConsoleUrl(
+                this.config.ui.public_base_url
+              )
             }
           )
         );

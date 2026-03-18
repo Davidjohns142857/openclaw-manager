@@ -347,7 +347,7 @@ test("host message retry with the same source/thread/message id does not create 
   }
 });
 
-test("pre-routing helper maps suggestion to a host-visible suggestion action and exposes the console url", async () => {
+test("pre-routing helper maps suggestion to a host-visible suggestion action and only exposes an explicitly provided console url", async () => {
   const sidecar = await startTempSidecar();
 
   try {
@@ -357,13 +357,14 @@ test("pre-routing helper maps suggestion to a host-visible suggestion action and
         source_type: "openclaw_plugin"
       },
       {
-        sidecar_base_url: sidecar.baseUrl
+        sidecar_base_url: sidecar.baseUrl,
+        session_console_url: "https://manager.example.com/ui"
       }
     );
 
     assert.equal(result.action, "show_adopt_suggestion");
     assert.equal(result.manager.outcome, "suggested");
-    assert.equal(result.session_console_url, `${sidecar.baseUrl}/ui`);
+    assert.equal(result.session_console_url, "https://manager.example.com/ui");
     assert.ok(result.manager.suggestion);
   } finally {
     await sidecar.cleanup();
@@ -389,7 +390,7 @@ test("pre-routing helper short-circuits to manager when direct admission is safe
 
     assert.equal(result.action, "short_circuit_to_manager");
     assert.equal(result.manager.outcome, "adopted_new_session");
-    assert.equal(result.session_console_url, `${sidecar.baseUrl}/ui`);
+    assert.equal(result.session_console_url, null);
     assert.ok(result.manager.target_session_id);
   } finally {
     await sidecar.cleanup();

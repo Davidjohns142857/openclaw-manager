@@ -22,7 +22,10 @@ test("default local-chain config is local-first and keeps public facts opt-in", 
   assert.equal(config.manager_base_url, "http://127.0.0.1:8791");
   assert.equal(config.sidecar.port, 8791);
   assert.match(config.sidecar.state_root, /\/\.openclaw\/skills\/manager$/);
+  assert.equal(config.ui.public_base_url, null);
   assert.equal(config.hook.enabled, true);
+  assert.equal(config.host_integration.mode, "managed_hook");
+  assert.equal(config.host_integration.reason, null);
   assert.equal(config.public_facts.endpoint, "http://142.171.114.18:56557/v1/ingest");
   assert.equal(config.public_facts.auto_submit_enabled, false);
 });

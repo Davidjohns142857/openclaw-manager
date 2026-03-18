@@ -27,7 +27,7 @@
 
 | 方法 | 路径 | 用途 | 返回核心字段 |
 |------|------|------|-------------|
-| GET | `/health` | sidecar 状态 | `status`, `session_count`, `port`, `ui.session_console_url` |
+| GET | `/health` | sidecar 状态 | `status`, `session_count`, `port`, `ui.session_console_url`, `ui.local_session_console_url`, `host_integration` |
 | GET | `/sessions` | 全部 session 列表 | `Session[]`，每个带 `activity` |
 | GET | `/sessions/:id` | 单个 session 详情 | `{ session, run, checkpoint, summary }` |
 | GET | `/sessions/:id/timeline` | session 下全部 run timeline / evidence | `SessionTimelineView` |
@@ -166,7 +166,9 @@
 - 或者顶部放 focus attention items，下面放安静 session
 
 可选增强：
-- 顶部显示 `/health` 的 sidecar 状态和 `ui.session_console_url`
+- 顶部显示 `/health` 的 sidecar 状态
+- 只有 `ui.session_console_url` 非空时，才把它当成可分享的用户入口
+- `ui.local_session_console_url` 只应标记成“本机管理员入口”
 - 快捷 action 按钮（resume、close）
 
 ### 4.2 Session 详情页 (`#/sessions/:id`)
@@ -315,11 +317,13 @@ Session 列表页每 10 秒自动 poll `/sessions`，详情页每 5 秒 poll ses
 - `GET /ui/*` 返回对应静态资源
 - 只有 extensionless route 才做 SPA fallback
 - 缺失的 `.js` / `.css` / `.png` 等静态资源返回 `404`
-- `GET /health` 会暴露 `ui.session_console_url`
+- `GET /health` 会暴露 `ui.session_console_url` 与 `ui.local_session_console_url`
 
 因此当前前端默认入口就是：
 
 - `http://127.0.0.1:8791/ui`
+
+但这只是同机管理面。只有当 sidecar 被显式发布到外部 URL，并且 `/health -> ui.session_console_url` 非空时，前端页面才适合发给手机或远端用户。
 
 ## 8. 设计方向
 

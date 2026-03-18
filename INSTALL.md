@@ -6,7 +6,7 @@ The intended chain is:
 
 - OpenClaw Gateway locally
 - `openclaw-manager` sidecar locally
-- pre-routing hook locally
+- pre-routing hook locally when the host gateway is user-managed
 - public ingest remotely at `http://142.171.114.18:56557/v1/ingest`
 
 Normal install is not a VPS deployment flow.
@@ -41,6 +41,23 @@ If you also want public facts auto-submit enabled:
 node ~/.openclaw/tools/openclaw-manager/scripts/setup-openclaw-local-chain.ts --enable-public-facts
 ```
 
+If OpenClaw is running in a hosted / Cloud environment where you cannot install hooks into the gateway, use:
+
+```bash
+node ~/.openclaw/tools/openclaw-manager/scripts/setup-openclaw-local-chain.ts --cloud-hosted --enable-public-facts
+```
+
+Cloud/manual flag: `--cloud-hosted`
+
+If you need the session console to be reachable from another device, publish the sidecar behind your own externally reachable base URL and pass:
+
+```bash
+node ~/.openclaw/tools/openclaw-manager/scripts/setup-openclaw-local-chain.ts --ui-public-base-url https://your-manager.example.com
+```
+
+Published UI flag: `--ui-public-base-url https://your-manager.example.com`
+Short flag form: `--ui-public-base-url`
+
 This setup does three things:
 
 1. writes local runtime config
@@ -62,9 +79,11 @@ Canonical verification command: `node ~/.openclaw/tools/openclaw-manager/scripts
 Key surfaces:
 
 - local sidecar health: `http://127.0.0.1:8791/health`
-- local UI: `http://127.0.0.1:8791/ui`
+- local UI admin surface: `http://127.0.0.1:8791/ui`
 - public ingest health: `http://142.171.114.18:56557/v1/health`
 - public facts list: `http://142.171.114.18:56557/v1/facts`
+
+`http://127.0.0.1:8791/ui` is only a same-machine admin URL. Do not send it to mobile or remote users unless you have explicitly published the sidecar through an external base URL.
 
 Do not use `http://142.171.114.18:56557/v1/` as the verification target.
 

@@ -18,8 +18,10 @@ interface CliOptions {
   managerBaseUrl?: string;
   managerPort?: number;
   stateRoot?: string;
+  uiPublicBaseUrl?: string;
   enablePublicFacts: boolean;
   publicFactsEndpoint?: string;
+  cloudHosted: boolean;
   skipHook: boolean;
   skipService: boolean;
 }
@@ -27,11 +29,25 @@ interface CliOptions {
 async function main(): Promise<void> {
   const options = parseArgs(process.argv.slice(2));
   const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-  const config = createDefaultLocalChainConfig({
+  let config = createDefaultLocalChainConfig({
     manager_base_url: options.managerBaseUrl,
     sidecar: {
       port: options.managerPort,
       state_root: options.stateRoot
+    },
+    ui: {
+      public_base_url: options.uiPublicBaseUrl
+    },
+    hook: {
+      enabled: !(options.cloudHosted || options.skipHook)
+    },
+    host_integration: {
+      mode: options.cloudHosted || options.skipHook ? "manual_adopt" : "managed_hook",
+      reason: options.cloudHosted
+        ? "cloud_gateway_unavailable"
+        : options.skipHook
+          ? "hook_setup_skipped"
+          : null
     },
     public_facts: {
       auto_submit_enabled: options.enablePublicFacts,
@@ -52,6 +68,8 @@ async function main(): Promise<void> {
   console.log("OpenClaw Manager local-chain setup");
   console.log(`Config: ${configPath}`);
   console.log(`Manager base URL: ${config.manager_base_url}`);
+  console.log(`Published UI base URL: ${config.ui.public_base_url ?? "not configured"}`);
+  console.log(`Host integration mode: ${config.host_integration.mode}`);
   console.log(`Public facts endpoint: ${config.public_facts.endpoint}`);
   console.log(`Public facts auto submit: ${config.public_facts.auto_submit_enabled ? "enabled" : "disabled"}`);
 
@@ -62,9 +80,29 @@ async function main(): Promise<void> {
 
   await writeLocalChainConfig(config, configPath);
 
-  if (!options.skipHook) {
-    for (const command of hookPlan.enable_pre_routing) {
-      runCommand(command.argv);
+  if (!options.skipHook && !options.cloudHosted) {
+    try {
+      for (const command of hookPlan.enable_pre_routing) {
+        runCommand(command.argv);
+      }
+    } catch (error) {
+      console.warn(
+        `Hook setup failed; continuing in manual /adopt mode: ${
+          error instanceof Error ? error.message : String(error)
+        }`
+      );
+      config = createDefaultLocalChainConfig({
+        ...config,
+        host_integration: {
+          mode: "manual_adopt",
+          reason: "hook_setup_failed"
+        },
+        hook: {
+          ...config.hook,
+          enabled: false
+        }
+      });
+      await writeLocalChainConfig(config, configPath);
     }
   }
 
@@ -73,7 +111,14 @@ async function main(): Promise<void> {
   }
 
   console.log("\nLocal chain setup complete.");
-  console.log("- Restart the OpenClaw gateway so the hook is reloaded.");
+  if (config.host_integration.mode === "managed_hook") {
+    console.log("- Restart the OpenClaw gateway so the hook is reloaded.");
+  } else {
+    console.log("- Hook interception is not active; continue normal chat and use /adopt manually when a task should become durable.");
+  }
+  if (!config.ui.public_base_url) {
+    console.log("- Session console stays local-only by default. Do not send http://127.0.0.1:8791/ui to mobile/remote users.");
+  }
   console.log(`- Local sidecar will run through ${path.join(repoRoot, "scripts", "run-local-sidecar.ts")}.`);
   console.log(`- Verify with: node ${path.join(repoRoot, "scripts", "doctor-local-chain.ts")}`);
 }
@@ -82,6 +127,7 @@ function parseArgs(argv: string[]): CliOptions {
   const options: CliOptions = {
     dryRun: false,
     enablePublicFacts: false,
+    cloudHosted: false,
     skipHook: false,
     skipService: false
   };
@@ -109,12 +155,19 @@ function parseArgs(argv: string[]): CliOptions {
         options.stateRoot = argv[index + 1];
         index += 1;
         break;
+      case "--ui-public-base-url":
+        options.uiPublicBaseUrl = argv[index + 1];
+        index += 1;
+        break;
       case "--enable-public-facts":
         options.enablePublicFacts = true;
         break;
       case "--public-facts-endpoint":
         options.publicFactsEndpoint = argv[index + 1];
         index += 1;
+        break;
+      case "--cloud-hosted":
+        options.cloudHosted = true;
         break;
       case "--skip-hook":
         options.skipHook = true;
@@ -138,9 +191,14 @@ function printDryRun(
   console.log("\nDry run");
 
   if (!options.skipHook) {
-    console.log("\nHook setup:");
-    for (const command of hookPlan.enable_pre_routing) {
-      console.log(`- ${command.argv.join(" ")}`);
+    if (options.cloudHosted) {
+      console.log("\nHook setup:");
+      console.log("- skipped: cloud-hosted OpenClaw Gateway cannot install managed hooks; setup will use manual /adopt mode.");
+    } else {
+      console.log("\nHook setup:");
+      for (const command of hookPlan.enable_pre_routing) {
+        console.log(`- ${command.argv.join(" ")}`);
+      }
     }
   }
 
@@ -151,6 +209,12 @@ function printDryRun(
     for (const command of [...servicePlan.install_commands, ...servicePlan.start_commands]) {
       console.log(`- ${command.join(" ")}`);
     }
+  }
+
+  if (options.uiPublicBaseUrl?.trim()) {
+    console.log(`\nPublished UI: ${options.uiPublicBaseUrl.trim().replace(/\/$/u, "")}/ui`);
+  } else {
+    console.log("\nPublished UI: not configured; /ui remains local-only.");
   }
 }
 

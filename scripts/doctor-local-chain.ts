@@ -16,6 +16,9 @@ async function main(): Promise<void> {
 
   console.log(`Manager base URL: ${config.manager_base_url}`);
   console.log(`State root: ${config.sidecar.state_root}`);
+  console.log(`Host integration mode: ${config.host_integration.mode}`);
+  console.log(`Host integration reason: ${config.host_integration.reason ?? "none"}`);
+  console.log(`Published UI base URL: ${config.ui.public_base_url ?? "not configured"}`);
   console.log(`Public facts endpoint: ${config.public_facts.endpoint}`);
   console.log(`Public facts auto submit: ${config.public_facts.auto_submit_enabled ? "enabled" : "disabled"}`);
 
@@ -28,6 +31,9 @@ async function main(): Promise<void> {
 
   console.log("Local sidecar health: ok");
   console.log(JSON.stringify(localHealth, null, 2));
+  if (config.host_integration.mode === "manual_adopt") {
+    console.log("Manual workflow: keep normal conversation and use /adopt when a task should become durable.");
+  }
 
   const publicHealth = await tryJson(rewriteToHealth(config.public_facts.endpoint));
   if (!publicHealth) {

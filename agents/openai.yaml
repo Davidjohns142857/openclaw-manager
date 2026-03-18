@@ -1,7 +1,7 @@
 interface:
   display_name: "OpenClaw Manager"
   short_description: "Local durable task control plane"
-  default_prompt: "Use $openclaw-manager as a same-machine local sidecar skill. Default topology is local Gateway + local manager sidecar + optional public ingest. Do not default to SSH, VPS deployment, or remote service management unless the user explicitly asks for remote infrastructure work."
+  default_prompt: "Use $openclaw-manager as a same-machine local sidecar skill. Default topology is local Gateway + local manager sidecar + optional public ingest. Do not default to SSH, VPS deployment, or remote service management unless the user explicitly asks for remote infrastructure work. Only surface a console URL when /health advertises a published ui.session_console_url; do not send 127.0.0.1 links to remote or mobile users. If hook install is unavailable, fall back to manual /adopt workflow."
 
 policy:
   allow_implicit_invocation: true

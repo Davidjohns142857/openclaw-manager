@@ -163,6 +163,7 @@ Phase 1 当前接受的启动方式是：
 
 - host boundary 仍然保持 thin
 - 但大众安装路径不再要求用户手工盯着 sidecar 进程
+- 如果 hook 不可用，setup 会继续完成 sidecar / auto-submit 相关部分，并把宿主模式收成 manual `/adopt`
 
 错误处理要求：
 
@@ -242,3 +243,9 @@ skill command code 不应依赖：
 > 命令层必须真实走 sidecar，宿主层必须保持薄，系统真相必须留在 canonical core。
 
 只要这个边界不漂，后续宿主自动拉起、hook、background maintenance 都可以继续加；如果这个边界先漂了，后续扩面只会把系统重新拖回“概念正确、工程不稳”。
+
+另外还要明确：
+
+- `http://127.0.0.1:8791/ui` 默认只是同机管理面，不是面向手机用户的公开页面。
+- 只有显式配置公开 UI base URL 时，`/health -> ui.session_console_url` 才应该被当成可发给终端用户的地址。
+- Hook 不可用时，宿主必须退回手动 `/adopt`，而不是伪装成“已经自动接管”。

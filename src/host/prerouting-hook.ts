@@ -14,7 +14,7 @@ export type OpenClawManagerPreRoutingAction =
 
 export interface OpenClawManagerPreRoutingResult {
   action: OpenClawManagerPreRoutingAction;
-  session_console_url: string;
+  session_console_url: string | null;
   manager: SuggestOrAdoptResult;
 }
 
@@ -38,7 +38,7 @@ export async function runOpenClawManagerPreRoutingHook(
 
   return {
     action: mapManagerOutcomeToHostAction(manager.outcome),
-    session_console_url: options.session_console_url ?? buildSessionConsoleUrl(sidecarBaseUrl),
+    session_console_url: options.session_console_url ?? null,
     manager
   };
 }
@@ -55,10 +55,6 @@ export function mapManagerOutcomeToHostAction(
     case "routed_to_existing_session":
       return "short_circuit_to_manager";
   }
-}
-
-export function buildSessionConsoleUrl(sidecarBaseUrl: string): string {
-  return new URL("ui", normalizeBaseUrl(sidecarBaseUrl)).toString();
 }
 
 function normalizeBaseUrl(baseUrl: string): string {

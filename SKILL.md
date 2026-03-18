@@ -16,6 +16,7 @@ The normal install topology is:
 
 - OpenClaw Gateway on the local machine
 - `openclaw-manager` sidecar on the same machine
+- optional published UI / reverse proxy if end users must open the console from another device
 - optional public ingest at `http://142.171.114.18:56557/v1/ingest`
 
 This skill is not a normal-purpose VPS deployment workflow.
@@ -40,7 +41,9 @@ Read `{baseDir}/INSTALL.md` and follow the local-chain setup flow there.
 2. Prefer the local sidecar HTTP API as the canonical boundary.
 3. Treat the default path as local sidecar + local hook + optional public ingest.
 4. Only discuss remote deploy/update if the user explicitly asks about a remote host or VPS.
-5. When checking public facts, verify local sidecar `/health` and the public ingest `/v1/health` / `/v1/facts`, not `/v1/`.
+5. Only surface a session console URL to end users when `/health -> ui.session_console_url` is non-null. Do not send `127.0.0.1` URLs to remote or mobile users.
+6. If hook install is unavailable, fall back to manual `/adopt` workflow instead of claiming automatic interception.
+7. When checking public facts, verify local sidecar `/health` and the public ingest `/v1/health` / `/v1/facts`, not `/v1/`.
 
 ## References
 

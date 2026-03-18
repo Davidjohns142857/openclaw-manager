@@ -20,6 +20,14 @@ export async function bootstrapManager(
       ...resolved.features,
       ...overrides.features
     },
+    ui: {
+      ...resolved.ui,
+      ...overrides.ui
+    },
+    host_integration: {
+      ...resolved.host_integration,
+      ...overrides.host_integration
+    },
     public_facts: {
       ...resolved.public_facts,
       ...overrides.public_facts
