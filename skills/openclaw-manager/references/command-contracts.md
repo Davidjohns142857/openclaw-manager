@@ -6,6 +6,7 @@
 - Host code must not import `control-plane`, `fs-store`, or other durable-state internals directly.
 - Mutation commands should prefer the canonical session-detail envelope returned by the sidecar over reconstructing local state.
 - Reserved decision / blocker HTTP contracts may exist before any direct command surface is added for them.
+- Exact manager slash commands are imperative. If the user sends `/adopt`, `/tasks`, `/focus`, `/digest`, `/resume`, `/checkpoint`, `/close`, `/share`, `/bind`, `/unbind`, `/rebind`, `/distill`, or `/submit-public-facts`, the host/skill should execute the corresponding command instead of answering with an explanation of the command.
 
 ## Primary Commands
 

@@ -30,6 +30,12 @@ Good candidates:
 
 ## 2. The First Commands To Know
 
+Important:
+
+- if you type an exact manager command like `/adopt` or `/tasks`, OpenClaw should execute it
+- it should not merely explain what the command means
+- if that happens, your install/routing is not behaving correctly
+
 ### `/adopt`
 
 Use this when a chat should become a durable manager session.

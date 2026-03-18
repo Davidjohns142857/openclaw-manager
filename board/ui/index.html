@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>OpenClaw Viewer Board</title>
+  <link rel="stylesheet" href="src/style.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+</head>
+<body>
+  <nav id="nav">
+    <div class="nav-brand">
+      <span class="nav-logo">◈</span>
+      <span class="nav-title">Viewer Board</span>
+    </div>
+    <div class="nav-links">
+      <a href="#/" class="nav-link" data-route="/">Sessions</a>
+      <a href="#/focus" class="nav-link" data-route="/focus">Focus</a>
+    </div>
+    <div class="nav-status" id="sidecar-status"></div>
+  </nav>
+
+  <main id="app"></main>
+
+  <footer class="board-footer">
+    Read-only board. Mutations remain available in chat via <code>/adopt</code>, <code>/resume</code>, <code>/checkpoint</code>, and <code>/close</code>.
+  </footer>
+
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <script type="module" src="src/app.js"></script>
+</body>
+</html>

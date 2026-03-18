@@ -10,6 +10,7 @@
   "scripts": {
     "start": "node src/main.ts",
     "dev": "node src/main.ts",
+    "board:start": "node board/serve.ts",
     "local:start": "node scripts/run-local-sidecar.ts",
     "local:setup": "node scripts/setup-openclaw-local-chain.ts",
     "local:doctor": "node scripts/doctor-local-chain.ts",

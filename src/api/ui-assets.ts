@@ -9,18 +9,21 @@ function jsonResponse(response: ServerResponse, statusCode: number, payload: unk
   response.end(`${JSON.stringify(payload, null, 2)}\n`);
 }
 
-export async function serveUiFile(
-  repoRoot: string,
+export async function serveStaticUiFile(
+  uiRoot: string,
   response: ServerResponse,
-  pathname: string
+  pathname: string,
+  mountPath: string
 ): Promise<void> {
-  const uiRoot = path.join(repoRoot, "ui", "session-console");
   let filePath: string;
 
-  if (pathname === "/ui" || pathname === "/ui/") {
+  if (pathname === mountPath || pathname === `${mountPath}/`) {
     filePath = path.join(uiRoot, "index.html");
   } else {
-    filePath = path.join(uiRoot, pathname.slice("/ui/".length));
+    const relativePath = pathname.startsWith(`${mountPath}/`)
+      ? pathname.slice(`${mountPath}/`.length)
+      : pathname.slice(mountPath.length + 1);
+    filePath = path.join(uiRoot, relativePath);
   }
 
   const resolved = path.resolve(filePath);
@@ -69,4 +72,21 @@ export async function serveUiFile(
       });
     }
   }
+}
+
+export async function serveUiFile(
+  repoRoot: string,
+  response: ServerResponse,
+  pathname: string
+): Promise<void> {
+  await serveStaticUiFile(path.join(repoRoot, "ui", "session-console"), response, pathname, "/ui");
+}
+
+export async function serveBoardUiFile(
+  repoRoot: string,
+  response: ServerResponse,
+  pathname: string,
+  mountPath: string
+): Promise<void> {
+  await serveStaticUiFile(path.join(repoRoot, "board", "ui"), response, pathname, mountPath);
 }
