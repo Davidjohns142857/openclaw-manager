@@ -18,6 +18,7 @@ export async function createTempManager(overrides: Partial<ManagerConfig> = {}) 
     ...boot,
     tempRoot,
     async cleanup() {
+      boot.publicFactAutoSubmitService.stop();
       for (let attempt = 0; attempt < 5; attempt += 1) {
         try {
           await rm(tempRoot, { recursive: true, force: true });
@@ -60,7 +61,11 @@ export async function readJsonl<T>(filePath: string): Promise<T[]> {
 
 export async function startTempSidecar(overrides: Partial<ManagerConfig> = {}) {
   const manager = await createTempManager(overrides);
-  const server = new ManagerServer(manager.controlPlane, manager.config);
+  const server = new ManagerServer(
+    manager.controlPlane,
+    manager.config,
+    manager.publicFactAutoSubmitService
+  );
   await server.start();
 
   const address = server.server.address();

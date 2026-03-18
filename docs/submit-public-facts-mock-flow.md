@@ -575,11 +575,11 @@ Step 6: 用户查看结果
 
 ### 9.2 从手动到自动
 
-当需要自动提交时：
+当前代码已经有最小自动提交：
 
-1. 在 sidecar 中增加一个 background interval
-2. 定期调用 `submitter.submitPending()`
-3. 加入 rate limiting 守卫
+1. sidecar 有 background interval
+2. 定期调用 `distill -> submitPublicFacts(mode=http)`
+3. retryable batch 会在后续 tick 中重试
 4. outbox 机制不变
 
 ### 9.3 从单指标到复合指标

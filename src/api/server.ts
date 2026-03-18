@@ -36,6 +36,7 @@ import {
   serializeSessionTimeline,
   serializeSubmitPublicFactsResult
 } from "./serializers.ts";
+import type { PublicFactAutoSubmitService } from "../telemetry/public-fact-auto-submit.ts";
 
 class HttpError extends Error {
   statusCode: number;
@@ -370,11 +371,17 @@ function readHeader(request: IncomingMessage, headerName: string): string | unde
 export class ManagerServer {
   controlPlane: ControlPlane;
   config: ManagerConfig;
+  publicFactAutoSubmitService: PublicFactAutoSubmitService | null;
   server;
 
-  constructor(controlPlane: ControlPlane, config: ManagerConfig) {
+  constructor(
+    controlPlane: ControlPlane,
+    config: ManagerConfig,
+    publicFactAutoSubmitService: PublicFactAutoSubmitService | null = null
+  ) {
     this.controlPlane = controlPlane;
     this.config = config;
+    this.publicFactAutoSubmitService = publicFactAutoSubmitService;
     this.server = createServer((request, response) => {
       void this.route(request, response);
     });
@@ -387,7 +394,15 @@ export class ManagerServer {
 
       if (request.method === "GET" && pathname === "/health") {
         const sessions = await this.controlPlane.listTasks();
-        jsonResponse(response, 200, buildHealthPayload(this.config, sessions.length));
+        jsonResponse(
+          response,
+          200,
+          buildHealthPayload(
+            this.config,
+            sessions.length,
+            this.publicFactAutoSubmitService?.getStatus()
+          )
+        );
         return;
       }
 

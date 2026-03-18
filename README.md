@@ -17,6 +17,7 @@ This repository now contains a Phase 1 MVP scaffold:
 - explicit recovery rules under [`docs/recovery-model.md`](/Users/yangshangqing/metaclaw/docs/recovery-model.md)
 - an OpenClaw host integration contract under [`docs/openclaw-host-integration.md`](/Users/yangshangqing/metaclaw/docs/openclaw-host-integration.md)
 - a host message capture / admission contract under [`docs/host-message-admission.md`](/Users/yangshangqing/metaclaw/docs/host-message-admission.md)
+- an OpenClaw host pre-routing hook integration contract under [`docs/openclaw-host-prerouting-hook.md`](/Users/yangshangqing/metaclaw/docs/openclaw-host-prerouting-hook.md)
 - an interaction semantics contract under [`docs/interaction-contract.md`](/Users/yangshangqing/metaclaw/docs/interaction-contract.md)
 - a decision/blocker lifecycle contract under [`docs/decision-blocker-contract.md`](/Users/yangshangqing/metaclaw/docs/decision-blocker-contract.md)
 - a reserved decision/blocker API contract under [`docs/decision-blocker-api-contract.md`](/Users/yangshangqing/metaclaw/docs/decision-blocker-api-contract.md)
@@ -24,6 +25,7 @@ This repository now contains a Phase 1 MVP scaffold:
 - a local-only distillation contract under [`docs/local-distillation.md`](/Users/yangshangqing/metaclaw/docs/local-distillation.md)
 - a stable local capability-fact contract under [`docs/capability-fact-contract.md`](/Users/yangshangqing/metaclaw/docs/capability-fact-contract.md)
 - a node-side outbox / submit contract under [`docs/public-facts-outbox.md`](/Users/yangshangqing/metaclaw/docs/public-facts-outbox.md)
+- a background auto-submit contract under [`docs/public-fact-auto-submit.md`](/Users/yangshangqing/metaclaw/docs/public-fact-auto-submit.md)
 - a current test coverage map under [`docs/test-functionality-list.md`](/Users/yangshangqing/metaclaw/docs/test-functionality-list.md)
 - a guarded parallel-development handoff under [`docs/phase1-guarded-expansion-collaboration.md`](/Users/yangshangqing/metaclaw/docs/phase1-guarded-expansion-collaboration.md)
 
@@ -38,6 +40,7 @@ The current implementation targets Phase 1 from `openclaw_manager_overview.md`:
 - local snapshot export
 - local-only distilled node/scenario stats
 - local outbox and dry-run / local-file / mock-http / http submission pipeline
+- optional sidecar-owned background auto submit over `http`
 - minimal sidecar API and skill command contracts
 
 Out of scope for this scaffold:
@@ -55,12 +58,15 @@ Out of scope for this scaffold:
 
 By default, runtime state is written to `.openclaw-manager-state/` in this repository. Override with `OPENCLAW_MANAGER_HOME=/path/to/state`.
 
-Public fact live-ingest defaults to `http://142.171.114.18/v1/ingest`. Override with:
+Public fact live-ingest defaults to `http://142.171.114.18:56557/v1/ingest`. Override with:
 
 - `OPENCLAW_MANAGER_PUBLIC_FACTS_ENDPOINT`
 - `OPENCLAW_MANAGER_PUBLIC_FACTS_TIMEOUT_MS`
 - `OPENCLAW_MANAGER_PUBLIC_FACTS_AUTH_TOKEN`
 - `OPENCLAW_MANAGER_PUBLIC_FACTS_SCHEMA_VERSION`
+- `OPENCLAW_MANAGER_PUBLIC_FACTS_AUTO_SUBMIT_ENABLED`
+- `OPENCLAW_MANAGER_PUBLIC_FACTS_AUTO_SUBMIT_INTERVAL_MS`
+- `OPENCLAW_MANAGER_PUBLIC_FACTS_AUTO_SUBMIT_STARTUP_DELAY_MS`
 
 ## Repository Layout
 

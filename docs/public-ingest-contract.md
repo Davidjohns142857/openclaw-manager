@@ -202,7 +202,7 @@ node_fingerprint = "anon_" + sha256(local_node_secret + "openclaw-public-facts")
 POST https://facts.openclaw.dev/v1/ingest
 ```
 
-当前仓库的 node-side submitter 已经支持真实 `http` transport，并默认把 live endpoint 指向 `http://142.171.114.18/v1/ingest`。如果公网服务路径不同，可以通过 `OPENCLAW_MANAGER_PUBLIC_FACTS_ENDPOINT` 覆盖。
+当前仓库的 node-side submitter 已经支持真实 `http` transport，并默认把 live endpoint 指向 `http://142.171.114.18:56557/v1/ingest`。如果公网服务路径不同，可以通过 `OPENCLAW_MANAGER_PUBLIC_FACTS_ENDPOINT` 覆盖。
 
 ### 6.2 Request
 
@@ -374,21 +374,22 @@ GET /v1/workflows?skill=web-research&skill=summarizer
 
 这些计算结果最终产出 `PublicCapabilityFact`。
 
-### 10.3 与 feature flag 的关系
+### 10.3 与 sidecar background submit 的关系
 
-当前在 `ManagerFeatureFlags` 中预留：
+当前 sidecar 已支持本地背景自动提交。开关不在 `ManagerFeatureFlags`，而在 `ManagerConfig.public_facts`：
 
-```typescript
-public_fact_submission: boolean;
-```
-
-默认 `false`。只有显式启用后，蒸馏引擎才会写 outbox。
+- `auto_submit_enabled`
+- `auto_submit_interval_ms`
+- `auto_submit_startup_delay_ms`
+- `auto_submit_max_batch_size`
+- `auto_submit_max_batches`
+- `auto_submit_retry_failed_retryable`
 
 ## 11. 当前阶段不做的事
 
 - 不搭建真实公域服务器
 - 不实现跨节点聚合查询
-- 不实现自动定时提交
+- 不实现更复杂的自适应调度或 rate-aware policy
 - 不实现 scenario_signature 的自动推断
 - 不实现 public fact 的版本迁移
 - 不实现 reputation score 或排行榜算法
