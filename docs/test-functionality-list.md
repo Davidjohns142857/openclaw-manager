@@ -187,6 +187,28 @@
 - admission 对 overloaded focus 的降级策略
 - OpenClaw 宿主真正接入 pre-routing hook 之后的端到端 host runtime 验收
 
+### 3.6.1 Install-Time Host Setup / Managed Hook
+
+文件：
+
+- [`tests/phase1.host-prerouting-install.test.ts`](/Users/yangshangqing/metaclaw/tests/phase1.host-prerouting-install.test.ts)
+
+当前覆盖：
+
+- 一次性 host setup plan 会指向仓库内的 managed hook 目录
+- setup plan 会生成 `openclaw hooks install -l ...` 与 `openclaw hooks enable ...` 的稳定命令
+- sidecar 暴露 canonical `POST /host/prerouting`
+- managed hook 会把 ordinary inbound message 转成 manager prerouting 请求
+- suggestion 会生成用户可见 adopt 提示
+- duplicate direct-adopt retry 不会重复发 capture acknowledgement
+- managed hook 可以端到端命中 live sidecar prerouting route
+
+适合继续补的独立测试方向：
+
+- OpenClaw CLI 缺失时的 setup helper 失败语义
+- 非默认 sidecar base URL 的 hook config 注入
+- 宿主 runtime 对 hook message 和默认 agent reply 的组合行为
+
 ### 3.20 Session Console UI Surface
 
 文件：

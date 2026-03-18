@@ -26,6 +26,8 @@ import { managerCommands } from "../skill/commands.ts";
 import type { ManagerConfig } from "../shared/types.ts";
 import { normalizeBrowserConnectorMessage } from "../connectors/browser.ts";
 import { normalizeGitHubWebhook } from "../connectors/github.ts";
+import type { HostCapturedMessage } from "../host/context.ts";
+import { runManagerPreRoutingViaControlPlane } from "../host/server-sidecar.ts";
 import {
   serializeBindSourceResult,
   serializeCapabilityFactOutboxDetail,
@@ -360,6 +362,18 @@ function parseBindingListFilters(url: URL): BindingListFilters {
   };
 }
 
+function parseHostCapturedMessage(body: Record<string, unknown>): HostCapturedMessage {
+  return {
+    text: requireNonEmptyString(body.text, "text"),
+    source_type: requireNonEmptyString(body.source_type, "source_type"),
+    source_thread_key:
+      typeof body.source_thread_key === "string" ? body.source_thread_key : undefined,
+    message_id: typeof body.message_id === "string" ? body.message_id : undefined,
+    received_at: typeof body.received_at === "string" ? body.received_at : undefined,
+    metadata: asRecord(body.metadata)
+  };
+}
+
 function readHeader(request: IncomingMessage, headerName: string): string | undefined {
   const value = request.headers[headerName.toLowerCase()];
 
@@ -389,6 +403,15 @@ export class ManagerServer {
     });
   }
 
+  private effectivePort(): number {
+    const address = this.server.address();
+    return address && typeof address !== "string" ? address.port : this.config.port;
+  }
+
+  private sidecarBaseUrl(): string {
+    return `http://127.0.0.1:${this.effectivePort()}`;
+  }
+
   async route(request: IncomingMessage, response: ServerResponse): Promise<void> {
     try {
       const url = new URL(request.url ?? "/", "http://127.0.0.1");
@@ -396,9 +419,6 @@ export class ManagerServer {
 
       if (request.method === "GET" && pathname === "/health") {
         const sessions = await this.controlPlane.listTasks();
-        const address = this.server.address();
-        const effectivePort =
-          address && typeof address !== "string" ? address.port : this.config.port;
         jsonResponse(
           response,
           200,
@@ -406,7 +426,7 @@ export class ManagerServer {
             this.config,
             sessions.length,
             this.publicFactAutoSubmitService?.getStatus(),
-            effectivePort
+            this.effectivePort()
           )
         );
         return;
@@ -622,6 +642,22 @@ export class ManagerServer {
               ? (body.metadata as Record<string, unknown>)
               : {}
         }));
+        return;
+      }
+
+      if (request.method === "POST" && pathname === "/host/prerouting") {
+        const body = await readJsonBody(request);
+        jsonResponse(
+          response,
+          200,
+          await runManagerPreRoutingViaControlPlane(
+            this.controlPlane,
+            parseHostCapturedMessage(body),
+            {
+              sidecar_base_url: this.sidecarBaseUrl()
+            }
+          )
+        );
         return;
       }
 

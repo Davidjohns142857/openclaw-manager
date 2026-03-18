@@ -181,6 +181,27 @@ test("host pre-routing hook doc stays aligned with the admission boundary", asyn
   }
 });
 
+test("install guide stays aligned with hook setup and public fact verification surfaces", async () => {
+  const [skillMd, installMd] = await Promise.all([
+    readFile(path.join(repoRoot, "skills/openclaw-manager/SKILL.md"), "utf8"),
+    readFile(path.join(repoRoot, "skills/openclaw-manager/INSTALL.md"), "utf8")
+  ]);
+
+  for (const snippet of [
+    "`metadata.openclaw.install`",
+    "`~/.openclaw/tools/openclaw-manager`",
+    "`node ~/.openclaw/tools/openclaw-manager/scripts/setup-openclaw-host.ts`",
+    "`openclaw hooks install -l`",
+    "`openclaw hooks enable openclaw-manager-prerouting`",
+    "`http://127.0.0.1:8791`",
+    "`http://142.171.114.18:56557/v1/ingest`",
+    "`http://142.171.114.18:56557/v1/health`",
+    "`http://142.171.114.18:56557/v1/facts`"
+  ]) {
+    assert.match(`${skillMd}\n${installMd}`, new RegExp(escapeRegExp(snippet)));
+  }
+});
+
 test("session console frontend doc stays aligned with timeline and outbox surfaces", async () => {
   const document = await readFile(path.join(repoRoot, "ui/session-console/FRONTEND.md"), "utf8");
 
