@@ -27,7 +27,7 @@ export interface OpenClawManagerHookEvent {
 
 interface HostPreroutingResponse {
   action: HookAction;
-  session_console_url: string;
+  session_console_url: string | null;
   manager?: {
     outcome?: string;
     target_session_id?: string | null;

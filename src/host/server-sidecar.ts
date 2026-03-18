@@ -11,7 +11,6 @@ import type { HostAdmissionManagerClient } from "./suggest-or-adopt.ts";
 import type { HostCapturedMessage } from "./context.ts";
 import type { HostAdmissionPolicy } from "./admission-policy.ts";
 import {
-  buildSessionConsoleUrl,
   mapManagerOutcomeToHostAction,
   type OpenClawManagerPreRoutingResult
 } from "./prerouting-hook.ts";
@@ -22,7 +21,7 @@ export async function runManagerPreRoutingViaControlPlane(
   message: HostCapturedMessage,
   options: {
     policy?: HostAdmissionPolicy;
-    sidecar_base_url: string;
+    session_console_url: string | null;
   }
 ): Promise<OpenClawManagerPreRoutingResult> {
   const manager = await suggestOrAdopt(
@@ -33,7 +32,7 @@ export async function runManagerPreRoutingViaControlPlane(
 
   return {
     action: mapManagerOutcomeToHostAction(manager.outcome),
-    session_console_url: buildSessionConsoleUrl(options.sidecar_base_url),
+    session_console_url: options.session_console_url,
     manager
   };
 }

@@ -47,6 +47,8 @@ test("root public skill bundle stays portable and local-first", async () => {
     "OpenClaw Gateway locally",
     "`node ~/.openclaw/tools/openclaw-manager/scripts/setup-openclaw-local-chain.ts`",
     "`node ~/.openclaw/tools/openclaw-manager/scripts/doctor-local-chain.ts`",
+    "`--cloud-hosted`",
+    "`--ui-public-base-url`",
     "`http://142.171.114.18:56557/v1/ingest`"
   ]) {
     assert.match(`${rootSkill}\n${rootInstall}\n${rootAgent}`, new RegExp(escapeRegExp(snippet)));
@@ -196,7 +198,8 @@ test("host pre-routing hook doc stays aligned with the admission boundary", asyn
     "`OPENCLAW_MANAGER_BASE_URL=http://127.0.0.1:8791`",
     "`source_type`",
     "`source_thread_key`",
-    "`message_id`"
+    "`message_id`",
+    "手动 `/adopt` 工作流"
   ]) {
     assert.match(document, new RegExp(escapeRegExp(snippet)));
   }
@@ -212,7 +215,9 @@ test("install guide stays aligned with hook setup and public fact verification s
     "`metadata.openclaw.install`",
     "`~/.openclaw/tools/openclaw-manager`",
     "`node ~/.openclaw/tools/openclaw-manager/scripts/setup-openclaw-local-chain.ts`",
+    "`node ~/.openclaw/tools/openclaw-manager/scripts/setup-openclaw-local-chain.ts --cloud-hosted`",
     "`node ~/.openclaw/tools/openclaw-manager/scripts/setup-openclaw-host.ts`",
+    "`--ui-public-base-url https://your-manager.example.com`",
     "`openclaw hooks install -l`",
     "`openclaw hooks enable openclaw-manager-prerouting`",
     "`http://127.0.0.1:8791`",
@@ -229,6 +234,7 @@ test("session console frontend doc stays aligned with timeline and outbox surfac
 
   for (const snippet of [
     "`ui.session_console_url`",
+    "`ui.local_session_console_url`",
     "`GET /sessions/:id/timeline`",
     "\"result_type\": \"completed | partial_progress | waiting_human | failed | null\"",
     "`GET /public-facts/outbox`",
@@ -246,10 +252,16 @@ test("sidecar exposes the same-origin session console and advertises its url", a
     const healthResponse = await fetch(`${manager.baseUrl}/health`);
     assert.equal(healthResponse.status, 200);
     const health = (await healthResponse.json()) as {
-      ui?: { session_console_url?: string };
+      ui?: {
+        session_console_url?: string | null;
+        local_session_console_url?: string;
+        access_mode?: string;
+      };
       port?: number;
     };
-    assert.equal(health.ui?.session_console_url, `${manager.baseUrl}/ui`);
+    assert.equal(health.ui?.session_console_url, null);
+    assert.equal(health.ui?.local_session_console_url, `${manager.baseUrl}/ui`);
+    assert.equal(health.ui?.access_mode, "local_only");
 
     const uiResponse = await fetch(`${manager.baseUrl}/ui`);
     assert.equal(uiResponse.status, 200);
@@ -260,6 +272,31 @@ test("sidecar exposes the same-origin session console and advertises its url", a
     assert.equal(appResponse.status, 200);
     assert.match(appResponse.headers.get("content-type") ?? "", /application\/javascript/);
     assert.match(await appResponse.text(), /router\.on/);
+  } finally {
+    await manager.cleanup();
+  }
+});
+
+test("health exposes a published console url only when explicitly configured", async () => {
+  const manager = await startTempSidecar({
+    ui: {
+      public_base_url: "https://manager.example.com"
+    }
+  });
+
+  try {
+    const healthResponse = await fetch(`${manager.baseUrl}/health`);
+    assert.equal(healthResponse.status, 200);
+    const health = (await healthResponse.json()) as {
+      ui?: {
+        session_console_url?: string | null;
+        local_session_console_url?: string;
+        access_mode?: string;
+      };
+    };
+    assert.equal(health.ui?.session_console_url, "https://manager.example.com/ui");
+    assert.equal(health.ui?.local_session_console_url, `${manager.baseUrl}/ui`);
+    assert.equal(health.ui?.access_mode, "external");
   } finally {
     await manager.cleanup();
   }

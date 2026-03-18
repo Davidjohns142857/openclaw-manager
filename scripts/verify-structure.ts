@@ -65,6 +65,7 @@ const requiredPaths = [
   "src/skill/sidecar-client.ts",
   "src/shared/session-status.ts",
   "src/shared/reserved-contracts.ts",
+  "src/shared/ui.ts",
   "ui/session-console/index.html",
   "ui/session-console/FRONTEND.md",
   "ui/session-console/src/app.js",

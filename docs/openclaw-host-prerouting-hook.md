@@ -31,11 +31,11 @@
 - [`src/host/server-sidecar.ts`](/Users/yangshangqing/metaclaw/src/host/server-sidecar.ts)
 - [`docs/host-message-admission.md`](/Users/yangshangqing/metaclaw/docs/host-message-admission.md)
 
-当前仓库已经能把这套 admission 通过 hook 安装到 OpenClaw Gateway 上，但要注意两件事：
+当前仓库已经能把这套 admission 通过 hook 安装到 OpenClaw Gateway 上，但要注意三件事：
 
 - 只安装 skill，不会自动把所有普通消息劫持到 manager。
-- 只安装 skill，本身不会自动把所有普通消息劫持到 manager
 - `allow_implicit_invocation` 也不等于 pre-routing hook。
+- 在 OpenClaw Cloud 这类你拿不到 Gateway hook 目录和重启权的环境里，必须降级到手动 `/adopt` 工作流。
 
 你还需要完成一次 setup：
 
@@ -49,8 +49,15 @@ node ~/.openclaw/tools/openclaw-manager/scripts/setup-openclaw-local-chain.ts
 2. `openclaw hooks install -l <repo>/hooks/openclaw-manager-prerouting`
 3. `openclaw hooks enable openclaw-manager-prerouting`
 4. 安装本机 sidecar user service
+5. 如果 hook 安装失败，自动改成 manual `/adopt` 模式继续完成其余 setup
 
 然后要求你重启 Gateway。
+
+Cloud / hosted OpenClaw 应改用：
+
+```bash
+node ~/.openclaw/tools/openclaw-manager/scripts/setup-openclaw-local-chain.ts --cloud-hosted
+```
 
 ## 2. 目标形态
 
@@ -104,7 +111,7 @@ pre-routing hook 应放在：
 
 - `session_console_url`
 
-方便宿主在收编成功后直接把 `/ui` 地址发给用户。
+只有在 `session_console_url` 是对外可达地址时，宿主才应该把它发给用户。默认的 `127.0.0.1` 管理面只适合同机管理员。
 
 ## 5. 规范化行为
 

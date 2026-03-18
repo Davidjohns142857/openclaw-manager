@@ -12,7 +12,7 @@ The intended normal topology is local-first:
 
 - OpenClaw Gateway locally
 - `openclaw-manager` sidecar locally
-- managed pre-routing hook locally
+- managed pre-routing hook locally when Gateway hook control is available
 - optional public ingest remotely
 
 Normal install/setup should not be treated as a VPS deploy/update flow.
@@ -89,6 +89,14 @@ node ~/.openclaw/tools/openclaw-manager/scripts/setup-openclaw-local-chain.ts
 
 This writes local runtime config, installs/enables the managed hook at [`hooks/openclaw-manager-prerouting/`](/Users/yangshangqing/metaclaw/hooks/openclaw-manager-prerouting), and installs a local sidecar user service before asking you to restart the Gateway.
 
+If OpenClaw is hosted and you do not control the Gateway hook directory or restart cycle, use:
+
+```bash
+node ~/.openclaw/tools/openclaw-manager/scripts/setup-openclaw-local-chain.ts --cloud-hosted
+```
+
+That keeps sidecar setup and public-fact auto-submit available, but intentionally falls back to manual `/adopt` instead of pretending automatic interception is active.
+
 Local verification helper:
 
 ```bash
@@ -108,9 +116,11 @@ Public fact live-ingest defaults to `http://142.171.114.18:56557/v1/ingest`. Ove
 Verification surfaces:
 
 - local sidecar health: `http://127.0.0.1:8791/health`
-- local session console: `http://127.0.0.1:8791/ui`
+- local session console admin surface: `http://127.0.0.1:8791/ui`
 - public ingest health: `http://142.171.114.18:56557/v1/health`
 - public facts list: `http://142.171.114.18:56557/v1/facts`
+
+By default, `http://127.0.0.1:8791/ui` is not a user-facing mobile URL. Only expose a session console link to end users if you have explicitly published the sidecar behind an external URL.
 
 ## Repository Layout
 

@@ -11,9 +11,16 @@ export interface OpenClawManagerLocalChainConfig {
     port: number;
     state_root: string;
   };
+  ui: {
+    public_base_url: string | null;
+  };
   hook: {
     enabled: boolean;
     hook_id: string;
+  };
+  host_integration: {
+    mode: "managed_hook" | "manual_adopt";
+    reason: string | null;
   };
   public_facts: {
     endpoint: string;
@@ -28,7 +35,9 @@ export interface OpenClawManagerLocalChainConfig {
 export interface OpenClawManagerLocalChainConfigOverrides {
   manager_base_url?: string;
   sidecar?: Partial<OpenClawManagerLocalChainConfig["sidecar"]>;
+  ui?: Partial<OpenClawManagerLocalChainConfig["ui"]>;
   hook?: Partial<OpenClawManagerLocalChainConfig["hook"]>;
+  host_integration?: Partial<OpenClawManagerLocalChainConfig["host_integration"]>;
   public_facts?: Partial<OpenClawManagerLocalChainConfig["public_facts"]>;
 }
 
@@ -59,9 +68,18 @@ export function createDefaultLocalChainConfig(
         overrides.sidecar?.state_root ?? path.join("~", ".openclaw", "skills", "manager")
       )
     },
+    ui: {
+      public_base_url: normalizeOptionalBaseUrl(overrides.ui?.public_base_url)
+    },
     hook: {
       enabled: overrides.hook?.enabled ?? true,
       hook_id: overrides.hook?.hook_id ?? OPENCLAW_MANAGER_PREROUTING_HOOK_ID
+    },
+    host_integration: {
+      mode:
+        overrides.host_integration?.mode ??
+        (overrides.hook?.enabled === false ? "manual_adopt" : "managed_hook"),
+      reason: overrides.host_integration?.reason ?? null
     },
     public_facts: {
       endpoint:
@@ -111,6 +129,17 @@ export function applyLocalChainConfigToEnv(
   env.OPENCLAW_MANAGER_BASE_URL = config.manager_base_url;
   env.OPENCLAW_MANAGER_PORT = `${config.sidecar.port}`;
   env.OPENCLAW_MANAGER_HOME = expandHomePath(config.sidecar.state_root);
+  if (config.ui.public_base_url) {
+    env.OPENCLAW_MANAGER_UI_PUBLIC_BASE_URL = config.ui.public_base_url;
+  } else {
+    delete env.OPENCLAW_MANAGER_UI_PUBLIC_BASE_URL;
+  }
+  env.OPENCLAW_MANAGER_HOST_INTEGRATION_MODE = config.host_integration.mode;
+  if (config.host_integration.reason) {
+    env.OPENCLAW_MANAGER_HOST_INTEGRATION_REASON = config.host_integration.reason;
+  } else {
+    delete env.OPENCLAW_MANAGER_HOST_INTEGRATION_REASON;
+  }
   env.OPENCLAW_MANAGER_PUBLIC_FACTS_ENDPOINT = config.public_facts.endpoint;
   env.OPENCLAW_MANAGER_PUBLIC_FACTS_TIMEOUT_MS = `${config.public_facts.timeout_ms}`;
   env.OPENCLAW_MANAGER_PUBLIC_FACTS_SCHEMA_VERSION = config.public_facts.schema_version;
@@ -128,7 +157,9 @@ export function applyLocalChainConfigToEnv(
 
 function normalizeLocalChainConfig(raw: Record<string, unknown>): OpenClawManagerLocalChainConfig {
   const sidecarRecord = asRecord(raw.sidecar);
+  const uiRecord = asRecord(raw.ui);
   const hookRecord = asRecord(raw.hook);
+  const hostIntegrationRecord = asRecord(raw.host_integration);
   const publicFactsRecord = asRecord(raw.public_facts);
 
   const sidecarOverrides: OpenClawManagerLocalChainConfigOverrides["sidecar"] | undefined =
@@ -150,6 +181,28 @@ function normalizeLocalChainConfig(raw: Record<string, unknown>): OpenClawManage
           ...(typeof hookRecord.hook_id === "string" ? { hook_id: hookRecord.hook_id } : {})
         }
       : undefined;
+
+  const uiOverrides: OpenClawManagerLocalChainConfigOverrides["ui"] | undefined = uiRecord
+    ? {
+        ...(typeof uiRecord.public_base_url === "string"
+          ? { public_base_url: uiRecord.public_base_url }
+          : {})
+      }
+    : undefined;
+
+  const hostIntegrationOverrides:
+    | OpenClawManagerLocalChainConfigOverrides["host_integration"]
+    | undefined = hostIntegrationRecord
+    ? {
+        ...(hostIntegrationRecord.mode === "managed_hook" ||
+        hostIntegrationRecord.mode === "manual_adopt"
+          ? { mode: hostIntegrationRecord.mode }
+          : {}),
+        ...(typeof hostIntegrationRecord.reason === "string"
+          ? { reason: hostIntegrationRecord.reason }
+          : {})
+      }
+    : undefined;
 
   const publicFactsOverrides:
     | OpenClawManagerLocalChainConfigOverrides["public_facts"]
@@ -179,7 +232,9 @@ function normalizeLocalChainConfig(raw: Record<string, unknown>): OpenClawManage
   return createDefaultLocalChainConfig({
     manager_base_url: typeof raw.manager_base_url === "string" ? raw.manager_base_url : undefined,
     sidecar: sidecarOverrides,
+    ui: uiOverrides,
     hook: hookOverrides,
+    host_integration: hostIntegrationOverrides,
     public_facts: publicFactsOverrides
   });
 }
@@ -192,6 +247,14 @@ function asRecord(value: unknown): Record<string, unknown> | null {
 
 function normalizeBaseUrl(baseUrl: string): string {
   return baseUrl.endsWith("/") ? baseUrl.slice(0, -1) : baseUrl;
+}
+
+function normalizeOptionalBaseUrl(baseUrl: string | null | undefined): string | null {
+  if (!baseUrl?.trim()) {
+    return null;
+  }
+
+  return normalizeBaseUrl(baseUrl.trim());
 }
 
 function expandHomePath(value: string): string {

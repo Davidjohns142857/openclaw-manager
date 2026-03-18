@@ -53,7 +53,7 @@ test("sidecar exposes canonical host prerouting over HTTP", async () => {
     assert.equal(response.statusCode, 200);
     const payload = response.body as {
       action: string;
-      session_console_url: string;
+      session_console_url: string | null;
       manager: {
         outcome: string;
         target_session_id: string | null;
@@ -62,9 +62,38 @@ test("sidecar exposes canonical host prerouting over HTTP", async () => {
     };
     assert.equal(payload.action, "short_circuit_to_manager");
     assert.equal(payload.manager.outcome, "adopted_new_session");
-    assert.equal(payload.session_console_url, "http://127.0.0.1:0/ui");
+    assert.equal(payload.session_console_url, null);
     assert.ok(payload.manager.target_session_id);
     assert.equal(payload.manager.inbound?.duplicate, false);
+  } finally {
+    await manager.cleanup();
+  }
+});
+
+test("sidecar prerouting returns a published console url only when explicitly configured", async () => {
+  const manager = await createTempManager({
+    ui: {
+      public_base_url: "https://manager.example.com"
+    }
+  });
+
+  try {
+    const server = new ManagerServer(
+      manager.controlPlane,
+      manager.config,
+      manager.publicFactAutoSubmitService
+    );
+    const response = await dispatchRoute(server, "POST", "/host/prerouting", {
+      text: "请帮我研究这个项目，后续持续跟进并整理交付。",
+      source_type: "telegram",
+      source_thread_key: "tg-prerouting-002",
+      message_id: "msg-prerouting-002",
+      received_at: "2026-03-18T10:00:00.000Z"
+    });
+
+    assert.equal(response.statusCode, 200);
+    const payload = response.body as { session_console_url: string | null };
+    assert.equal(payload.session_console_url, "https://manager.example.com/ui");
   } finally {
     await manager.cleanup();
   }
@@ -88,7 +117,7 @@ test("managed hook surfaces a suggestion message when manager recommends adopt",
       new Response(
         JSON.stringify({
           action: "show_adopt_suggestion",
-          session_console_url: "http://127.0.0.1:8791/ui",
+          session_console_url: null,
           manager: {
             outcome: "suggested",
             suggestion: {
@@ -108,7 +137,7 @@ test("managed hook surfaces a suggestion message when manager recommends adopt",
   assert.equal(event.messages.length, 1);
   assert.match(event.messages[0]!, /OpenClaw Manager 建议/);
   assert.match(event.messages[0]!, /\/adopt/);
-  assert.match(event.messages[0]!, /http:\/\/127\.0\.0\.1:8791\/ui/);
+  assert.doesNotMatch(event.messages[0]!, /控制台：/);
 });
 
 test("managed hook suppresses duplicate direct-adopt notifications on retried messages", async () => {
@@ -130,7 +159,7 @@ test("managed hook suppresses duplicate direct-adopt notifications on retried me
       new Response(
         JSON.stringify({
           action: "short_circuit_to_manager",
-          session_console_url: "http://127.0.0.1:8791/ui",
+          session_console_url: null,
           manager: {
             outcome: "routed_to_existing_session",
             target_session_id: "sess_existing",
@@ -171,7 +200,7 @@ test("managed hook uses the live sidecar prerouting route end-to-end", async () 
 
     assert.equal(event.messages.length, 1);
     assert.match(event.messages[0]!, /OpenClaw Manager 已收编/);
-    assert.match(event.messages[0]!, new RegExp(sidecar.baseUrl.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+    assert.doesNotMatch(event.messages[0]!, /控制台：/);
   } finally {
     await sidecar.cleanup();
   }

@@ -1,5 +1,9 @@
 import { isoNow } from "../shared/time.ts";
 import type { ManagerConfig, PublicFactsAutoSubmitStatus } from "../shared/types.ts";
+import {
+  buildLocalSessionConsoleUrl,
+  buildPublishedSessionConsoleUrl
+} from "../shared/ui.ts";
 
 export function buildHealthPayload(
   config: ManagerConfig,
@@ -7,6 +11,8 @@ export function buildHealthPayload(
   publicFactAutoSubmit?: PublicFactsAutoSubmitStatus,
   effectivePort: number = config.port
 ): Record<string, unknown> {
+  const publishedSessionConsoleUrl = buildPublishedSessionConsoleUrl(config.ui.public_base_url);
+
   return {
     status: "ok",
     now: isoNow(),
@@ -14,7 +20,13 @@ export function buildHealthPayload(
     port: effectivePort,
     session_count: sessionCount,
     ui: {
-      session_console_url: `http://127.0.0.1:${effectivePort}/ui`
+      access_mode: publishedSessionConsoleUrl ? "external" : "local_only",
+      session_console_url: publishedSessionConsoleUrl,
+      local_session_console_url: buildLocalSessionConsoleUrl(effectivePort)
+    },
+    host_integration: {
+      mode: config.host_integration.mode,
+      reason: config.host_integration.reason
     },
     public_facts: {
       endpoint: config.public_facts.endpoint,
